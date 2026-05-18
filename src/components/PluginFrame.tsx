@@ -159,7 +159,8 @@ export function PluginFrame({ plugin, onClose, inline }: { plugin: Plugin; onClo
           reply(useMachineStore.getState().controllerSettings); break
         case 'getSettings': {
           const fs = plugin.fs
-          fetchFileContent(`/plugins/${plugin.id}/settings.json`, fs)
+          const prefix = fs === 'sd' ? '/sd' : ''
+          fetchFileContent(`${prefix}/plugins/${plugin.id}/settings.json`, fs)
             .then(text => reply(JSON.parse(text)))
             .catch(() => reply({}))
           break
