@@ -166,8 +166,26 @@ export function PluginFrame({ plugin, onClose, inline }: { plugin: Plugin; onClo
           reply(useMachineStore.getState().controllerSettings); break
         case 'getSettings': {
           const fs = plugin.fs
-          fetchFileContent(`/plugins/${plugin.id}/settings.json`, fs)
-            .then(text => reply(JSON.parse(text)))
+          const paths = fs === 'sd'
+            ? [`/sd/plugins/${plugin.id}/settings.json`, `/plugins/${plugin.id}/settings.json`]
+            : [`/plugins/${plugin.id}/settings.json`]
+
+          const tryRead = async () => {
+            for (const path of paths) {
+              try {
+                const text = await fetchFileContent(path, fs)
+                const trimmed = text.replace(/^\uFEFF/, '').trim()
+                if (!trimmed) return {}
+                return JSON.parse(trimmed)
+              } catch {
+                // Try next path variant.
+              }
+            }
+            return {}
+          }
+
+          tryRead()
+            .then(data => reply(data))
             .catch(() => reply({}))
           break
         }
