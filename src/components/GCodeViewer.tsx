@@ -1,9 +1,10 @@
-import { useRef, useEffect, useLayoutEffect, useState, useCallback } from 'react'
-import { Eye, Axis3D, Maximize2, Crosshair, Navigation, Play, Pause, Square, CloudDrizzle, Waves, PowerOff, Box, Zap, Orbit, Hand } from 'lucide-react'
-import { type GCodeModel, type Segment, resolveRunningSourceLine } from '../lib/gcode'
+import { useRef, useEffect, useLayoutEffect, useState, useCallback, useMemo } from 'react'
+import { Eye, Axis3D, Maximize2, Crosshair, Navigation, Play, Pause, Square, CloudDrizzle, Waves, PowerOff, Box, Zap, Orbit, Hand, FileText } from 'lucide-react'
+import { type GCodeModel, type Segment, resolveRunningSourceLine, buildSourceLineIndex } from '../lib/gcode'
 import { useMachineStore } from '../store'
 import { useGCodeStore } from '../store/gcode'
 import { sendRaw, sendRealtime } from '../lib/ws'
+import { GCodeTextPanel } from './GCodeTextPanel'
 import type { ControllerSettings, MachineStatus, Units } from '../types'
 import { displayToMm, mmToDisplay } from '../lib/units'
 import { formatRuntime, useJobRuntimeEstimate } from '../lib/jobRuntime'
@@ -754,6 +755,44 @@ function findToolpathProgress(
   return previous
 }
 
+/** Conservative progress for line-number display — advances one segment at a time. */
+function findLineToolpathProgress(
+  segments: Segment[],
+  px: number,
+  py: number,
+  previous: ToolpathProgress | null,
+): ToolpathProgress | null {
+  if (segments.length === 0) return null
+  if (!previous) return { segmentIndex: 0, fraction: 0 }
+
+  const toleranceSq = FOLLOW_TOLERANCE_MM ** 2
+  const current = segments[previous.segmentIndex]
+  const onCurrent = measureProgressAlongSegment(current, px, py)
+  if (onCurrent.distanceSq <= toleranceSq) {
+    return {
+      segmentIndex: previous.segmentIndex,
+      fraction: Math.max(previous.fraction, onCurrent.fraction),
+    }
+  }
+
+  const nextIndex = previous.segmentIndex + 1
+  if (nextIndex < segments.length) {
+    const onNext = measureProgressAlongSegment(segments[nextIndex], px, py)
+    if (onNext.distanceSq <= toleranceSq) {
+      return { segmentIndex: nextIndex, fraction: onNext.fraction }
+    }
+  }
+
+  if (previous.fraction >= 0.999) {
+    const endDistSq = pointDistanceSq(px, py, current.x1, current.y1)
+    if (endDistSq <= ENDPOINT_TOLERANCE_MM ** 2 && nextIndex < segments.length) {
+      return { segmentIndex: nextIndex, fraction: 0 }
+    }
+  }
+
+  return previous
+}
+
 function drawGrid(ctx: CanvasRenderingContext2D, w: number, h: number, t: Transform, units: Units) {
   const mmPerPx = 1 / t.scale
   const displayPerPx = mmToDisplay(mmPerPx, units)
@@ -933,6 +972,8 @@ export function GCodeViewer({ className, isTablet, showOverrides }: Props) {
   const webglCanvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const model = useGCodeStore(s => s.model)
+  const sourceText = useGCodeStore(s => s.sourceText)
+  const fetchSourceText = useGCodeStore(s => s.fetchSourceText)
   const fileName = useGCodeStore(s => s.fileName)
   const loadedPath = useGCodeStore(s => s.loadedPath)
   const loading = useGCodeStore(s => s.loading)
@@ -962,6 +1003,7 @@ export function GCodeViewer({ className, isTablet, showOverrides }: Props) {
   const renderRef = useRef<() => void>(() => {})
   const needsFitRef = useRef(true)
   const progressRef = useRef<ToolpathProgress | null>(null)
+  const lineProgressRef = useRef<ToolpathProgress | null>(null)
   const prevIsRunningRef = useRef(false)
   const prevModelRef = useRef<GCodeModel | null>(null)
 
@@ -1432,8 +1474,14 @@ export function GCodeViewer({ className, isTablet, showOverrides }: Props) {
   const isViewerStartBlocked = loading || isProcessing2D || pendingPath !== null
   const is3DToggleDisabled = pendingPath !== null || isProcessing2D || (!!model && !is3DReady)
   const [autoFollow, setAutoFollow] = useState(true)
+  const [showCodePanel, setShowCodePanel] = useState(false)
+  const [sourceTextLoading, setSourceTextLoading] = useState(false)
   const [coolantState, setCoolantState] = useState<'off' | 'mist' | 'flood'>('off')
   const [currentSourceLine, setCurrentSourceLine] = useState<number | null>(null)
+  const sourceTextIndex = useMemo(
+    () => (sourceText ? buildSourceLineIndex(sourceText) : null),
+    [sourceText],
+  )
 
   // Keep refs in sync so render() (called from non-React contexts) reads current values
   showRapidsRef.current = showRapids
@@ -1455,6 +1503,7 @@ export function GCodeViewer({ className, isTablet, showOverrides }: Props) {
       : null
     markerGeometryRef.current = null
     progressRef.current = null
+    lineProgressRef.current = null
     if (model && model !== prevModelRef.current) {
       needsFitRef.current = true
       if (is3D && !storeGeometry3D) {
@@ -1781,29 +1830,58 @@ export function GCodeViewer({ className, isTablet, showOverrides }: Props) {
   useEffect(() => {
     if (isRunning && modelRef.current) {
       const progressOverlayEnabled = modelRef.current.segments.length <= LARGE_PROGRESS_OVERLAY_SEGMENT_LIMIT
-
       const freshStart = !prevIsRunningRef.current || model !== prevModelRef.current
-      if (!progressOverlayEnabled) {
-        progressRef.current = null
-      } else if (freshStart) {
+
+      if (freshStart) {
         progressRef.current = { segmentIndex: 0, fraction: 0 }
+        lineProgressRef.current = { segmentIndex: 0, fraction: 0 }
       } else {
-        progressRef.current = findToolpathProgress(
+        lineProgressRef.current = findLineToolpathProgress(
           modelRef.current.segments,
           status.wpos.x,
           status.wpos.y,
-          progressRef.current,
+          lineProgressRef.current,
         )
+        if (progressOverlayEnabled) {
+          progressRef.current = findToolpathProgress(
+            modelRef.current.segments,
+            status.wpos.x,
+            status.wpos.y,
+            progressRef.current,
+          )
+        } else {
+          progressRef.current = null
+        }
       }
     } else {
       progressRef.current = null
+      lineProgressRef.current = null
     }
-    if (isRunning && modelRef.current) {
-      setCurrentSourceLine(resolveRunningSourceLine(
-        modelRef.current,
-        progressRef.current?.segmentIndex ?? null,
-        status.sdPercent,
-      ))
+
+    if (isRunning && (modelRef.current || sourceText)) {
+      const mdl = modelRef.current
+      const idx = mdl
+        ? {
+            sourceLineCount: mdl.sourceLineCount,
+            lineByteOffsets: mdl.lineByteOffsets,
+            sourceByteLength: mdl.sourceByteLength,
+            lineNumberToSourceLine: mdl.lineNumberToSourceLine,
+          }
+        : sourceTextIndex
+
+      const lineProgress = lineProgressRef.current
+      setCurrentSourceLine(resolveRunningSourceLine({
+        sourceLineCount: idx?.sourceLineCount ?? 0,
+        lineByteOffsets: idx?.lineByteOffsets,
+        sourceByteLength: idx?.sourceByteLength,
+        lineNumberToSourceLine: idx?.lineNumberToSourceLine,
+        segments: mdl?.segments,
+        segmentIndex: lineProgress?.segmentIndex ?? null,
+        segmentFraction: lineProgress?.fraction ?? 0,
+        executingLineNumber: status.lineNumber,
+        // SD percent is bytes read into the parser buffer — only use when no toolpath model.
+        sdPercent: mdl ? undefined : status.sdPercent,
+      }))
     } else {
       setCurrentSourceLine(null)
     }
@@ -1826,6 +1904,9 @@ export function GCodeViewer({ className, isTablet, showOverrides }: Props) {
     status.wco.x,
     status.wco.y,
     status.sdPercent,
+    status.lineNumber,
+    sourceText,
+    sourceTextIndex,
     controllerSettings.maxTravelX,
     controllerSettings.maxTravelY,
     controllerSettings.homingDirInvert,
@@ -2015,6 +2096,15 @@ export function GCodeViewer({ className, isTablet, showOverrides }: Props) {
 
   const loadFromText = useGCodeStore(s => s.loadFromText)
 
+  useEffect(() => {
+    if (!showCodePanel || sourceText || !loadedPath) return
+    let cancelled = false
+    setSourceTextLoading(true)
+    fetchSourceText()
+      .finally(() => { if (!cancelled) setSourceTextLoading(false) })
+    return () => { cancelled = true }
+  }, [showCodePanel, sourceText, loadedPath, fetchSourceText])
+
   function onDrop(e: React.DragEvent) {
     e.preventDefault()
     const file = e.dataTransfer.files?.[0]
@@ -2135,6 +2225,18 @@ export function GCodeViewer({ className, isTablet, showOverrides }: Props) {
             </button>
           )}
           <button
+            className={`${btnCls} ${showCodePanel ? 'text-info bg-info/10' : 'text-text-dim bg-elevated hover:text-text-primary'} ${!fileName && !loadedPath ? 'opacity-50 cursor-not-allowed hover:text-text-dim hover:bg-elevated' : ''}`}
+            onClick={() => {
+              if (!fileName && !loadedPath) return
+              setShowCodePanel(v => !v)
+            }}
+            title="Show G-code source text"
+            disabled={!fileName && !loadedPath}
+          >
+            <FileText size={iconSize} />
+            <span>Code</span>
+          </button>
+          <button
             className={`${btnCls} text-text-muted hover:text-text-primary hover:bg-elevated`}
             onClick={() => fitToView()}
             title="Fit entire path to view"
@@ -2147,9 +2249,10 @@ export function GCodeViewer({ className, isTablet, showOverrides }: Props) {
         </div>
       </div>
 
+      <div className={`flex flex-1 min-h-0 ${showCodePanel ? 'flex-col lg:flex-row' : ''}`}>
       <div
         ref={containerRef}
-        className="flex-1 min-h-0 relative cursor-grab active:cursor-grabbing"
+        className={`${showCodePanel ? 'flex-1 min-h-[180px] lg:min-h-0 lg:min-w-0' : 'flex-1 min-h-0'} relative cursor-grab active:cursor-grabbing`}
         style={{ touchAction: 'none' }}
         onDrop={onDrop}
         onDragOver={onDragOver}
@@ -2352,6 +2455,17 @@ export function GCodeViewer({ className, isTablet, showOverrides }: Props) {
             <text x="16" y="18" fontSize="10" fill={AXIS_Y_COLOR} fontFamily="ui-monospace,monospace" fontWeight="700">Y</text>
           </svg>
         )}
+      </div>
+
+      {showCodePanel && (
+        <GCodeTextPanel
+          text={sourceText}
+          loading={sourceTextLoading}
+          activeLine={currentSourceLine}
+          followActiveLine={isJobRunning || isJobHeld}
+          className={`${isTablet ? 'h-[38vh]' : 'h-[34vh]'} lg:h-auto lg:w-[min(420px,38%)] border-t lg:border-t-0 lg:border-l border-border shrink-0`}
+        />
+      )}
       </div>
 
       {/* Permanent bottom strip */}

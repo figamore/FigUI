@@ -17,6 +17,7 @@ export function parseStatusReport(raw: string): Partial<MachineStatus> | null {
   status.spindle = 0
 
   let hasSd = false
+  let hasLn = false
   for (let i = 1; i < parts.length; i++) {
     const p = parts[i]
     if (p.startsWith('WPos:')) {
@@ -25,6 +26,10 @@ export function parseStatusReport(raw: string): Partial<MachineStatus> | null {
       status.mpos = parsePos(p.slice(5))
     } else if (p.startsWith('WCO:')) {
       status.wco = parsePos(p.slice(4))
+    } else if (p.startsWith('Ln:')) {
+      hasLn = true
+      const ln = parseInt(p.slice(3), 10)
+      status.lineNumber = Number.isFinite(ln) && ln > 0 ? ln : undefined
     } else if (p.startsWith('FS:')) {
       const [f, s] = p.slice(3).split(',').map(Number)
       status.feed = f ?? 0
@@ -47,6 +52,9 @@ export function parseStatusReport(raw: string): Partial<MachineStatus> | null {
   if (!hasSd) {
     status.sdPercent = undefined
     status.sdFilename = undefined
+  }
+  if (!hasLn) {
+    status.lineNumber = undefined
   }
 
   return status

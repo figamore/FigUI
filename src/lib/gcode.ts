@@ -25,6 +25,12 @@ export interface GCodeModel {
   totalLines: number
   /** Total lines in the source file (including blanks and comments) */
   sourceLineCount: number
+  /** Byte offset of each 1-based source line start (for SD progress mapping) */
+  lineByteOffsets: number[]
+  /** Total byte length of the source text (including newlines) */
+  sourceByteLength: number
+  /** Maps G-code N-word values to 1-based source line numbers */
+  lineNumberToSourceLine: Record<number, number>
 }
 
 /** Map segment index → approximate source-line fraction (0..1) */
@@ -32,7 +38,30 @@ export function segmentProgress(idx: number, total: number): number {
   return total > 0 ? idx / total : 0
 }
 
+export function buildSourceLineIndex(text: string) {
+  const lines = text.split('\n')
+  const lineByteOffsets: number[] = []
+  const lineNumberToSourceLine: Record<number, number> = {}
+  let sourceByteLength = 0
+
+  for (let i = 0; i < lines.length; i++) {
+    lineByteOffsets.push(sourceByteLength)
+    sourceByteLength += lines[i].length + 1
+    const stripped = lines[i].split(';')[0].split('(')[0].trim().toUpperCase()
+    const nMatch = stripped.match(/(?:^|\s)N(\d+)\b/)
+    if (nMatch) lineNumberToSourceLine[parseInt(nMatch[1], 10)] = i + 1
+  }
+
+  return {
+    sourceLineCount: lines.length,
+    lineByteOffsets,
+    sourceByteLength,
+    lineNumberToSourceLine,
+  }
+}
+
 export function parseGCode(text: string): GCodeModel {
+  const { sourceLineCount, lineByteOffsets, sourceByteLength, lineNumberToSourceLine } = buildSourceLineIndex(text)
   const segments: Segment[] = []
   let x = 0, y = 0, z = 0
   let offX = 0, offY = 0, offZ = 0        // G92 coordinate offsets
@@ -69,6 +98,7 @@ export function parseGCode(text: string): GCodeModel {
   for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
     const sourceLine = lineIndex + 1
     const raw = lines[lineIndex]
+
     const line = raw.split(';')[0].split('(')[0].trim().toUpperCase()
     if (!line) continue
 
@@ -237,25 +267,119 @@ export function parseGCode(text: string): GCodeModel {
     bounds.maxX = bounds.maxY = bounds.maxZ = 1
   }
 
-  return { segments, bounds, totalLines: segments.length, sourceLineCount: lines.length }
+  return {
+    segments,
+    bounds,
+    totalLines: segments.length,
+    sourceLineCount,
+    lineByteOffsets,
+    sourceByteLength,
+    lineNumberToSourceLine,
+  }
+}
+
+function sourceLineAtByteOffset(lineByteOffsets: number[], sourceByteLength: number, bytePos: number): number {
+  const clamped = Math.max(0, Math.min(sourceByteLength, bytePos))
+  let lo = 0
+  let hi = lineByteOffsets.length - 1
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi + 1) / 2)
+    if (lineByteOffsets[mid] <= clamped) lo = mid
+    else hi = mid - 1
+  }
+  return lo + 1
+}
+
+function clamp01(value: number) {
+  return Math.max(0, Math.min(1, value))
+}
+
+function segmentPathLength(seg: Segment): number {
+  return Math.hypot(seg.x1 - seg.x0, seg.y1 - seg.y0, seg.z1 - seg.z0)
+}
+
+/** Interpolate source line from fractional progress along the toolpath. */
+function resolveSourceLineFromSegmentProgress(
+  segments: Segment[],
+  segmentIndex: number,
+  fraction: number,
+): number | null {
+  if (!segments.length) return null
+
+  const lengths = segments.map(segmentPathLength)
+  const total = lengths.reduce((sum, len) => sum + len, 0)
+  if (total <= 0) return segments[0].sourceLine ?? null
+
+  const idx = Math.max(0, Math.min(segments.length - 1, segmentIndex))
+  let target = 0
+  for (let i = 0; i < idx; i++) target += lengths[i]
+  target += lengths[idx] * clamp01(fraction)
+
+  let dist = 0
+  for (let i = 0; i < segments.length; i++) {
+    const len = lengths[i]
+    const nextDist = dist + len
+    if (nextDist >= target - 1e-9 || i === segments.length - 1) {
+      const localT = len > 0 ? clamp01((target - dist) / len) : 0
+      const line0 = segments[i].sourceLine ?? 1
+      const line1 = segments[i + 1]?.sourceLine ?? line0
+      if (line0 === line1) return line0
+      return Math.max(1, Math.round(line0 + localT * (line1 - line0)))
+    }
+    dist = nextDist
+  }
+
+  return segments[segments.length - 1].sourceLine ?? null
+}
+
+export interface RunningLineContext {
+  sourceLineCount: number
+  lineByteOffsets?: number[]
+  sourceByteLength?: number
+  lineNumberToSourceLine?: Record<number, number>
+  segments?: Segment[]
+  segmentIndex?: number | null
+  /** 0–1 progress through the current segment */
+  segmentFraction?: number
+  /** FluidNC |Ln:N| from the planner block currently executing */
+  executingLineNumber?: number
+  /** SD file read progress 0–100 (bytes read, may be ahead of execution) */
+  sdPercent?: number
 }
 
 /** Resolve the current source line while a job is running. */
-export function resolveRunningSourceLine(
-  model: GCodeModel | null,
-  segmentIndex: number | null,
-  sdPercent: number | undefined,
-): number | null {
-  if (!model) return null
-  if (segmentIndex != null) {
-    const seg = model.segments[segmentIndex]
-    if (seg?.sourceLine != null) return seg.sourceLine
+export function resolveRunningSourceLine(ctx: RunningLineContext): number | null {
+  const {
+    sourceLineCount,
+    lineByteOffsets,
+    sourceByteLength,
+    lineNumberToSourceLine,
+    segments,
+    segmentIndex,
+    segmentFraction = 0,
+    executingLineNumber,
+    sdPercent,
+  } = ctx
+
+  if (sourceLineCount <= 0) return null
+
+  // Best: tool position along parsed path — interpolates between source lines.
+  if (segmentIndex != null && segments?.length) {
+    const fromPath = resolveSourceLineFromSegmentProgress(segments, segmentIndex, segmentFraction)
+    if (fromPath != null) return fromPath
   }
-  if (sdPercent != null && model.sourceLineCount > 0) {
-    return Math.max(1, Math.min(
-      model.sourceLineCount,
-      Math.round((sdPercent / 100) * model.sourceLineCount),
-    ))
+
+  // FluidNC Ln: updates per planner block (often coarse N-word steps).
+  if (executingLineNumber != null && executingLineNumber > 0) {
+    const mapped = lineNumberToSourceLine?.[executingLineNumber]
+    if (mapped != null) return mapped
   }
+
+  // Last resort: SD percent is bytes read from file (often ahead of execution).
+  if (sdPercent != null && lineByteOffsets && sourceByteLength && sourceByteLength > 0) {
+    const bytePos = (sdPercent / 100) * sourceByteLength
+    return sourceLineAtByteOffset(lineByteOffsets, sourceByteLength, bytePos)
+  }
+
   return null
 }

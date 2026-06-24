@@ -22,6 +22,8 @@ interface GCodeStore {
 
   // Built data (shared across all GCodeViewer instances — one parse, one build)
   model: GCodeModel | null
+  /** Raw G-code source text for the loaded file */
+  sourceText: string | null
   paths2D: Built2DPaths | null
   geometry3D: Geometry3D | null
 
@@ -41,6 +43,7 @@ interface GCodeStore {
   // Actions
   loadFile: (path: string) => Promise<void>
   loadFromText: (text: string, name: string) => Promise<void>
+  fetchSourceText: () => Promise<string | null>
   cancelAndStartJob: (path: string) => void
   setShowRapids: (v: boolean) => void
   clear: () => void
@@ -74,6 +77,7 @@ export const useGCodeStore = create<GCodeStore>((set, get) => ({
   loadedPath: null,
   fileName: null,
   model: null,
+  sourceText: null,
   paths2D: null,
   geometry3D: null,
   showRapids: true,
@@ -105,6 +109,7 @@ export const useGCodeStore = create<GCodeStore>((set, get) => ({
       is3DReady: false,
       geometry3D: null,
       paths2D: null,
+      sourceText: null,
     })
 
     try {
@@ -171,6 +176,7 @@ export const useGCodeStore = create<GCodeStore>((set, get) => ({
       const fileName = path.split('/').pop() ?? path
       set({
         model: parsed,
+        sourceText: text,
         paths2D: built2DPaths,
         fileName,
         loadedPath: path,
@@ -239,6 +245,7 @@ export const useGCodeStore = create<GCodeStore>((set, get) => ({
       is3DReady: false,
       geometry3D: null,
       paths2D: null,
+      sourceText: null,
     })
 
     try {
@@ -260,6 +267,7 @@ export const useGCodeStore = create<GCodeStore>((set, get) => ({
 
       set({
         model: parsed,
+        sourceText: text,
         paths2D: built2DPaths,
         fileName: name,
         loadedPath: null,
@@ -303,6 +311,23 @@ export const useGCodeStore = create<GCodeStore>((set, get) => ({
     }
   },
 
+  fetchSourceText: async () => {
+    const { sourceText, loadedPath } = get()
+    if (sourceText) return sourceText
+    if (!loadedPath) return null
+
+    try {
+      const res = await fetch(`${getBase()}${loadedPath}`)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const text = await res.text()
+      if (get().loadedPath === loadedPath) set({ sourceText: text })
+      return text
+    } catch (e) {
+      console.error('Failed to fetch G-code text:', e)
+      return null
+    }
+  },
+
   cancelAndStartJob: (path: string) => {
     // Stop any in-flight download immediately. The ESP32 must not be serving a
     abortInFlight()
@@ -318,6 +343,7 @@ export const useGCodeStore = create<GCodeStore>((set, get) => ({
       fileName: path.split('/').pop() ?? path,
       // Drop any partial built data — they're stale now.
       model: null,
+      sourceText: null,
       paths2D: null,
       geometry3D: null,
       is3DReady: false,
@@ -364,6 +390,7 @@ export const useGCodeStore = create<GCodeStore>((set, get) => ({
       loadedPath: null,
       fileName: null,
       model: null,
+      sourceText: null,
       paths2D: null,
       geometry3D: null,
       loading: false,
