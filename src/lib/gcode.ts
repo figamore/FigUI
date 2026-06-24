@@ -14,12 +14,17 @@ export interface Segment {
   i?: number; j?: number; k?: number
   /** true = clockwise arc (G2) */
   cw?: boolean
+  /** 1-based line number in the source file that created this segment */
+  sourceLine?: number
 }
 
 export interface GCodeModel {
   segments: Segment[]
   bounds: { minX: number; minY: number; minZ: number; maxX: number; maxY: number; maxZ: number }
+  /** Number of toolpath segments (motion blocks) */
   totalLines: number
+  /** Total lines in the source file (including blanks and comments) */
+  sourceLineCount: number
 }
 
 /** Map segment index → approximate source-line fraction (0..1) */
@@ -56,8 +61,14 @@ export function parseGCode(text: string): GCodeModel {
     if (pz > bounds.maxZ) bounds.maxZ = pz
   }
 
+  function pushSegment(seg: Omit<Segment, 'sourceLine'>, sourceLine: number) {
+    segments.push({ ...seg, sourceLine })
+  }
+
   const lines = text.split('\n')
-  for (const raw of lines) {
+  for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+    const sourceLine = lineIndex + 1
+    const raw = lines[lineIndex]
     const line = raw.split(';')[0].split('(')[0].trim().toUpperCase()
     if (!line) continue
 
@@ -125,13 +136,13 @@ export function parseGCode(text: string): GCodeModel {
         z = (words.Z ?? z) + offZ
         expandBounds(x0, y0, z0)
         expandBounds(x, y, z)
-        segments.push({ x0, y0, z0, x1: x, y1: y, z1: z, moveType: 'rapid' })
+        pushSegment({ x0, y0, z0, x1: x, y1: y, z1: z, moveType: 'rapid' }, sourceLine)
       }
       const xi = x, yi = y, zi = z
       x = 0; y = 0; z = 0
       expandBounds(xi, yi, zi)
       expandBounds(x, y, z)
-      segments.push({ x0: xi, y0: yi, z0: zi, x1: x, y1: y, z1: z, moveType: 'rapid' })
+      pushSegment({ x0: xi, y0: yi, z0: zi, x1: x, y1: y, z1: z, moveType: 'rapid' }, sourceLine)
       continue
     }
 
@@ -209,13 +220,13 @@ export function parseGCode(text: string): GCodeModel {
               }
             }
           }
-          segments.push({ x0, y0, z0, x1: x, y1: y, z1: z, moveType, i, j, k, cw, ...feedData })
+          pushSegment({ x0, y0, z0, x1: x, y1: y, z1: z, moveType, i, j, k, cw, ...feedData }, sourceLine)
         } else {
           // Treat degenerate arc as a line
-          segments.push({ x0, y0, z0, x1: x, y1: y, z1: z, moveType, ...feedData })
+          pushSegment({ x0, y0, z0, x1: x, y1: y, z1: z, moveType, ...feedData }, sourceLine)
         }
       } else {
-        segments.push({ x0, y0, z0, x1: x, y1: y, z1: z, moveType, ...feedData })
+        pushSegment({ x0, y0, z0, x1: x, y1: y, z1: z, moveType, ...feedData }, sourceLine)
       }
     }
   }
@@ -226,5 +237,25 @@ export function parseGCode(text: string): GCodeModel {
     bounds.maxX = bounds.maxY = bounds.maxZ = 1
   }
 
-  return { segments, bounds, totalLines: segments.length }
+  return { segments, bounds, totalLines: segments.length, sourceLineCount: lines.length }
+}
+
+/** Resolve the current source line while a job is running. */
+export function resolveRunningSourceLine(
+  model: GCodeModel | null,
+  segmentIndex: number | null,
+  sdPercent: number | undefined,
+): number | null {
+  if (!model) return null
+  if (segmentIndex != null) {
+    const seg = model.segments[segmentIndex]
+    if (seg?.sourceLine != null) return seg.sourceLine
+  }
+  if (sdPercent != null && model.sourceLineCount > 0) {
+    return Math.max(1, Math.min(
+      model.sourceLineCount,
+      Math.round((sdPercent / 100) * model.sourceLineCount),
+    ))
+  }
+  return null
 }

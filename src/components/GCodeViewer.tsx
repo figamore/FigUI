@@ -1,6 +1,6 @@
 import { useRef, useEffect, useLayoutEffect, useState, useCallback } from 'react'
 import { Eye, Axis3D, Maximize2, Crosshair, Navigation, Play, Pause, Square, CloudDrizzle, Waves, PowerOff, Box, Zap, Orbit, Hand } from 'lucide-react'
-import { type GCodeModel, type Segment } from '../lib/gcode'
+import { type GCodeModel, type Segment, resolveRunningSourceLine } from '../lib/gcode'
 import { useMachineStore } from '../store'
 import { useGCodeStore } from '../store/gcode'
 import { sendRaw, sendRealtime } from '../lib/ws'
@@ -1433,6 +1433,7 @@ export function GCodeViewer({ className, isTablet, showOverrides }: Props) {
   const is3DToggleDisabled = pendingPath !== null || isProcessing2D || (!!model && !is3DReady)
   const [autoFollow, setAutoFollow] = useState(true)
   const [coolantState, setCoolantState] = useState<'off' | 'mist' | 'flood'>('off')
+  const [currentSourceLine, setCurrentSourceLine] = useState<number | null>(null)
 
   // Keep refs in sync so render() (called from non-React contexts) reads current values
   showRapidsRef.current = showRapids
@@ -1797,6 +1798,15 @@ export function GCodeViewer({ className, isTablet, showOverrides }: Props) {
     } else {
       progressRef.current = null
     }
+    if (isRunning && modelRef.current) {
+      setCurrentSourceLine(resolveRunningSourceLine(
+        modelRef.current,
+        progressRef.current?.segmentIndex ?? null,
+        status.sdPercent,
+      ))
+    } else {
+      setCurrentSourceLine(null)
+    }
     prevIsRunningRef.current = isRunning
     prevModelRef.current = model
 
@@ -1815,6 +1825,7 @@ export function GCodeViewer({ className, isTablet, showOverrides }: Props) {
     status.wpos.z,
     status.wco.x,
     status.wco.y,
+    status.sdPercent,
     controllerSettings.maxTravelX,
     controllerSettings.maxTravelY,
     controllerSettings.homingDirInvert,
@@ -2348,6 +2359,11 @@ export function GCodeViewer({ className, isTablet, showOverrides }: Props) {
         {/* Progress bar — only while a job is active */}
         {(isJobRunning || isJobHeld) && (
           <div className="flex flex-col gap-1.5">
+            {currentSourceLine != null && (
+              <div className="text-[11px] font-mono text-text-muted tabular-nums">
+                Line {currentSourceLine}{model?.sourceLineCount ? ` / ${model.sourceLineCount}` : ''}
+              </div>
+            )}
             {progressPercent != null && (
               <div className="flex items-center gap-2.5">
                 <div className="flex-1 h-1.5 bg-elevated rounded-full overflow-hidden">
