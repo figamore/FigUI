@@ -70,7 +70,7 @@
       "name": "Draw",
       "description": "Create simple shapes and generate G-code in FigUI.",
       "version": "1.0.0",
-      "author": "lytke",
+      "author": "Lytke",
       "base": "https://raw.githubusercontent.com/figamore/FigUI/main/plugins/draw/"
     }
   ]

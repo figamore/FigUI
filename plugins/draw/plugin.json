@@ -5,5 +5,5 @@
   "entry": "index.html",
   "layout": "full",
   "icon": "icon.png",
-  "files": ["index.html", "plugin.json", "icon.png"]
+  "files": ["index.html", "icon.png"]
 }
