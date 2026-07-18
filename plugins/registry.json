@@ -64,6 +64,14 @@
       "version": "1.0.0",
       "author": "Myles (NEWTech Creative)",
       "base": "https://raw.githubusercontent.com/figamore/FigUI/main/plugins/motion-slider/"
+    },
+    {
+      "id": "draw",
+      "name": "Draw",
+      "description": "Create simple shapes and generate G-code in FigUI.",
+      "version": "1.0.0",
+      "author": "lytke",
+      "base": "https://raw.githubusercontent.com/figamore/FigUI/main/plugins/draw/"
     }
   ]
 }
