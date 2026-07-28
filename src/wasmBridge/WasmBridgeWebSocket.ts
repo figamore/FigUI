@@ -10,11 +10,16 @@
 // Known limitation: on real hardware, /command (src/lib/http.ts) and this
 // WebSocket are genuinely independent connections, each answered by its own
 // Channel object, so their response streams never cross. Here they both
-// share the one physical ShimChannel (see commandBridge.ts's module
-// comment), so an HTTP-shaped /command call that races with WebSocket
-// traffic could in principle have its response line misattributed. In
-// practice /command calls are rare (mostly startup queries), so this is
-// left as a known gap rather than adding a second wasm-side channel.
+// share the one physical ShimChannel. demo/index.html's 'fluidnc-shim-
+// command' RPC (see commandBridge.ts, shimTransport.ts's sendShimCommand())
+// now queues /command calls against each other centrally, so two of those
+// can no longer misattribute each other's response lines -- but an
+// HTTP-shaped /command call can still in principle race a raw G-code send
+// made directly through this WebSocket (send() below posts straight to the
+// shim, bypassing that queue), and have its ok/error line misattributed to
+// whichever one asked first. In practice /command calls are rare (mostly
+// startup queries), so that narrower remaining gap is left as-is rather
+// than adding a second wasm-side channel.
 import { sendToShim, addShimLineListener } from './shimTransport'
 
 export class WasmBridgeWebSocket extends EventTarget {
