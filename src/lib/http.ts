@@ -70,7 +70,7 @@ export const sendSilent = (cmd: string) =>
   get('/command_silent', { plain: cmd })
 
 export const getDeviceInfoFast = () =>
-  get('/command', { plain: '[ESP800]' }, 4000)
+  get('/command', { plain: '[ESP800]json=yes' }, 4000)
 
 export function listFiles(path: string, fs: 'sd' | 'local' = 'sd'): Promise<FileListResult> {
   return serialize(async () => {
@@ -214,7 +214,7 @@ export async function saveFileContent(
   await uploadFile(path, file, fs)
 }
 
-export const getDeviceInfo = () => sendCommand('[ESP800]')
+export const getDeviceInfo = () => sendCommand('[ESP800]json=yes')
 
 export function uploadFirmware(
   file: File,

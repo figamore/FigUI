@@ -7,28 +7,12 @@
 // WasmBridgeWebSocket reads from, using shimTransport's sendShimCommand()
 // (demo/index.html collects the response and queues concurrent sends
 // centrally, so this doesn't need to serialize them itself anymore).
-// [ESP800] is the one exception: FluidNC's real handler for it lives in
-// WebUI/WifiConfig.cpp, also excluded, and its only real purpose here is
-// the capability-discovery handshake (App.tsx's parseESP800), not live
-// device state -- so it's spoofed locally, matching WebUI-mm's
-// commandTransport.ts.
+// [ESP800] used to be spoofed locally here (its real handler lives in
+// WebUI/WifiConfig.cpp, also excluded, and needs WiFi/WebUI_Server APIs
+// that don't exist in this build) -- wasm/FwInfo.cpp now provides a real,
+// wasm-specific handler instead, so it's just another command.
 import { sendShimCommand } from './shimTransport'
 
-const FAKE_ESP800_RESPONSE = [
-  'FW version:FluidNC v4.0.3 (wasm-demo)',
-  'FW target:grbl-embedded',
-  'FW HW:Direct SD',
-  'primary sd:/sd/',
-  'secondary sd:none',
-  'authentication:no',
-  'webcommunication:Sync:81:127.0.0.1',
-  'hostname:fluidnc-wasm-demo',
-  'axis:3',
-].join('#')
-
 export function sendBridgeCommand(cmd: string): Promise<string> {
-  if (cmd === '[ESP800]') {
-    return Promise.resolve(FAKE_ESP800_RESPONSE)
-  }
   return sendShimCommand(cmd)
 }

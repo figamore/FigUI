@@ -7,19 +7,21 @@
 // simulating a machine in JS, it relays to a real compiled FluidNC instance
 // via shimTransport's postMessage channel.
 //
-// Known limitation: on real hardware, /command (src/lib/http.ts) and this
-// WebSocket are genuinely independent connections, each answered by its own
-// Channel object, so their response streams never cross. Here they both
-// share the one physical ShimChannel. demo/index.html's 'fluidnc-shim-
-// command' RPC (see commandBridge.ts, shimTransport.ts's sendShimCommand())
-// now queues /command calls against each other centrally, so two of those
-// can no longer misattribute each other's response lines -- but an
-// HTTP-shaped /command call can still in principle race a raw G-code send
-// made directly through this WebSocket (send() below posts straight to the
-// shim, bypassing that queue), and have its ok/error line misattributed to
-// whichever one asked first. In practice /command calls are rare (mostly
-// startup queries), so that narrower remaining gap is left as-is rather
-// than adding a second wasm-side channel.
+// On real hardware, /command (src/lib/http.ts) and this WebSocket are
+// genuinely independent connections, each answered by its own Channel
+// object, so their response streams never cross. Here they both share
+// the one physical ShimChannel, so demo/index.html serializes every send
+// -- both /command's 'fluidnc-shim-command' RPC and this class's own
+// raw sends below -- through one central queue (see its deliverShimLine()
+// /maybeStartNextShimSend()), so only one thing is ever unacknowledged on
+// the shim at a time and nothing can misattribute another's ok/error
+// line. (An earlier version only queued /command calls against each
+// other, on the theory that a raw send here couldn't be affected either
+// way -- that turned out to be wrong: FluidNC's output for one call can
+// arrive split across more than one output event, leaving a gap where a
+// second queued /command could start and steal this class's own ok/error
+// line. Send() below still posts straight to the shim -- the ordering
+// guarantee now lives entirely in demo/index.html's queue instead.)
 import { sendToShim, addShimLineListener } from './shimTransport'
 
 export class WasmBridgeWebSocket extends EventTarget {
