@@ -20,6 +20,14 @@
 //    file operations, answered directly against the WASM instance's MEMFS
 //    (list/delete/deletedir/mkdir/read/write) -- see demo/index.html's
 //    handleFsRequest().
+//  - 'fluidnc-shim-command'/'fluidnc-shim-command-response': send a
+//    command, get back its collected response once the ok/error terminator
+//    arrives -- see demo/index.html's deliverShimLine()/
+//    maybeStartNextShimCommand(), which also queues these so two in flight
+//    at once can't have their response lines cross-attributed (this used
+//    to be commandBridge.ts's own job, via a hand-rolled line collector and
+//    a Promise chain to serialize sends -- both gone now that
+//    demo/index.html does it centrally for every WebUI bridge).
 
 type LineListener = (line: string, isJson: boolean) => void
 
@@ -30,9 +38,19 @@ interface FsResponse {
   result?: unknown
 }
 
+interface ShimCommandResponse {
+  type: 'fluidnc-shim-command-response'
+  id: number
+  ok: boolean
+  response: string
+  ackLine: string
+}
+
 const lineListeners: LineListener[] = []
 const pendingFsRequests = new Map<number, { resolve: (result: unknown) => void; reject: (error: Error) => void }>()
+const pendingShimCommands = new Map<number, { resolve: (response: string) => void; reject: (error: Error) => void }>()
 let nextRequestId = 1
+let nextCommandId = 1
 
 // Set by a marker <script> the demo injects ahead of the actual page
 // content before Blob-constructing the iframe's document -- see
@@ -51,6 +69,16 @@ if (typeof window !== 'undefined') {
     const msg = event.data
     if (msg && msg.type === 'fluidnc-shim-line' && typeof msg.line === 'string') {
       lineListeners.forEach((fn) => fn(msg.line, !!msg.isJson))
+    } else if (msg && msg.type === 'fluidnc-shim-command-response' && typeof msg.id === 'number') {
+      const response = msg as ShimCommandResponse
+      const pending = pendingShimCommands.get(response.id)
+      if (!pending) return
+      pendingShimCommands.delete(response.id)
+      if (response.ok) {
+        pending.resolve(response.response)
+      } else {
+        pending.reject(new Error(response.ackLine))
+      }
     } else if (msg && msg.type === 'fluidnc-fs-response' && typeof msg.id === 'number') {
       const response = msg as FsResponse
       const pending = pendingFsRequests.get(response.id)
@@ -67,6 +95,19 @@ if (typeof window !== 'undefined') {
 
 export function sendToShim(text: string): void {
   window.parent.postMessage({ type: 'fluidnc-shim-send', text }, '*')
+}
+
+// Sends a command and resolves with its collected response once the
+// ok/error terminator line arrives -- see demo/index.html's
+// deliverShimLine()/maybeStartNextShimCommand(), which also queues these
+// centrally so concurrent sends can't have their response lines
+// cross-attributed over the bridge's one shared channel.
+export function sendShimCommand(cmd: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const id = nextCommandId++
+    pendingShimCommands.set(id, { resolve, reject })
+    window.parent.postMessage({ type: 'fluidnc-shim-command', id, cmd }, '*')
+  })
 }
 
 // isJson is true exactly when `line` is a fully reassembled [JSON:...]
