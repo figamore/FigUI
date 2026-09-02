@@ -5,11 +5,18 @@ import { App } from './App'
 import './store/terminal'
 import './lib/jogWatchdog'
 import { disconnect as disconnectWs } from './lib/ws'
+import { installWasmBridgeIfActive } from './wasmBridge'
 
 if (import.meta.env.VITE_DEMO_MODE) {
   const { installDemoMode } = await import('./demo')
   installDemoMode()
 }
+
+// Not gated by import.meta.env, unlike installDemoMode() above -- this must
+// survive in every build mode (including the real `build:esp32` artifact),
+// since it's how a stock build detects it's running inside the FluidNC WASM
+// demo at runtime. See wasmBridge/index.ts.
+installWasmBridgeIfActive()
 
 window.addEventListener('pagehide', () => { disconnectWs() })
 
