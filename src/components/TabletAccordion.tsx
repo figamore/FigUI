@@ -17,7 +17,7 @@ import {
   buildLandscapeAccordionTabs,
   type TabletTabId,
 } from '../lib/tabletTabs'
-import { COMPACT_LANDSCAPE_VIEWER_CLASS } from '../lib/compactLandscapeLayout'
+import { useCompactLandscapeTabContentHeight } from '../lib/compactLandscapeLayout'
 import { useIsPortrait } from '../lib/viewport'
 
 interface TabletAccordionProps {
@@ -35,6 +35,7 @@ export function TabletAccordion({
   variant = 'default',
 }: TabletAccordionProps) {
   const [expanded, setExpanded] = useState<'visualizer' | 'program' | 'controls'>('visualizer')
+  const compactTabContentHeight = useCompactLandscapeTabContentHeight()
   const isPortrait = useIsPortrait()
   const spindleMax = useMachineStore(s => s.controllerSettings.spindleMax)
   const hasSpindle = Boolean(spindleMax)
@@ -88,7 +89,7 @@ export function TabletAccordion({
           hasSpindle={hasSpindle}
           hasManualATC={hasManualATC}
           tabLabelFontSize="clamp(10px, 1.6vw, 18px)"
-          viewerClassName={COMPACT_LANDSCAPE_VIEWER_CLASS}
+          contentHeight={compactTabContentHeight}
         />
       </div>
     )

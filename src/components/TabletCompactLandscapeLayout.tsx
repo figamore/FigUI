@@ -5,7 +5,7 @@ import { PluginFrame } from './PluginFrame'
 import type { Plugin } from '../types'
 import type { TabletTabId } from '../lib/tabletTabs'
 import {
-  COMPACT_LANDSCAPE_PLUGIN_MIN_HEIGHT,
+  useCompactLandscapeTabContentHeight,
   useCompactLandscapeTopRowHeight,
 } from '../lib/compactLandscapeLayout'
 
@@ -27,7 +27,7 @@ const TOP_ROW_COLUMN_CLASS =
 /**
  * Short-viewport landscape tablets (layout height < 640px):
  *   Row 1 — POSITION | JOG (side by side, equal height)
- *   Row 2 — tabbed workspace (natural height; page scrolls)
+ *   Row 2 — tabbed workspace (sized to the viewport; page scrolls to it)
  */
 export function TabletCompactLandscapeLayout({
   tabletTab,
@@ -41,6 +41,8 @@ export function TabletCompactLandscapeLayout({
   onCloseControlsPlugin,
 }: TabletCompactLandscapeLayoutProps) {
   const topRowHeight = useCompactLandscapeTopRowHeight()
+  const workspaceHeight = useCompactLandscapeTabContentHeight()
+  const pluginPanelStyle = workspaceHeight != null ? { height: workspaceHeight } : undefined
 
   return (
     <div className="flex flex-col gap-2 p-3">
@@ -64,11 +66,11 @@ export function TabletCompactLandscapeLayout({
 
       <div className="flex flex-col shrink-0">
         {workspacePlugin && onCloseWorkspacePlugin ? (
-          <div className="panel flex flex-col" style={{ minHeight: COMPACT_LANDSCAPE_PLUGIN_MIN_HEIGHT }}>
+          <div className="panel flex flex-col min-h-0 overflow-hidden" style={pluginPanelStyle}>
             <PluginFrame plugin={workspacePlugin} onClose={onCloseWorkspacePlugin} inline />
           </div>
         ) : controlsPlugin && onCloseControlsPlugin ? (
-          <div className="panel flex flex-col" style={{ minHeight: COMPACT_LANDSCAPE_PLUGIN_MIN_HEIGHT }}>
+          <div className="panel flex flex-col min-h-0 overflow-hidden" style={pluginPanelStyle}>
             <PluginFrame plugin={controlsPlugin} onClose={onCloseControlsPlugin} inline />
           </div>
         ) : (
