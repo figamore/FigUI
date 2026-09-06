@@ -828,13 +828,6 @@ function drawView(canvas, segs, startA, startB, startSet, axisAKey, axisBKey, ax
   }
 
   // Point départ = empreinte réelle de l'outil (Ø fraise à l'échelle)
-  if (startSet) {
-    const toolRadiusPx = Math.max(2, ((toolDiameter || 0) / 2) * scale);
-    ctx.fillStyle = '#22c55e';
-    ctx.beginPath();
-    ctx.arc(tA(startA), tB(startB), toolRadiusPx, 0, Math.PI * 2);
-    ctx.fill();
-  }
 
   // Point origine (0,0)
   ctx.fillStyle = '#38bdf8';
