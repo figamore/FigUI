@@ -77,14 +77,27 @@ function parsePos(str: string, linearScale = 1): Position {
   }
 }
 
+// [ESP800]json=yes wraps the same fields the legacy "FW version:... #
+// FW target:... # ..." plain-text response carried in {cmd,status,data}
+// instead -- see WifiConfig.cpp's showFwInfoJSON()/wasm/FwInfo.cpp. Field
+// names change shape too (e.g. "webcommunication:Sync:81:127.0.0.1"
+// becomes separate WebCommunication/WebSocketPort/WebSocketIP fields, and
+// "authentication:yes" becomes "Authentication":"Enabled") -- see
+// App.tsx's resolveWsHost(), the only real consumer, for how those are
+// read now.
 export function parseESP800(raw: string): Record<string, string> {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    return {}
+  }
+  const data = (parsed as { data?: Record<string, unknown> })?.data
+  if (!data) return {}
   const result: Record<string, string> = {}
-  raw.split('#').forEach(part => {
-    const idx = part.indexOf(':')
-    if (idx > -1) {
-      result[part.slice(0, idx).trim()] = part.slice(idx + 1).trim()
-    }
-  })
+  for (const [key, value] of Object.entries(data)) {
+    result[key] = String(value)
+  }
   return result
 }
 
