@@ -22,7 +22,7 @@ interface TabletCompactLandscapeLayoutProps {
 }
 
 const TOP_ROW_COLUMN_CLASS =
-  'flex flex-col flex-1 min-w-0 basis-1/2 h-full min-h-0 overflow-hidden'
+  'flex flex-col flex-1 min-w-0 basis-1/2 self-stretch'
 
 /**
  * Short-viewport landscape tablets (layout height < 640px):
@@ -45,10 +45,10 @@ export function TabletCompactLandscapeLayout({
   const pluginPanelStyle = workspaceHeight != null ? { height: workspaceHeight } : undefined
 
   return (
-    <div className="flex flex-col gap-2 p-3">
+    <div className="flex flex-col gap-5 p-3">
       <div
-        className="flex flex-row gap-2 shrink-0 items-stretch overflow-hidden"
-        style={topRowHeight != null ? { height: topRowHeight } : undefined}
+        className="flex flex-row gap-2 shrink-0 items-stretch"
+        style={topRowHeight != null ? { minHeight: topRowHeight } : undefined}
       >
         <div className={TOP_ROW_COLUMN_CLASS}>
           <DRO isTablet layout="topBand" />

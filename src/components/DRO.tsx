@@ -237,7 +237,7 @@ export function DRO({
   }
 
   return (
-    <div className={`panel flex flex-col ${topBandLayout ? 'h-full min-h-0 overflow-hidden' : ''}`}>
+    <div className={`panel flex flex-col ${topBandLayout ? 'h-full' : ''}`}>
       <div className={`panel-header justify-between shrink-0 ${tightLayout ? 'flex-wrap gap-y-1 py-1.5' : ''}`}>
         <span className={`font-bold ${tightLayout ? 'text-base' : 'text-lg'}`}>Position</span>
         <div className={`flex items-center gap-1 ${tightLayout ? 'flex-wrap justify-end' : 'gap-1.5'}`}>
@@ -479,26 +479,34 @@ export function DRO({
       </div>
 
       {status.state === 'Alarm' && (
-        <div className='flex flex-col border-t-2 border-danger bg-danger/10 px-3 py-3 gap-3'>
-          <div className="flex items-center gap-3">
-            <TriangleAlert className="text-danger w-12 h-12" />
-            <div className="flex flex-col gap-2 flex-1 min-w-0">
-              <div className="flex flex-col gap-1 min-w-0">
-                <span className="text-2xl font-black text-danger uppercase tracking-widest leading-none">
-                  Alarm
-                </span>
-
-                <span className="text-2xl font-semibold text-text-primary leading-snug">
-                  {status.alarmName
-                    ?? (status.alarmCode != null
-                      ? (ALARM_MESSAGES[status.alarmCode] ?? `Unknown alarm code ${status.alarmCode}`)
-                      : 'Machine is in alarm state')}
-                </span>
-              </div>
+        <div className={`flex flex-col border-t border-danger bg-danger/10 px-3 shrink-0 ${
+          topBandLayout ? 'py-1.5 gap-1.5' : 'py-2 gap-2'
+        }`}>
+          <div className={`flex items-start ${topBandLayout ? 'gap-2' : 'gap-2.5'}`}>
+            <TriangleAlert
+              className="text-danger shrink-0"
+              size={topBandLayout ? 16 : isTablet ? 20 : 18}
+            />
+            <div className="flex flex-col gap-0.5 flex-1 min-w-0">
+              <span className={`font-bold text-danger uppercase tracking-wide leading-none ${
+                topBandLayout ? 'text-xs' : isTablet ? 'text-sm' : 'text-sm'
+              }`}>
+                Alarm
+              </span>
+              <span className={`text-text-primary leading-snug ${
+                topBandLayout ? 'text-xs' : isTablet ? 'text-sm' : 'text-sm'
+              }`}>
+                {status.alarmName
+                  ?? (status.alarmCode != null
+                    ? (ALARM_MESSAGES[status.alarmCode] ?? `Unknown alarm code ${status.alarmCode}`)
+                    : 'Machine is in alarm state')}
+              </span>
             </div>
           </div>
           <button
-            className="btn btn-danger w-full h-8 text-2xl font-bold"
+            className={`btn btn-danger w-full font-bold ${
+              topBandLayout ? 'h-7 text-xs' : isTablet ? 'h-8 text-sm' : 'h-7 text-sm'
+            }`}
             onClick={() => clearMachineAlarm(status.alarmCode)}
           >
             Clear Alarm
