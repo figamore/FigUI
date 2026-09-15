@@ -240,8 +240,9 @@ export function DRO({
     <div className={`panel flex flex-col ${topBandLayout ? 'h-full' : ''}`}>
       <div className={`panel-header justify-between shrink-0 ${tightLayout ? 'flex-wrap gap-y-1 py-1.5' : ''}`}>
         <span className={`font-bold ${tightLayout ? 'text-base' : 'text-lg'}`}>Position</span>
-        <div className={`flex items-center gap-1 ${tightLayout ? 'flex-wrap justify-end' : 'gap-1.5'}`}>
-          <div className="flex items-center gap-0.5 bg-elevated rounded-sm border border-border p-0.5">
+        <div className={`flex items-center ${tightLayout ? 'flex-wrap justify-end' : ''}`}>
+          <div className={`grid grid-cols-2 items-stretch shrink-0 ${tightLayout ? 'gap-1 w-[13.5rem]' : 'gap-1.5 w-[14.5rem]'}`}>
+          <div className="flex min-w-0 overflow-hidden items-stretch gap-0.5 bg-elevated rounded-sm border border-border p-0.5">
             {(['WPos', 'MPos'] as const).map(m => {
               const active = positionMode === m || positionMode === 'Both'
               return (
@@ -256,8 +257,8 @@ export function DRO({
                       setPositionMode(positionMode === 'Both' ? 'WPos' : 'Both')
                     }
                   }}
-                  className={`${tightLayout ? 'px-1.5 py-0.5 text-sm' : 'px-2.5 py-0.5 text-base'} rounded-sm transition-colors ${active
-                    ? 'bg-surface border border-border text-text-primary shadow-sm'
+                  className={`min-w-0 flex-1 text-center whitespace-nowrap rounded-sm transition-colors ${tightLayout ? 'px-1 py-0.5 text-sm' : 'px-2 py-0.5 text-base'} ${active
+                    ? 'bg-surface text-text-primary'
                     : 'text-text-muted hover:text-text-primary'
                   }`}
                 >
@@ -269,7 +270,7 @@ export function DRO({
           <div ref={workOriginRef} className="relative">
             <button
               onClick={() => setWorkOriginOpen(open => !open)}
-              className={`flex items-center gap-1 ${tightLayout ? 'px-1.5 py-0.5 text-sm' : 'px-2.5 py-1 text-base'} rounded-sm border transition-colors ${
+              className={`flex h-full w-full items-center justify-center gap-1 whitespace-nowrap ${tightLayout ? 'px-1.5 py-0.5 text-sm' : 'px-2.5 py-0.5 text-base'} rounded-sm border transition-colors ${
                 workOriginOpen
                   ? 'bg-accent/10 border-accent/50 text-accent'
                   : 'bg-elevated border-border text-text-primary hover:border-border-strong'
@@ -307,6 +308,7 @@ export function DRO({
                 })}
               </div>
             )}
+          </div>
           </div>
         </div>
       </div>
