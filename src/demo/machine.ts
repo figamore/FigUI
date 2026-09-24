@@ -55,7 +55,9 @@ export function handleRealtime(byte: number): void {
 
 const JOG_RE     = /\$J=.*?F(\d+(?:\.\d+)?)\s+([XYZABC])(-?\d+(?:\.\d+)?)/i
 const ZERO_RE    = /G10\s+L20\s+P0\s+([XYZABC])(-?\d+(?:\.\d+)?)/i
-const PROBE_RE   = /G38\.\d\s+F(\d+(?:\.\d+)?)\s+Z(-\d+(?:\.\d+)?)/i
+const PROBE_RE   = /G38\.\d\s+F(\d+(?:\.\d+)?)\s+([XYZ])(-?\d+(?:\.\d+)?)/i
+const MOVE_RE    = /G91\s+G0\s+([XYZ])(-?\d+(?:\.\d+)?)/i
+const ABS_MOVE_RE = /G90\s+G53\s+G0\s+([XYZ])(-?\d+(?:\.\d+)?)/i
 const SPINDLE_RE = /S(\d+)\s+(M3|M4)/i
 
 type SendFn = (msg: string) => void
@@ -102,13 +104,37 @@ export async function handleTextCommand(cmd: string, send: SendFn): Promise<void
   match = cmd.match(PROBE_RE)
   if (match) {
     const feed = parseFloat(match[1])
-    const dist = parseFloat(match[2])
+    const i    = AXIS[match[2].toUpperCase()] ?? 0
+    const dist = parseFloat(match[3])
     m.state = 'Run'; m.feed = Math.round(feed)
     await sleep(Math.min(Math.abs(dist / 2) / (feed / 60) * 1000, 3000))
-    const cz = dist / 2
-    m.wpos[2] += cz; m.mpos[2] += cz
+    const travel = dist / 2
+    if (i < m.wpos.length) { m.wpos[i] += travel; m.mpos[i] += travel }
     m.state = 'Idle'; m.feed = 0
     send(`[PRB:${m.wpos[0].toFixed(3)},${m.wpos[1].toFixed(3)},${m.wpos[2].toFixed(3)}:1]\n`)
+    send('ok\n'); return
+  }
+
+  match = cmd.match(MOVE_RE)
+  if (match) {
+    const i    = AXIS[match[1].toUpperCase()] ?? 0
+    const dist = parseFloat(match[2])
+    if (i < m.wpos.length) { m.wpos[i] += dist; m.mpos[i] += dist }
+    send('ok\n'); return
+  }
+
+  match = cmd.match(ABS_MOVE_RE)
+  if (match) {
+    // Absolute machine-coordinate move: park MPos at the target while
+    // carrying the active work offset over, so the following G10 L20 can
+    // re-zero WPos alone instead of both positions collapsing onto it.
+    const i      = AXIS[match[1].toUpperCase()] ?? 0
+    const target = parseFloat(match[2])
+    if (i < m.mpos.length) {
+      const offset = m.mpos[i] - m.wpos[i]
+      m.mpos[i] = target
+      m.wpos[i] = target - offset
+    }
     send('ok\n'); return
   }
 
@@ -128,6 +154,7 @@ export async function handleTextCommand(cmd: string, send: SendFn): Promise<void
     send('[MSG:INFO: FluidNC v3.8 (Simulator)]\n')
     send('[MSG:INFO: Connecting to STA SSID: SimNet]\n')
     send('[MSG:INFO: Connected - IP is 127.0.0.1]\n')
+    send('[MSG:INFO: Probe Pin: GPIO_22]\n')
     send('ok\n'); return
   }
 

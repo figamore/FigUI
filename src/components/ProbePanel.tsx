@@ -12,11 +12,12 @@ import { useMachineStore } from '../store'
 import { useManualAtcStore } from '../store/manualAtc'
 import { displayToMm, feedUnitLabel, linearUnitLabel, mmToDisplay } from '../lib/units'
 import { parseProbePoint, type ProbePoint } from '../lib/fluidncReports'
+import { ParallelResultsModal, type ParallelRun } from './ParallelResultsModal'
 
 type Axis = 'X' | 'Y' | 'Z'
 type Side = 'negative' | 'positive'
 type CycleId = 'z-surface' | 'x-negative' | 'x-positive' | 'y-negative' | 'y-positive'
-  | 'x-center' | 'y-center' | 'bore-center' | 'rectangle-center'
+  | 'x-center' | 'y-center' | 'bore-center' | 'rectangle-center' | 'parallelism'
 
 interface RunningCycle { id: CycleId; phase: string; first?: number }
 type ProbeStepState = 'idle' | 'pending' | 'active' | 'completed'
@@ -33,7 +34,7 @@ const PROBE_ALARM_MESSAGES: Record<number, string> = {
   18: 'Probe hard limit',
 }
 
-const CYCLES: Array<{ id: CycleId; label: string; short: string; group: 'edge' | 'center' }> = [
+const CYCLES: Array<{ id: CycleId; label: string; short: string; group: 'edge' | 'center' | 'parallel' }> = [
   { id: 'z-surface', label: 'Z surface', short: 'Z−', group: 'edge' },
   { id: 'x-negative', label: 'Probe X−', short: 'X−', group: 'edge' },
   { id: 'x-positive', label: 'Probe X+', short: 'X+', group: 'edge' },
@@ -43,6 +44,7 @@ const CYCLES: Array<{ id: CycleId; label: string; short: string; group: 'edge' |
   { id: 'y-center', label: 'Y center', short: 'Y ⊕', group: 'center' },
   { id: 'bore-center', label: 'Bore center', short: '○ ⊕', group: 'center' },
   { id: 'rectangle-center', label: 'Rectangle center', short: '▭ ⊕', group: 'center' },
+  { id: 'parallelism', label: 'Parallelism', short: '∥', group: 'parallel' },
 ]
 
 const CYCLE_INSTRUCTIONS: Record<CycleId, string> = {
@@ -55,6 +57,7 @@ const CYCLE_INSTRUCTIONS: Record<CycleId, string> = {
   'y-center': 'Start between the opposing Y faces near center, with both faces within the configured travel.',
   'bore-center': 'Start inside the bore near center. The cycle touches X−/X+, centers X, then touches Y−/Y+ and sets X0 Y0.',
   'rectangle-center': 'Start inside the feature near center. The cycle touches X−/X+, centers X, then touches Y−/Y+ and sets X0 Y0.',
+  parallelism: 'Probe an edge or surface at several points to measure parallelism/straightness. Start at the first point — the scan advances in the +step direction. For X/Y edges set the Z height first; Z stays constant during the scan.',
 }
 
 const TOOLSETTER_ONLY_HINT = 'Only a toolsetter is configured. Only Z-height setting is available; X/Y and center probing require a probe input.'
@@ -284,6 +287,220 @@ interface ParamRowProps {
   min?: number; isTablet?: boolean
 }
 
+interface SegRowProps {
+  label: string
+  value: string
+  options: Array<{ value: string; label: string; title: string }>
+  onChange: (value: string) => void
+  disabled?: boolean
+  disabledTitle?: string
+  isTablet?: boolean
+}
+
+function SegRow({ label, value, options, onChange, disabled = false, disabledTitle, isTablet }: SegRowProps) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <span className={`text-text-muted font-semibold shrink-0 ${isTablet ? 'text-lg' : 'text-sm'}`}
+        title={disabled ? disabledTitle : undefined}>{label}</span>
+      <div className="flex gap-1">
+        {options.map(option => <button
+          key={option.value}
+          type="button"
+          disabled={disabled}
+          title={disabled ? disabledTitle : option.title}
+          aria-pressed={value === option.value}
+          onClick={() => onChange(option.value)}
+          className={`btn justify-center font-mono ${isTablet ? 'h-12 w-14 text-lg' : 'h-9 w-11 text-sm'} ${value === option.value ? 'btn-primary' : 'btn-ghost'}`}>
+          {option.label}
+        </button>)}
+      </div>
+    </div>
+  )
+}
+
+// Schematic for the parallelism scan: an edge (X/Y plan view) or surface
+// (Z side view) probed at several points along the step axis. The blue
+// caption names the probe direction and sits centered above the arrow
+// structure; the gray dashed scan path threads the numbered badges with an
+// arrowhead at the +step end and its caption centered beneath the row.
+function ParallelGraphic({
+  probeAxis,
+  side,
+  stepAxis,
+  npts,
+  currentPoint,
+  held,
+  cycleCompleted,
+}: {
+  probeAxis: Axis
+  side: Side
+  stepAxis: 'X' | 'Y'
+  npts: number
+  currentPoint: number | null
+  held?: boolean
+  cycleCompleted?: boolean
+}) {
+  const isZ = probeAxis === 'Z'
+  // X probe: plan view with horizontal arrows toward a vertical wall.
+  const horizontal = probeAxis === 'X'
+  // Show up to three representative scan positions.
+  const shown = Math.min(Math.max(npts, 2), 3)
+  const wallEdge = side === 'negative' ? 40 : 80
+  const towardsNegative = side === 'negative'
+
+  function pointState(i: number): ProbeStepState {
+    if (cycleCompleted) return 'completed'
+    if (currentPoint == null) return 'idle'
+    if (i < currentPoint) return 'completed'
+    if (i === currentPoint) return 'active'
+    return 'pending'
+  }
+
+  const Probe = ({ x, y }: { x: number; y: number }) => <g>
+    <circle cx={x} cy={y} r="9" fill="url(#parMetal)" stroke="var(--text-muted)" strokeWidth="1.2" />
+    <circle cx={x} cy={y} r="5.5" fill="var(--surface)" stroke="var(--border-strong)" />
+    <circle cx={x} cy={y} r="2.2" fill="var(--accent)" />
+  </g>
+
+  const Badge = ({ x, y, value }: { x: number; y: number; value: number }) => {
+    const state = pointState(value - 1)
+    const color = state === 'completed' ? 'var(--ok)' : state === 'pending' ? 'var(--text-dim)' : 'var(--accent)'
+    const fill = state === 'completed'
+      ? 'rgb(var(--ok-rgb) / .16)'
+      : state === 'active' ? 'rgb(var(--accent-rgb) / .14)' : 'var(--surface)'
+    return <g>
+      {state === 'active' && !held && <circle className="probe-step-pulse" cx={x} cy={y} r="9.5" fill="none" stroke="var(--accent)" strokeWidth="1.4" />}
+      <circle cx={x} cy={y} r="7.5" fill={fill} stroke={color} strokeWidth={state === 'active' ? 2 : 1.4} />
+      <text x={x} y={y + 3.5} textAnchor="middle" fill={color} fontSize="10" fontWeight="800">{value}</text>
+    </g>
+  }
+
+  // Point positions along the step axis (view coordinates): Z side view and
+  // Y plan view read left→right (+X). X plan view steps +Y, which points
+  // up-screen, so point 1 sits at the bottom and the row numbers upward;
+  // its spread starts lower to keep the scan arrowhead clear of the caption.
+  const positions = Array.from({ length: shown }, (_, i) => 24 + (i * 72) / (shown - 1))
+  const xPositions = Array.from({ length: shown }, (_, i) => 30 + (i * 66) / (shown - 1))
+  const zPositions = Array.from({ length: shown }, (_, i) => 36 + (i * 48) / (shown - 1))
+  const badgeValue = (i: number) => (horizontal ? shown - i : i + 1)
+
+  // Scan path geometry: horizontal through the badge row for Z/Y probes,
+  // vertical through the badge column for X probes. The line extends past
+  // the last badge so the arrowhead sits in clear space, not behind it.
+  const badgeLane = towardsNegative ? 61.5 : 58.5
+  const scanPath = isZ
+    ? 'M16 68 H114'
+    : horizontal
+      ? `M${badgeLane} 105 V15`
+      : `M16 ${badgeLane} H114`
+
+  return (
+    <svg viewBox="0 0 120 120" className="w-full h-full" role="img" aria-label="Parallelism scan diagram">
+      <defs>
+        <marker id="parArrow" markerWidth="7" markerHeight="7" refX="5.5" refY="3.5" orient="auto">
+          <path d="M0 0 L7 3.5 L0 7Z" fill="var(--accent)" />
+        </marker>
+        <marker id="parScan" markerWidth="6" markerHeight="6" refX="4.5" refY="3" orient="auto">
+          <path d="M0 0 L6 3 L0 6Z" fill="var(--text-dim)" />
+        </marker>
+        <marker id="parAxisX" markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto">
+          <path d="M0 0 L5 2.5 L0 5Z" fill="#ef4444" />
+        </marker>
+        <marker id="parAxisY" markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto">
+          <path d="M0 0 L5 2.5 L0 5Z" fill="#22c55e" />
+        </marker>
+        <marker id="parAxisZ" markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto">
+          <path d="M0 0 L5 2.5 L0 5Z" fill="#3b82f6" />
+        </marker>
+        <linearGradient id="parMetal" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="var(--surface)" />
+          <stop offset=".48" stopColor="var(--border-strong)" />
+          <stop offset="1" stopColor="var(--elevated)" />
+        </linearGradient>
+        <linearGradient id="parPart" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="var(--elevated)" />
+          <stop offset="1" stopColor="var(--border)" />
+        </linearGradient>
+        <pattern id="parHatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+          <rect width="6" height="6" fill="url(#parPart)" />
+          <path d="M0 0 V6" stroke="var(--border-strong)" strokeWidth="1" opacity=".45" />
+        </pattern>
+      </defs>
+      <rect x="1" y="1" width="118" height="118" rx="8" fill="rgb(var(--accent-rgb) / .035)" stroke="var(--border)" />
+
+      {/* Probe-direction caption, centered over the arrow structure. */}
+      <text x="60" y="8.5" textAnchor="middle" fill="var(--accent)" fontSize="9" fontWeight="800">
+        {probeAxis}{side === 'negative' ? '−' : '+'}
+      </text>
+
+      {/* Plane corner markers: X-Y for edge probes, Z-stepAxis side view for
+          surface probes (Z-X / Z-Y). Compact, tucked into the bottom-left
+          corner; colors match the single-surface axes. */}
+      {(() => {
+        const planeH = isZ ? stepAxis : 'X'
+        const planeV = isZ ? 'Z' : 'Y'
+        const axisColor = (a: string) => a === 'X' ? '#ef4444' : a === 'Y' ? '#22c55e' : '#3b82f6'
+        const axisMarker = (a: string) => a === 'X' ? 'url(#parAxisX)' : a === 'Y' ? 'url(#parAxisY)' : 'url(#parAxisZ)'
+        return <>
+          <path d="M12 112 H26" stroke={axisColor(planeH)} strokeWidth="1.2" markerEnd={axisMarker(planeH)} />
+          <path d="M12 112 V98" stroke={axisColor(planeV)} strokeWidth="1.2" markerEnd={axisMarker(planeV)} />
+          <text x="30" y="115" fill="var(--text-dim)" fontSize="8">{planeH}+</text>
+          <text x="2" y="95" fill="var(--text-dim)" fontSize="8">{planeV}+</text>
+        </>
+      })()}
+
+      {/* Scan path threads the badges; the arrowhead marks the +step end. */}
+      <path d={scanPath} stroke="var(--text-dim)" strokeWidth="1.2" strokeDasharray="2.5 3" markerEnd="url(#parScan)" />
+
+      {isZ ? <>
+        {/* Side view: plate centered in the view, probes above, badges on
+            their own row between the arrows and the surface. */}
+        <path d="M24 89 H96 V104 H24Z" fill="url(#parHatch)" stroke="var(--border-strong)" />
+        <path d="M24 89 H96" stroke="var(--ok)" strokeWidth="2" />
+        {zPositions.map(x => <g key={x}>
+          <Probe x={x} y={25} />
+          <path d={`M${x} 36 V56`} stroke="var(--accent)" strokeWidth="2" strokeDasharray="4 2" markerEnd="url(#parArrow)" />
+        </g>)}
+        {zPositions.map((x, i) => <Badge key={x} x={x} y={68} value={i + 1} />)}
+        <text x="60" y="85" textAnchor="middle" fill="var(--text-dim)" fontSize="7" fontWeight="700">SCAN +{stepAxis}</text>
+        <text x="60" y="99" textAnchor="middle" fill="var(--text-muted)" fontSize="8" fontWeight="700">SURFACE</text>
+      </> : <>
+        {/* Plan view: wall on the probed side, probes opposite, badges on
+            the arrows where the scan path crosses them. */}
+        <path d={horizontal
+          ? `M${wallEdge} 18 ${towardsNegative ? 'H17 V102' : 'H103 V102'} H${wallEdge}Z`
+          : `M18 ${wallEdge} H102 ${towardsNegative ? 'V17 H18Z' : 'V103 H18Z'}`}
+          fill="url(#parHatch)" stroke="var(--border-strong)" />
+        <path d={horizontal ? `M${wallEdge} 18 V102` : `M18 ${wallEdge} H102`} stroke="var(--ok)" strokeWidth="1.8" />
+        {horizontal
+          ? <text x={towardsNegative ? 28.5 : 91.5} y={63}
+              transform={`rotate(-90 ${towardsNegative ? 28.5 : 91.5} 63)`}
+              textAnchor="middle" fill="var(--text-muted)" fontSize="8" fontWeight="700">EDGE</text>
+          : <text x={60} y={towardsNegative ? 31 : 94} textAnchor="middle"
+              fill="var(--text-muted)" fontSize="8" fontWeight="700">EDGE</text>}
+        {positions.map((_, i) => {
+          const pos = horizontal ? xPositions[i] : positions[i]
+          const probeAt = towardsNegative ? wallEdge + 48 : wallEdge - 48
+          const arrowStart = towardsNegative ? probeAt - 10 : probeAt + 10
+          const arrowEnd = towardsNegative ? wallEdge + 5 : wallEdge - 5
+          const arrow = horizontal
+            ? `M${arrowStart} ${pos} H${arrowEnd}`
+            : `M${pos} ${arrowStart} V${arrowEnd}`
+          return <g key={pos}>
+            <Probe x={horizontal ? probeAt : pos} y={horizontal ? pos : probeAt} />
+            <path d={arrow} stroke="var(--accent)" strokeWidth="2" strokeDasharray="4 2" markerEnd="url(#parArrow)" />
+            <Badge x={horizontal ? badgeLane : pos}
+              y={horizontal ? pos : badgeLane} value={badgeValue(i)} />
+          </g>
+        })}
+        {/* Scan caption centered beneath the badge row/column. */}
+        <text x={horizontal ? badgeLane : 60} y="113.5" textAnchor="middle"
+          fill="var(--text-dim)" fontSize="7" fontWeight="700">SCAN +{stepAxis}</text>
+      </>}
+    </svg>
+  )
+}
+
 function ParamRow({ label, value, onChange, unit, min = 0, isTablet }: ParamRowProps) {
   const [draftValue, setDraftValue] = useState(() => String(value))
 
@@ -335,6 +552,16 @@ export function ProbePanel({ isTablet, embedded = false }: { isTablet?: boolean;
   const [retract, setRetract] = usePersisted('probe.retract', 3)
   const [plateThick, setPlateThick] = usePersisted('probe.plate', 0)
   const [probeDiameter, setProbeDiameter] = usePersisted('probe.diameter', 4)
+  // Parallelism / straightness scan parameters (persisted in mm / mm-min)
+  const [parallelAxis, setParallelAxis] = usePersisted<Axis>('probe.parallelAxis', 'X')
+  const [parallelSide, setParallelSide] = usePersisted<Side>('probe.parallelSide', 'negative')
+  const [parallelStepAxis, setParallelStepAxis] = usePersisted<'X' | 'Y'>('probe.parallelStepAxis', 'Y')
+  const [parallelSlowFeed, setParallelSlowFeed] = usePersisted('probe.parallelSlowFeed', 20)
+  const [parallelSafeZ, setParallelSafeZ] = usePersisted('probe.parallelSafeZ', 5)
+  const [parallelLength, setParallelLength] = usePersisted('probe.parallelLength', 50)
+  const [parallelPoints, setParallelPoints] = usePersisted('probe.parallelPoints', 5)
+  const [parallelRun, setParallelRun] = useState<ParallelRun | null>(null)
+  const parallelRunRef = useRef<ParallelRun | null>(null)
   const status = useMachineStore(s => s.status)
   const units = useMachineStore(s => s.units)
   const connected = useMachineStore(s => s.connected)
@@ -346,6 +573,38 @@ export function ProbePanel({ isTablet, embedded = false }: { isTablet?: boolean;
     runningRef.current = next
     setRunning(next)
     if (!next) setProbeHeld(false)
+  }
+
+  function updateParallelRun(next: ParallelRun | null) {
+    parallelRunRef.current = next
+    setParallelRun(next)
+  }
+
+  // Mark the open parallelism run as failed (alarm, error, reset, timeout,
+  // disconnect) so the results dialog releases its Close button.
+  function failParallelRun() {
+    const run = parallelRunRef.current
+    if (run && !run.done && !run.failed) updateParallelRun({ ...run, failed: true })
+  }
+
+  // Upsert a probe hit into the open parallelism run and re-render.
+  function recordParallelPoint(index: number, stepPos: number, value: number, final: boolean) {
+    const run = parallelRunRef.current
+    if (!run) return
+    const points = run.points.filter(p => p.index !== index)
+    points.push({ index, stepPos, value, final })
+    points.sort((a, b) => a.index - b.index)
+    updateParallelRun({ ...run, points })
+  }
+
+  // Axis coupling mirrors bCNC / gSender: X/Y probe along an edge with the
+  // perpendicular step axis; Z probes downward over a surface with a
+  // selectable X/Y step axis.
+  function changeParallelAxis(axis: Axis) {
+    setParallelAxis(axis)
+    if (axis === 'X') setParallelStepAxis('Y')
+    else if (axis === 'Y') setParallelStepAxis('X')
+    else setParallelSide('negative')
   }
 
   function selectCycle(cycle: CycleId) {
@@ -377,6 +636,7 @@ export function ProbePanel({ isTablet, embedded = false }: { isTablet?: boolean;
     if (timeoutRef.current) clearTimeout(timeoutRef.current)
     timeoutRef.current = setTimeout(() => {
       restoreBackgroundTraffic()
+      if (runningRef.current?.id === 'parallelism') failParallelRun()
       updateRun(null)
       setMessage('No probe contact report received. Check the probe and controller state.')
     }, 90_000)
@@ -390,6 +650,7 @@ export function ProbePanel({ isTablet, embedded = false }: { isTablet?: boolean;
   function finish(messageText: string, markCycleCompleted = false) {
     if (timeoutRef.current) clearTimeout(timeoutRef.current)
     timeoutRef.current = null
+    if (runningRef.current?.id === 'parallelism') failParallelRun()
     if (markCycleCompleted && runningRef.current) setCompletedCycle(runningRef.current.id)
     restoreBackgroundTraffic()
     updateRun(null)
@@ -460,6 +721,53 @@ export function ProbePanel({ isTablet, embedded = false }: { isTablet?: boolean;
       return
     }
 
+    if (active.id === 'parallelism') {
+      const run = parallelRunRef.current
+      const phaseMatch = active.phase.match(/^(\d+):(fast|slow)$/)
+      if (!run || !phaseMatch) return
+      const idx = Number(phaseMatch[1])
+      const isSlow = phaseMatch[2] === 'slow'
+      const away: Side = run.side === 'negative' ? 'positive' : 'negative'
+      recordParallelPoint(
+        idx,
+        point[run.stepAxis.toLowerCase() as 'x' | 'y'],
+        point[run.probeAxis.toLowerCase() as 'x' | 'y' | 'z'],
+        isSlow,
+      )
+      if (!isSlow) {
+        // Back off, then re-probe slowly for precision. Travel = 2×retract
+        // so contact is guaranteed while the missed-trigger overshoot past
+        // the known contact point stays bounded at one retract distance
+        // (gsender/bCNC use travel = 2× their derived retract).
+        sendRaw(`G21 G91 G0 ${moveWord(run.probeAxis, away, retract)}`)
+        sendRaw(`G21 G91 G38.2 F${number(parallelSlowFeed)} ${moveWord(run.probeAxis, run.side, retract * 2)}`)
+        updateRun({ id: 'parallelism', phase: `${idx}:slow` })
+        armTimeout()
+        return
+      }
+      // Slow pass recorded — settle, retract away from the surface.
+      sendRaw('G4 P0.15')
+      const lift = run.probeAxis === 'Z' ? parallelSafeZ : retract
+      sendRaw(`G21 G91 G0 ${moveWord(run.probeAxis, away, lift)}`)
+      if (idx + 1 < run.npts) {
+        sendRaw(`G21 G91 G0 ${run.stepAxis}${number(run.stepMm)}`)
+        sendRaw(`G21 G91 G38.2 F${number(probeFeed)} ${moveWord(run.probeAxis, run.side, maxTravel)}`)
+        updateRun({ id: 'parallelism', phase: `${idx + 1}:fast` })
+        setMessage(`Point ${idx + 2}/${run.npts} — probing ${run.probeAxis}${run.side === 'negative' ? '−' : '+'}…`)
+        armTimeout()
+      } else {
+        // X/Y edge scans end with a Z lift to safe Z; Z scans already lifted.
+        if (run.probeAxis !== 'Z') sendRaw(`G21 G91 G0 Z${number(parallelSafeZ)}`)
+        sendRaw('G90')
+        // recordParallelPoint updated the ref with the slow-pass value; the
+        // run captured above is stale by one point.
+        const completedRun = parallelRunRef.current
+        if (completedRun) updateParallelRun({ ...completedRun, done: true })
+        finish('Parallelism scan complete — results are in the dialog.', true)
+      }
+      return
+    }
+
     const axis = active.phase.startsWith('x-') ? 'X' : 'Y'
     if (active.phase.endsWith('negative')) {
       const first = axisValue(point, axis)
@@ -477,7 +785,7 @@ export function ProbePanel({ isTablet, embedded = false }: { isTablet?: boolean;
     const second = axisValue(point, axis)
     const bothAxes = active.id === 'bore-center' || active.id === 'rectangle-center'
     finishAxisCenter(axis, active.first!, second, bothAxes && axis === 'X')
-  }), [completeReferenceSetup, hasManualATC, maxTravel, plateThick, probeDiameter, probeFeed, retract])
+  }), [completeReferenceSetup, hasManualATC, maxTravel, parallelSafeZ, parallelSlowFeed, plateThick, probeDiameter, probeFeed, retract])
 
   useEffect(() => onSoftReset(() => {
     if (!runningRef.current) return
@@ -496,6 +804,7 @@ export function ProbePanel({ isTablet, embedded = false }: { isTablet?: boolean;
     if (connected || !runningRef.current) return
     if (timeoutRef.current) clearTimeout(timeoutRef.current)
     timeoutRef.current = null
+    if (runningRef.current.id === 'parallelism') failParallelRun()
     restoreBackgroundTraffic()
     updateRun(null)
     setMessage('Probe cycle interrupted because the controller disconnected.')
@@ -517,12 +826,52 @@ export function ProbePanel({ isTablet, embedded = false }: { isTablet?: boolean;
       setMessage('Could not reset the tool-change reference before probing.')
       return
     }
+    // Parallelism validation + axis coupling (coerced against stale config).
+    let pAxis = parallelAxis
+    let pStep = parallelStepAxis
+    let pSide = parallelSide
+    let npts = 0
+    let stepMm = 0
+    if (selected === 'parallelism') {
+      if (pAxis === 'X') pStep = 'Y'
+      else if (pAxis === 'Y') pStep = 'X'
+      else pSide = 'negative'
+      npts = Math.round(parallelPoints)
+      if (npts < 2) {
+        setMessage('Parallelism needs at least 2 probe points.')
+        return
+      }
+      if (parallelLength <= 0 || parallelSafeZ <= 0 || parallelSlowFeed <= 0) {
+        setMessage('Scan length, safe Z and slow feed must be positive.')
+        return
+      }
+      if (parallelSafeZ >= maxTravel || retract >= maxTravel) {
+        setMessage('Safe Z and retract must be smaller than max travel so each pass can reach the surface.')
+        return
+      }
+      stepMm = parallelLength / (npts - 1)
+    }
     pauseBackgroundTraffic()
     const edge = selected.match(/^([xy])-(negative|positive)$/)
     if (selected === 'z-surface') {
       updateRun({ id: selected, phase: 'z-negative' })
       setMessage('Probing Z− toward the work surface…')
       probe('Z', 'negative')
+    } else if (selected === 'parallelism') {
+      updateParallelRun({
+        probeAxis: pAxis,
+        stepAxis: pStep,
+        side: pSide,
+        npts,
+        stepMm,
+        points: [],
+        failed: false,
+        done: false,
+      })
+      updateRun({ id: 'parallelism', phase: '0:fast' })
+      setMessage(`Point 1/${npts} — probing ${pAxis}${pSide === 'negative' ? '−' : '+'}…`)
+      sendRaw(`G21 G91 G38.2 F${number(probeFeed)} ${moveWord(pAxis, pSide, maxTravel)}`)
+      armTimeout()
     } else if (edge) {
       const axis = edge[1].toUpperCase() as Axis
       const side = edge[2] as Side
@@ -561,9 +910,11 @@ export function ProbePanel({ isTablet, embedded = false }: { isTablet?: boolean;
   }
 
   const selectedCycle = CYCLES.find(c => c.id === selected)!
-  const usesDiameter = selected !== 'z-surface'
+  const usesDiameter = selected !== 'z-surface' && selected !== 'parallelism'
   const selectedCycleUnavailable = toolsetterOnly && selected !== 'z-surface'
   const canRunSelectedCycle = canProbe && !selectedCycleUnavailable
+  const parallelPhaseMatch = running?.id === 'parallelism' ? running.phase.match(/^(\d+):/) : null
+  const parallelCurrentPoint = parallelPhaseMatch ? Number(parallelPhaseMatch[1]) : null
 
   if (!hasProbingInput) return null
 
@@ -601,29 +952,93 @@ export function ProbePanel({ isTablet, embedded = false }: { isTablet?: boolean;
             </button>)}
           </div>
         </div>
-
-        <div className={`grid grid-cols-1 gap-4 ${isTablet ? 'sm:grid-cols-[220px_1fr]' : 'sm:grid-cols-[150px_1fr]'}`}>
-          <div className={`mx-auto w-full ${isTablet ? 'h-[220px] max-w-[220px]' : 'h-[220px] max-w-[220px] sm:h-[150px] sm:max-w-[150px]'}`}>
-            <ProbeGraphic
-              cycle={selected}
-              running={running}
-              held={probeHeld}
-              cycleCompleted={completedCycle === selected}
-            />
-          </div>
-          <div className={`rounded-md border border-border bg-elevated/30 p-3 ${isTablet ? 'space-y-4' : 'space-y-2'}`}>
-            <ParamRow isTablet={isTablet} label="Probe feed" value={toDisplayInput(probeFeed, units, units === 'in' ? 2 : 0)}
-              onChange={v => setProbeFeed(displayToMm(v, units))} unit={feedUnitLabel(units)} min={units === 'in' ? .1 : 1} />
-            <ParamRow isTablet={isTablet} label="Max travel" value={toDisplayInput(maxTravel, units, units === 'in' ? 3 : 1)}
-              onChange={v => setMaxTravel(displayToMm(v, units))} unit={linearUnitLabel(units)} min={units === 'in' ? .1 : 1} />
-            <ParamRow isTablet={isTablet} label="Retract" value={toDisplayInput(retract, units, units === 'in' ? 4 : 2)}
-              onChange={v => setRetract(displayToMm(v, units))} unit={linearUnitLabel(units)} min={units === 'in' ? .01 : .5} />
-            {usesDiameter && <ParamRow isTablet={isTablet} label="Probe diameter" value={toDisplayInput(probeDiameter, units, units === 'in' ? 4 : 2)}
-              onChange={v => setProbeDiameter(displayToMm(v, units))} unit={linearUnitLabel(units)} min={0} />}
-            {!usesDiameter && <ParamRow isTablet={isTablet} label="Plate thickness" value={toDisplayInput(plateThick, units, units === 'in' ? 4 : 2)}
-              onChange={v => setPlateThick(displayToMm(v, units))} unit={linearUnitLabel(units)} min={0} />}
-          </div>
+        <div>
+          <div className="text-[13px] font-bold uppercase tracking-[.12em] text-text-dim mb-2">Parallelism / straightness</div>
+          <button onClick={() => selectCycle('parallelism')}
+            disabled={!!running || toolsetterOnly}
+            title={toolsetterOnly ? TOOLSETTER_ONLY_HINT : 'Probe an edge or surface at multiple points and measure deviation'}
+            className={`btn w-full justify-center font-mono ${isTablet ? 'h-14 text-xl' : 'h-10 text-base'} ${selected === 'parallelism' ? 'btn-primary' : 'btn-ghost'}`}>
+            Parallelism scan
+          </button>
         </div>
+
+        {selected === 'parallelism' ? (
+          <div className={`grid grid-cols-1 gap-4 ${isTablet ? 'sm:grid-cols-[220px_1fr]' : 'sm:grid-cols-[150px_1fr]'}`}>
+            <div className={`mx-auto w-full ${isTablet ? 'h-[220px] max-w-[220px]' : 'h-[220px] max-w-[220px] sm:h-[150px] sm:max-w-[150px]'}`}>
+              <ParallelGraphic
+                probeAxis={parallelAxis}
+                side={parallelAxis === 'Z' ? 'negative' : parallelSide}
+                stepAxis={parallelAxis === 'Z' ? parallelStepAxis : parallelAxis === 'X' ? 'Y' : 'X'}
+                npts={Math.max(2, Math.round(parallelPoints))}
+                currentPoint={parallelCurrentPoint}
+                held={probeHeld}
+                cycleCompleted={completedCycle === 'parallelism'}
+              />
+            </div>
+            <div className={`rounded-md border border-border bg-elevated/30 p-3 ${isTablet ? 'space-y-4' : 'space-y-2'}`}>
+              <SegRow isTablet={isTablet} label="Probe axis" value={parallelAxis}
+                options={[
+                  { value: 'X', label: 'X', title: 'Probe along X (edge). Step axis is Y.' },
+                  { value: 'Y', label: 'Y', title: 'Probe along Y (edge). Step axis is X.' },
+                  { value: 'Z', label: 'Z', title: 'Probe along Z (surface). Step axis is selectable.' },
+                ]}
+                onChange={v => changeParallelAxis(v as Axis)} />
+              <SegRow isTablet={isTablet} label="Direction" value={parallelSide}
+                options={[
+                  { value: 'negative', label: '−', title: 'Probe toward the negative axis' },
+                  { value: 'positive', label: '+', title: 'Probe toward the positive axis' },
+                ]}
+                onChange={v => setParallelSide(v as Side)}
+                disabled={parallelAxis === 'Z'}
+                disabledTitle="Z probing always moves down" />
+              <SegRow isTablet={isTablet} label="Step axis" value={parallelStepAxis}
+                options={[
+                  { value: 'X', label: 'X', title: 'Step between points along X' },
+                  { value: 'Y', label: 'Y', title: 'Step between points along Y' },
+                ]}
+                onChange={v => setParallelStepAxis(v as 'X' | 'Y')}
+                disabled={parallelAxis !== 'Z'}
+                disabledTitle="X/Y edge probing steps along the perpendicular axis" />
+              <ParamRow isTablet={isTablet} label="Probe feed" value={toDisplayInput(probeFeed, units, units === 'in' ? 2 : 0)}
+                onChange={v => setProbeFeed(displayToMm(v, units))} unit={feedUnitLabel(units)} min={units === 'in' ? .1 : 1} />
+              <ParamRow isTablet={isTablet} label="Slow feed" value={toDisplayInput(parallelSlowFeed, units, units === 'in' ? 2 : 0)}
+                onChange={v => setParallelSlowFeed(displayToMm(v, units))} unit={feedUnitLabel(units)} min={units === 'in' ? .1 : 1} />
+              <ParamRow isTablet={isTablet} label="Max travel" value={toDisplayInput(maxTravel, units, units === 'in' ? 3 : 1)}
+                onChange={v => setMaxTravel(displayToMm(v, units))} unit={linearUnitLabel(units)} min={units === 'in' ? .1 : 1} />
+              <ParamRow isTablet={isTablet} label="Retract" value={toDisplayInput(retract, units, units === 'in' ? 4 : 2)}
+                onChange={v => setRetract(displayToMm(v, units))} unit={linearUnitLabel(units)} min={units === 'in' ? .01 : .5} />
+              <ParamRow isTablet={isTablet} label="Safe Z" value={toDisplayInput(parallelSafeZ, units, units === 'in' ? 4 : 2)}
+                onChange={v => setParallelSafeZ(displayToMm(v, units))} unit={linearUnitLabel(units)} min={units === 'in' ? .01 : .5} />
+              <ParamRow isTablet={isTablet} label="Scan length" value={toDisplayInput(parallelLength, units, units === 'in' ? 3 : 1)}
+                onChange={v => setParallelLength(displayToMm(v, units))} unit={linearUnitLabel(units)} min={units === 'in' ? .1 : 1} />
+              <ParamRow isTablet={isTablet} label="Points" value={parallelPoints}
+                onChange={v => setParallelPoints(Math.max(2, Math.round(v)))} unit="pts" min={2} />
+            </div>
+          </div>
+        ) : (
+          <div className={`grid grid-cols-1 gap-4 ${isTablet ? 'sm:grid-cols-[220px_1fr]' : 'sm:grid-cols-[150px_1fr]'}`}>
+            <div className={`mx-auto w-full ${isTablet ? 'h-[220px] max-w-[220px]' : 'h-[220px] max-w-[220px] sm:h-[150px] sm:max-w-[150px]'}`}>
+              <ProbeGraphic
+                cycle={selected}
+                running={running}
+                held={probeHeld}
+                cycleCompleted={completedCycle === selected}
+              />
+            </div>
+            <div className={`rounded-md border border-border bg-elevated/30 p-3 ${isTablet ? 'space-y-4' : 'space-y-2'}`}>
+              <ParamRow isTablet={isTablet} label="Probe feed" value={toDisplayInput(probeFeed, units, units === 'in' ? 2 : 0)}
+                onChange={v => setProbeFeed(displayToMm(v, units))} unit={feedUnitLabel(units)} min={units === 'in' ? .1 : 1} />
+              <ParamRow isTablet={isTablet} label="Max travel" value={toDisplayInput(maxTravel, units, units === 'in' ? 3 : 1)}
+                onChange={v => setMaxTravel(displayToMm(v, units))} unit={linearUnitLabel(units)} min={units === 'in' ? .1 : 1} />
+              <ParamRow isTablet={isTablet} label="Retract" value={toDisplayInput(retract, units, units === 'in' ? 4 : 2)}
+                onChange={v => setRetract(displayToMm(v, units))} unit={linearUnitLabel(units)} min={units === 'in' ? .01 : .5} />
+              {usesDiameter && <ParamRow isTablet={isTablet} label="Probe diameter" value={toDisplayInput(probeDiameter, units, units === 'in' ? 4 : 2)}
+                onChange={v => setProbeDiameter(displayToMm(v, units))} unit={linearUnitLabel(units)} min={0} />}
+              {!usesDiameter && <ParamRow isTablet={isTablet} label="Plate thickness" value={toDisplayInput(plateThick, units, units === 'in' ? 4 : 2)}
+                onChange={v => setPlateThick(displayToMm(v, units))} unit={linearUnitLabel(units)} min={0} />}
+            </div>
+          </div>
+        )}
 
         <div className={`flex items-center gap-3 rounded-md border px-3 py-2 ${running ? 'border-warn/40 bg-warn/5 text-warn' : 'border-border bg-elevated/20 text-text-muted'}`}>
           {running ? <CircleDot className="shrink-0" size={18} /> : <Crosshair className="shrink-0" size={18} />}
@@ -651,6 +1066,17 @@ export function ProbePanel({ isTablet, embedded = false }: { isTablet?: boolean;
           </>}
         </div>
       </div>}
+
+      {parallelRun && <ParallelResultsModal
+        run={parallelRun}
+        units={units}
+        active={!!running && running.id === 'parallelism'}
+        held={probeHeld}
+        onHold={holdProbe}
+        onResume={resumeProbe}
+        onAbort={abortProbe}
+        onClose={() => updateParallelRun(null)}
+      />}
     </div>
   )
 }
