@@ -30,10 +30,10 @@ body {
   display: flex; flex-direction: column; gap: 5px;
 }
 .section-title {
-  font-size: 11px; font-weight: 700;
+  font-size: 9px; font-weight: 700;
   letter-spacing: .08em; text-transform: uppercase;
   color: var(--text-muted, #6a7898);
-  margin-bottom: 2px;
+  margin-bottom: 0px;
 }
 label { color: var(--text-muted, #6a7898); font-size: 12px; margin-top: 2px; }
 input[type=number], input[type=text], select {
@@ -78,7 +78,7 @@ select { cursor: pointer; }
 .main-split {
   flex: 1;
   display: grid;
-  grid-template-columns: 1fr 2fr;
+  grid-template-columns: 1fr 3fr;
   min-height: 0;
   overflow: hidden;
 }
@@ -109,11 +109,15 @@ select { cursor: pointer; }
   font-family: ui-monospace, monospace;
   font-size: 11px; line-height: 1.45;
   padding: 10px;
+  overflow: auto;          /* scroll vertical + horizontal si trop large */
+  white-space: pre;        /* ne pas casser les lignes G-code */
+  overflow-wrap: normal;
+  word-break: normal;
 }
 .viz-wrap {
   flex: 1;
   position: relative;
-  background: #0a0e16;
+  background: var(--bg, #0a0e16);
   min-height: 0;
   display: flex;
   flex-direction: column;
@@ -139,34 +143,86 @@ select { cursor: pointer; }
   font-weight: 700;
   letter-spacing: .06em;
   color: var(--text-muted, #6a7898);
-  background: rgba(12,16,24,.7);
+  background: color-mix(in srgb, var(--surface, #151c28) 85%, transparent);
   padding: 1px 5px;
   border-radius: 3px;
   pointer-events: none;
   z-index: 2;
 }
+.--legend {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-muted, #6a7898);
+  background: color-mix(in srgb, var(--surface, #151c28) 92%, transparent);
+  border: 1px solid var(--border, #222840);
+  border-radius: 6px;
+  padding: 8px 12px;
+  pointer-events: none;
+  white-space: nowrap;          /* empêche les retours à la ligne */
+  min-width: 160px;
+}
 .viz-legend {
   position: absolute;
-  left: 8px; bottom: 8px;
-  font-size: 11px;
+  left: 8px;
+  bottom: 8px;
+  font-size: 12px;
+  line-height: 1.45;
   color: var(--text-muted, #6a7898);
-  background: rgba(12,16,24,.85);
+  background: color-mix(in srgb, var(--surface, #151c28) 92%, transparent);
   border: 1px solid var(--border, #222840);
-  border-radius: 4px;
-  padding: 6px 8px;
+  border-radius: 6px;
+  padding: 8px 12px;
   pointer-events: none;
+  white-space: nowrap;
+  min-width: 160px;
+  z-index: 3;
 }
-.viz-legend span { display: inline-block; width: 18px; height: 2px; vertical-align: middle; margin-right: 6px; }
-.leg-rapid { border-top: 2px dashed #64748b; height: 0; }
-.leg-cut { background: #f0a030; }
-.leg-start { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; }
-.leg-plunge { width: 6px; height: 6px; border-radius: 50%; background: #f0a030; }
+.viz-legend > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 3px 0;
+}
+.viz-legend span.leg-start,
+.viz-legend span.leg-rapid,
+.viz-legend span.leg-cut,
+.viz-legend span.leg-plunge,
+.viz-legend span.leg-part {
+  display: inline-block;
+  width: 20px;
+  height: 3px;
+  flex-shrink: 0;
+  border-radius: 1px;
+}
+.leg-start  { background: var(--ok, #22c55e); }
+.leg-rapid  { background: transparent; border-top: 2px dashed var(--text-muted, #64748b); height: 0; }
+.leg-cut    { background: var(--accent, #f0a030); }
+.leg-plunge { background: var(--accent, #f0a030); }
+.leg-part   { background: transparent; border-top: 2px dashed #38bdf8; height: 0; }
+/* Point Zéro : pastille ronde (hors règle des traits) */
+.viz-legend span.leg-zero {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: #38bdf8;
+  margin: 0 5px;
+}
+
 .action-bar {
   padding: 8px 12px;
   background: var(--surface, #151c28);
   border-top: 1px solid var(--border, #222840);
-  display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 }
+
 .action-btn {
   padding: 7px 14px;
   background: var(--elevated, #1a2235);
@@ -177,8 +233,16 @@ select { cursor: pointer; }
 .action-btn:hover { border-color: var(--accent, #f0a030); }
 .action-btn:disabled { opacity: .4; cursor: default; }
 #status { font-size: 12px; color: var(--text-muted, #6a7898); flex: 1; text-align: right; }
-#status.ok { color: #22c55e; }
-#status.err { color: #ef4444; }
+#status.ok { color: #22c55e;
+  font-size: 24px;      /* double de 12px */
+  font-weight: 700;     /* gras */
+  line-height: 1.2; }
+#status.err {
+  color: #ef4444;
+  font-size: 24px;      /* double de 12px */
+  font-weight: 700;     /* gras */
+  line-height: 1.2;
+}
 .hidden { display: none !important; }
 @media (max-width: 900px) {
   .main-split { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
@@ -186,9 +250,102 @@ select { cursor: pointer; }
 }
 .language-section { padding-top: 8px; padding-bottom: 8px; }
 .language-section select { font-weight: 600; }
+
+.help-overlay {
+  position: fixed; inset: 0; z-index: 1000;
+  background: rgba(0,0,0,.65);
+  display: flex; align-items: center; justify-content: center;
+  padding: 16px;
+}
+.help-overlay.hidden { display: none !important; }
+.help-dialog {
+  width: min(720px, 100%);
+  max-height: min(90vh, 900px);
+  background: var(--surface, #151c28);
+  border: 1px solid var(--border, #222840);
+  border-radius: 10px;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 12px 40px rgba(0,0,0,.45);
+}
+.help-header {
+  flex-shrink: 0;
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border, #222840);
+  background: var(--elevated, #1a2235);
+}
+.help-header h2 {
+  font-size: 15px; font-weight: 700; flex: 1; margin: 0;
+  color: var(--text-primary, #e2e6f4);
+}
+.help-close {
+  padding: 6px 12px;
+  background: var(--elevated, #1a2235);
+  border: 1px solid var(--border, #222840);
+  color: var(--text-primary, #e2e6f4);
+  border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.help-close:hover { border-color: var(--accent, #f0a030); }
+.help-nav {
+  flex-shrink: 0;
+  display: flex; flex-wrap: wrap; gap: 6px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border, #222840);
+}
+.help-nav button {
+  padding: 4px 10px;
+  font-size: 12px; font-weight: 600;
+  background: var(--elevated, #1a2235);
+  border: 1px solid var(--border, #222840);
+  color: var(--text-muted, #6a7898);
+  border-radius: 4px; cursor: pointer;
+}
+.help-nav button:hover, .help-nav button.active {
+  border-color: var(--accent, #f0a030);
+  color: var(--text-primary, #e2e6f4);
+}
+.help-body {
+  flex: 1; overflow-y: auto;
+  padding: 14px 18px 24px;
+  font-size: 13px; line-height: 1.55;
+  color: var(--text-primary, #e2e6f4);
+}
+.help-body h3 {
+  font-size: 15px; margin: 18px 0 8px;
+  color: var(--accent, #f0a030);
+  scroll-margin-top: 12px;
+}
+.help-body h3:first-child { margin-top: 0; }
+.help-body h4 { font-size: 13px; margin: 12px 0 6px; color: #94a3b8; }
+.help-body p, .help-body li { margin-bottom: 6px; color: #c8d0e0; }
+.help-body ul { padding-left: 18px; margin-bottom: 8px; }
+.help-body table {
+  width: 100%; border-collapse: collapse; margin: 8px 0 12px;
+  font-size: 12px;
+}
+.help-body th, .help-body td {
+  border: 1px solid var(--border, #222840);
+  padding: 6px 8px; text-align: left; vertical-align: top;
+}
+.help-body th { background: var(--elevated, #1a2235); color: #94a3b8; }
+.help-body code {
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+  background: #0a0e16;
+  padding: 1px 5px; border-radius: 3px;
+}
+.help-body .tip {
+  border-left: 3px solid var(--accent, #f0a030);
+  padding: 6px 10px; margin: 8px 0;
+  background: rgba(240,160,48,.08);
+  border-radius: 0 4px 4px 0;
+}
 </style>
 
 <script>
+  /** Version de l'application — à incrémenter à chaque modification significative */
+const APP_VERSION = '1.3.1';
 const TOOLTIPS = {
   fr: {
     common: {
@@ -230,33 +387,38 @@ const TOOLTIPS = {
         overlap_blind: "Chevauchement entre cercles concentriques successifs (mode borgne uniquement), en % du Ø outil."
       },
       "3": {
-        start_x: "Position X du premier trou de la matrice (coin de référence).",
-        start_y: "Position Y du premier trou de la matrice (coin de référence).",
+        start_x: "Centre (X) du motif polaire, ou coin de référence du motif rectangulaire.",
+        start_y: "Centre (Y) du motif polaire, ou coin de référence du motif rectangulaire.",
         start_z: "Altitude Z de la surface avant perçage.",
         clearance_height: "Hauteur de dégagement en Z entre chaque trou et entre les passes de perçage.",
         tool_diameter: "Diamètre du foret ou de la fraise de perçage (informatif).",
         spindle_speed: "Vitesse de rotation broche (tr/min).",
         feed_rate: "Vitesse d'avance en usinage (mm/min), utilisée pour la descente en Z.",
         depth_per_pass: "Profondeur de perçage par passe (remontée au dégagement Z entre chaque passe).",
-        total_depth: "Profondeur totale de chaque trou de la matrice.",
+        total_depth: "Profondeur totale de chaque trou du schéma.",
+        matrix_layout: "Disposition des trous : rectangulaire (grille) ou polaire (cercle centré sur Départ X/Y).",
         num_cols: "Nombre de colonnes (trous suivant l'axe X).",
         num_rows: "Nombre de lignes (trous suivant l'axe Y).",
         spacing_x: "Entraxe entre deux colonnes consécutives (pas en X).",
-        spacing_y: "Entraxe entre deux lignes consécutives (pas en Y)."
+        spacing_y: "Entraxe entre deux lignes consécutives (pas en Y).",
+        polar_radius: "Rayon du cercle (distance du centre Départ X/Y jusqu'aux trous).",
+        polar_num_holes: "Nombre de trous répartis sur le cercle.",
+        polar_start_angle: "Angle de départ en degrés (0° = +X, 90° = +Y).",
+        polar_total_angle: "Angle total couvert en degrés (360° = cercle complet)."
       },
       "4": {
         start_x: "Position X de l'angle à traiter (coin de la pièce).",
         start_y: "Position Y de l'angle à traiter (coin de la pièce).",
         start_z: "Altitude Z de la surface avant plongée.",
         clearance_height: "Hauteur de dégagement en Z entre les passes.",
-        tool_diameter: "Diamètre de la fraise. Ajouté au rayon programmé pour définir le rayon réel de l'arc.",
+        tool_diameter: "Diamètre de la fraise. ALIGNER TANGEANT sur X et Y .",
         spindle_speed: "Vitesse de rotation broche (tr/min).",
         feed_rate: "Vitesse d'avance en usinage (mm/min).",
         depth_per_pass: "Profondeur retirée à chaque passe.",
         total_depth: "Profondeur totale de l'usinage du rayon.",
         radius: "Rayon programmé (rayon de la pièce finie, hors compensation outil).",
         corner_type: "Coin de la pièce à traiter : Avant/Arrière x Gauche/Droit.",
-        path_type_corner: "Sens du fraisage : Opposition (G02) ou Avalant (G03)."
+        path_type_corner: "Sens du fraisage : Opposition (G02), Avalant (G03), ou Alterné (va-et-vient sans dégagement Z)."
       },
       "5": {
         start_x: "Centre (X) du trou oblong.",
@@ -282,12 +444,33 @@ const TOOLTIPS = {
         spindle_speed: "Vitesse de rotation broche (tr/min).",
         feed_rate: "Vitesse d'avance en usinage (mm/min).",
         depth_per_pass: "Profondeur radiale retirée à chaque passe d'approche.",
-        total_depth: "Profondeur radiale totale du filet (pénétration cumulée).",
+        total_depth: "Profondeur radiale totale du filet (pénétration cumulée) = pas + jeu (+/-1% du diamètre nominal).",
         th_hole_diameter: "Diamètre nominal du trou (écrou) ou de la pièce (vis) à fileter.",
         thread_type: "Écrou (filetage interne) ou Vis (filetage externe).",
         path_type_thread: "Sens d'hélice du filet : Droite (G02) ou Gauche (G03).",
         thread_pitch: "Pas du filet (distance entre deux filets consécutifs, en mm).",
         thread_number: "Nombre de filets (tours d'hélice) à réaliser."
+      },
+      "7": {
+        schema_source: "Configuration (1 à 6) qui sera multipliée et disposée en matrice.",
+        start_x: "Origine X du schéma (premier élément en rectangulaire, ou centre en polaire).",
+        start_y: "Origine Y du schéma (premier élément en rectangulaire, ou centre en polaire).",
+        start_z: "Altitude Z de départ utilisée pour chaque instance (via les paramètres de la config source).",
+        clearance_height: "Hauteur de dégagement en Z entre les instances du schéma.",
+        tool_diameter: "Ø outil (informatif ici ; celui de la config source est utilisé pour l’usinage).",
+        spindle_speed: "Broche (informatif ; celle de la config source est utilisée).",
+        feed_rate: "Avance (informative ; celle de la config source est utilisée).",
+        depth_per_pass: "Prof. / passe (informative ; celle de la config source est utilisée).",
+        total_depth: "Prof. totale (informative ; celle de la config source est utilisée).",
+        schema_layout: "Disposition des instances : rectangulaire (grille) ou polaire (cercle).",
+        schema_num_x: "Nombre d’instances suivant l’axe X.",
+        schema_num_y: "Nombre d’instances suivant l’axe Y.",
+        schema_step_x: "Pas (entraxe) en X. Doit être ≥ à l’encombrement de la configuration choisie.",
+        schema_step_y: "Pas (entraxe) en Y. Doit être ≥ à l’encombrement de la configuration choisie.",
+        schema_polar_radius: "Rayon du cercle sur lequel sont placées les instances.",
+        schema_polar_num: "Nombre d’instances réparties sur le cercle ou l’arc.",
+        schema_polar_start: "Angle de départ en degrés (0° = +X, 90° = +Y).",
+        schema_polar_total: "Angle total couvert en degrés (360° = cercle complet)."
       }
     }
   },
@@ -331,8 +514,8 @@ const TOOLTIPS = {
         overlap_blind: "Overlap between successive concentric circles (blind mode only), as a % of tool Ø."
       },
       "3": {
-        start_x: "X position of the first hole in the matrix (reference corner).",
-        start_y: "Y position of the first hole in the matrix (reference corner).",
+        start_x: "Center (X) of the polar pattern, or reference corner of the rectangular pattern.",
+        start_y: "Center (Y) of the polar pattern, or reference corner of the rectangular pattern.",
         start_z: "Z height of the surface before drilling.",
         clearance_height: "Z clearance height between each hole and between drilling passes.",
         tool_diameter: "Diameter of the drill or mill used (informational).",
@@ -340,24 +523,29 @@ const TOOLTIPS = {
         feed_rate: "Cutting feed rate (mm/min), used for the Z descent.",
         depth_per_pass: "Drilling depth per pass (retract to Z clearance between each).",
         total_depth: "Total depth of each hole in the matrix.",
+        matrix_layout: "Hole layout: rectangular (grid) or polar (circle centered on Start X/Y).",
         num_cols: "Number of columns (holes along X).",
         num_rows: "Number of rows (holes along Y).",
         spacing_x: "Spacing between two consecutive columns (X pitch).",
-        spacing_y: "Spacing between two consecutive rows (Y pitch)."
+        spacing_y: "Spacing between two consecutive rows (Y pitch).",
+        polar_radius: "Circle radius (distance from center Start X/Y to the holes).",
+        polar_num_holes: "Number of holes distributed on the circle.",
+        polar_start_angle: "Start angle in degrees (0° = +X, 90° = +Y).",
+        polar_total_angle: "Total angle covered in degrees (360° = full circle)."
       },
       "4": {
         start_x: "X position of the corner to machine (part corner).",
         start_y: "Y position of the corner to machine (part corner).",
         start_z: "Z height of the surface before plunging.",
         clearance_height: "Z clearance height between passes.",
-        tool_diameter: "Mill diameter. Added to the programmed radius to get the actual arc radius.",
+        tool_diameter: "Mill diameter. ALIGN ON BOTH X & Y TANGEANTLY.",
         spindle_speed: "Spindle rotation speed (RPM).",
         feed_rate: "Cutting feed rate (mm/min).",
         depth_per_pass: "Depth removed per pass.",
         total_depth: "Total depth of the corner radius machining.",
         radius: "Programmed radius (finished part radius, excluding tool compensation).",
         corner_type: "Corner of the part to machine: Front/Rear x Left/Right.",
-        path_type_corner: "Milling direction: Conventional (G02) or Climb (G03)."
+        path_type_corner: "Milling direction: Conventional (G02), Climb (G03), or Alternating (zig-zag, no Z retract)."
       },
       "5": {
         start_x: "Center (X) of the oblong hole.",
@@ -383,12 +571,33 @@ const TOOLTIPS = {
         spindle_speed: "Spindle rotation speed (RPM).",
         feed_rate: "Cutting feed rate (mm/min).",
         depth_per_pass: "Radial depth removed per approach pass.",
-        total_depth: "Total radial thread depth (cumulative penetration).",
+        total_depth: "Total radial thread depth (cumulative penetration) = pitch + play (+/-1% of nominal diameter).",
         th_hole_diameter: "Nominal diameter of the hole (nut) or the part (screw) to thread.",
         thread_type: "Nut (internal thread) or Screw (external thread).",
         path_type_thread: "Thread helix direction: Right (G02) or Left (G03).",
         thread_pitch: "Thread pitch (distance between two consecutive threads, in mm).",
         thread_number: "Number of thread turns (helix revolutions) to make."
+      },
+      "7": {
+        schema_source: "Source configuration (1 to 6) that will be repeated and placed in a matrix.",
+        start_x: "Schema origin X (first element in rectangular, or center in polar).",
+        start_y: "Schema origin Y (first element in rectangular, or center in polar).",
+        start_z: "Start Z used for each instance (via the source configuration parameters).",
+        clearance_height: "Z clearance height between schema instances.",
+        tool_diameter: "Tool Ø (informational here; the source config tool is used for machining).",
+        spindle_speed: "Spindle (informational; source config value is used).",
+        feed_rate: "Feed (informational; source config value is used).",
+        depth_per_pass: "Depth / pass (informational; source config value is used).",
+        total_depth: "Total depth (informational; source config value is used).",
+        schema_layout: "Instance layout: rectangular (grid) or polar (circle).",
+        schema_num_x: "Number of instances along X.",
+        schema_num_y: "Number of instances along Y.",
+        schema_step_x: "X pitch. Must be ≥ the footprint of the chosen configuration.",
+        schema_step_y: "Y pitch. Must be ≥ the footprint of the chosen configuration.",
+        schema_polar_radius: "Radius of the circle on which instances are placed.",
+        schema_polar_num: "Number of instances on the circle or arc.",
+        schema_polar_start: "Start angle in degrees (0° = +X, 90° = +Y).",
+        schema_polar_total: "Total angle covered in degrees (360° = full circle)."
       }
     }
   }
@@ -404,12 +613,12 @@ const I18N = {
     units: "Unités",
     plungePercent: "Plongée %",
     startupCodes: "Codes démarrage",
-    startPosition: "Position départ (par mode)",
+    startPosition: "Position départ",
     startX: "Départ X",
     startY: "Départ Y",
     startZ: "Départ Z",
     clearance: "Dégagement Z",
-    toolAndSpeeds: "Outil & vitesses (par mode)",
+    toolAndSpeeds: "Outil & vitesses",
     toolDiameter: "Ø outil (mm)",
     spindleSpeed: "Broche RPM",
     feedRate: "Avance (mm/min)",
@@ -417,10 +626,12 @@ const I18N = {
     totalDepth: "Prof. totale (mm)",
     surfacing: "Surfaçage",
     contourDrilling: "Perçage détourage",
-    matrixDrilling: "Matrice RAST",
+    matrixDrilling: "Schéma perçage",
     cornerRadius: "Rayon 90°",
     oblongHole: "Trou oblong",
     threading: "Filetage",
+    schemaPattern: "Créer schéma",
+    sourceConfig: "Configuration source",
     widthX: "Largeur X",
     lengthY: "Longueur Y",
     lengthX: "Longueur X",
@@ -434,6 +645,13 @@ const I18N = {
     rows: "Lignes Y",
     spacingX: "Pas X",
     spacingY: "Pas Y",
+    matrixLayout: "Disposition",
+    layoutRectangular: "Rectangulaire",
+    layoutPolar: "Polaire",
+    radiusPolar: "Rayon (mm)",
+    numHoles: "Nombre de trous",
+    startAngle: "Départ °",
+    totalAngle: "Angle total °",
     radius: "Rayon (mm)",
     corner: "Coin",
     width: "Largeur (mm)",
@@ -444,17 +662,20 @@ const I18N = {
     threadCount: "Nb filets",
     gcode: "G-code",
     preview2d: "2D (XY)",
-    start: "Départ",
+    start: "Outil",
     rapidG0: "Rapide G0",
-    cuttingG1G2G3: "Usinage G1/G2/G3",
-    verticalPlunge: "Plongée verticale",
+    cuttingG1G2G3: "Parcours usinage G1/G2/G3",
+    verticalPlunge: "Plongée verticale (-Z)",
+    partProfile: "Pièce",
+    zeroPoint: "Point Zéro",
     openViewer: "Ouvrir dans le viewer",
     opSurfacing: "1 – Surfaçage",
     opContour: "2 – Perçages par détourage",
-    opMatrix: "3 – Perçages matrice (RAST)",
+    opMatrix: "3 – Schéma de perçages",
     opCorner: "4 – Rayon sur 90°",
     opOblong: "5 – Trou oblong",
     opThread: "6 – Filetage",
+    opSchema: "7 – Créer schéma",
     opposition: "Opposition",
     climb: "Avalant",
     alternate: "Alterné",
@@ -489,8 +710,13 @@ const I18N = {
     radiusToolError: "Rayon et Ø outil > 0",
     widthToolError: "Largeur >= Ø outil",
     unknownMode: "Mode inconnu",
-    holeToolError: "Ø trou > Ø outil",
-    pitchThreadError: "Pas et nb filets > 0"
+    polarRadiusError: "Rayon > 0",
+    polarHolesError: "Nombre de trous >= 1",
+    schemaStepTooSmall: "Pas X ou Y trop petit par rapport à l’encombrement de la config",
+    schemaNumError: "Nb sur X/Y >= 1",
+    help: "Aide",
+    helpClose: "Fermer",
+    helpCommon: "Commun"
   },
   en: {
     language: "Language",
@@ -501,23 +727,25 @@ const I18N = {
     units: "Units",
     plungePercent: "Plunge %",
     startupCodes: "Startup codes",
-    startPosition: "Start position (per mode)",
+    startPosition: "Start position",
     startX: "Start X",
     startY: "Start Y",
     startZ: "Start Z",
     clearance: "Z clearance",
-    toolAndSpeeds: "Tool & speeds (per mode)",
+    toolAndSpeeds: "Tool & speeds",
     toolDiameter: "Tool diameter (mm)",
     spindleSpeed: "Spindle RPM",
     feedRate: "Feed rate (mm/min)",
     depthPerPass: "Depth / pass",
-    totalDepth: "Total depth (mm)",
+    totalDepth: "Total depth (mm) diameter",
     surfacing: "Surfacing",
     contourDrilling: "Contour drilling",
-    matrixDrilling: "RAST matrix",
+    matrixDrilling: "Pattern drilling",
     cornerRadius: "90° corner radius",
     oblongHole: "Slot / oblong hole",
     threading: "Threading",
+    schemaPattern: "Create pattern",
+    sourceConfig: "Source configuration",
     widthX: "Width X",
     lengthY: "Length Y",
     lengthX: "Length X",
@@ -531,6 +759,13 @@ const I18N = {
     rows: "Rows Y",
     spacingX: "Spacing X",
     spacingY: "Spacing Y",
+    matrixLayout: "Layout",
+    layoutRectangular: "Rectangular",
+    layoutPolar: "Polar",
+    radiusPolar: "Radius (mm)",
+    numHoles: "Number of holes",
+    startAngle: "Start °",
+    totalAngle: "Total angle °",
     radius: "Radius (mm)",
     corner: "Corner",
     width: "Width (mm)",
@@ -541,17 +776,20 @@ const I18N = {
     threadCount: "Thread count",
     gcode: "G-code",
     preview2d: "2D (XY)",
-    start: "Start",
+    start: "Tool",
     rapidG0: "Rapid G0",
-    cuttingG1G2G3: "Cutting G1/G2/G3",
-    verticalPlunge: "Vertical plunge",
+    cuttingG1G2G3: "Milling path G1/G2/G3",
+    verticalPlunge: "Vertical plunge (-Z)",
+    partProfile: "Part",
+    zeroPoint: "Zero point",
     openViewer: "Open in viewer",
     opSurfacing: "1 – Surfacing",
     opContour: "2 – Contour drilling",
-    opMatrix: "3 – Matrix drilling (RAST)",
+    opMatrix: "3 – Pattern drilling ",
     opCorner: "4 – 90° corner radius",
     opOblong: "5 – Slot / oblong hole",
     opThread: "6 – Threading",
+    opSchema: "7 – Create pattern",
     opposition: "Conventional",
     climb: "Climb",
     alternate: "Alternating",
@@ -586,8 +824,13 @@ const I18N = {
     radiusToolError: "Radius and tool Ø must be > 0",
     widthToolError: "Width must be >= tool Ø",
     unknownMode: "Unknown mode",
-    holeToolError: "Hole Ø > tool Ø",
-    pitchThreadError: "Pitch and thread count > 0"
+    polarRadiusError: "Radius > 0",
+    polarHolesError: "Number of holes >= 1",
+    schemaStepTooSmall: "X or Y pitch too small vs configuration footprint",
+    schemaNumError: "Count on X/Y >= 1",
+    help: "Help",
+    helpClose: "Close",
+    helpCommon: "Common"
   }
 };
 
@@ -631,6 +874,10 @@ function applyLanguage() {
     const key = el.dataset.i18n;
     if (I18N[lang]?.[key]) el.textContent = unitize(I18N[lang][key]);
   });
+  const helpBtn = document.getElementById('help-btn');
+  if (helpBtn) helpBtn.textContent = tr('help');
+  updateMatrixLayoutUI();
+  updateSchemaLayoutUI();
   applyTooltips();
 }
 
@@ -650,11 +897,42 @@ function applyTooltips() {
   }
 }
 
+function updateMatrixLayoutUI() {
+  const layoutEl = document.getElementById('matrix_layout');
+  if (!layoutEl) return;
+  const isPolar = layoutEl.value === 'polar';
+  const rect = document.getElementById('matrix-rect-fields');
+  const polar = document.getElementById('matrix-polar-fields');
+  if (rect) rect.classList.toggle('hidden', isPolar);
+  if (polar) polar.classList.toggle('hidden', !isPolar);
+  applyTooltips();
+}
+
+function updateSchemaLayoutUI() {
+  const layoutEl = document.getElementById('schema_layout');
+  if (!layoutEl) return;
+  const isPolar = layoutEl.value === 'polar';
+  const rect = document.getElementById('schema-rect-fields');
+  const polar = document.getElementById('schema-polar-fields');
+  if (rect) rect.classList.toggle('hidden', isPolar);
+  if (polar) polar.classList.toggle('hidden', !isPolar);
+  applyTooltips();
+}
+
 async function changeLanguage(lang) {
   settingsCache.language = (lang === "en") ? "en" : "fr";
   applyLanguage();
   try { await saveSettings(); } catch (_) {}
 }
+document.addEventListener('click', (e) => {
+  if (e.target.closest('#help-btn')) openHelp();
+  if (e.target.closest('#help-close-btn')) closeHelp();
+  if (e.target.id === 'help-overlay') closeHelp();
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeHelp();
+});
 
 document.addEventListener("DOMContentLoaded", () => {
   const selector = document.getElementById("language-select");
@@ -680,10 +958,11 @@ document.addEventListener("DOMContentLoaded", () => {
       <select id="operation" class="mode-select">
         <option value="1" data-i18n="opSurfacing">1 – Surfaçage</option>
         <option value="2" data-i18n="opContour">2 – Perçages par détourage</option>
-        <option value="3" data-i18n="opMatrix">3 – Perçages matrice (RAST)</option>
+        <option value="3" data-i18n="opMatrix">3 – Perçages schéma </option>
         <option value="4" data-i18n="opCorner">4 – Rayon sur 90°</option>
         <option value="5" data-i18n="opOblong">5 – Trou oblong</option>
         <option value="6" data-i18n="opThread">6 – Filetage</option>
+        <option value="7" data-i18n="opSchema">7 – Créer schéma</option>
       </select>
     </div>
     <div class="section">
@@ -715,7 +994,7 @@ document.addEventListener("DOMContentLoaded", () => {
       </div>
     </div>
     <div class="section">
-      <div class="section-title" data-i18n="startPosition">Position départ (par mode)</div>
+      <div class="section-title" data-i18n="startPosition">Position départ</div>
       <div class="row2">
         <div><label data-i18n="startX">Start X</label><input type="number" id="start_x" value="0" step="0.1"></div>
         <div><label data-i18n="startY">Start Y</label><input type="number" id="start_y" value="0" step="0.1"></div>
@@ -726,7 +1005,7 @@ document.addEventListener("DOMContentLoaded", () => {
       </div>
     </div>
     <div class="section">
-      <div class="section-title" data-i18n="toolAndSpeeds">Outil & vitesses (par mode)</div>
+      <div class="section-title" data-i18n="toolAndSpeeds">Outil & vitesses</div>
       <div class="row2">
         <div><label data-i18n="feedRate">Avance (mm/min)</label><input type="number" id="feed_rate" value="1800" min="1" step="50"></div>
         <div><label data-i18n="spindleSpeed">Broche RPM</label><input type="number" id="spindle_speed" value="1000" min="0" step="100"></div>
@@ -789,14 +1068,62 @@ document.addEventListener("DOMContentLoaded", () => {
       </div>
     </div>
     <div class="section mode-panel hidden" id="panel-3">
-      <div class="section-title" data-i18n="matrixDrilling">Matrice RAST</div>
+      <div class="section-title" data-i18n="matrixDrilling">Schéma perçage</div>
       <div class="row2">
-        <div><label data-i18n="columns">Colonnes X</label><input type="number" id="num_cols" value="3" min="1" step="1"></div>
-        <div><label data-i18n="rows">Lignes Y</label><input type="number" id="num_rows" value="3" min="1" step="1"></div>
+        <div>
+          <label data-i18n="matrixLayout">Disposition</label>
+          <select id="matrix_layout">
+            <option value="rectangular" data-i18n="layoutRectangular">Rectangulaire</option>
+            <option value="polar" data-i18n="layoutPolar">Polaire</option>
+          </select>
+        </div>
+        <div></div>
       </div>
-      <div class="row2">
-        <div><label data-i18n="spacingX">Pas X</label><input type="number" id="spacing_x" value="10" min="0" step="0.1"></div>
-        <div><label data-i18n="spacingY">Pas Y</label><input type="number" id="spacing_y" value="10" min="0" step="0.1"></div>
+
+      <div id="matrix-rect-fields">
+        <div class="row2">
+          <div>
+            <label data-i18n="columns">Colonnes X</label>
+            <input type="number" id="num_cols" value="3" min="1" step="1">
+          </div>
+          <div>
+            <label data-i18n="rows">Lignes Y</label>
+            <input type="number" id="num_rows" value="3" min="1" step="1">
+          </div>
+        </div>
+        <div class="row2">
+          <div>
+            <label data-i18n="spacingX">Pas X</label>
+            <input type="number" id="spacing_x" value="10" min="0" step="0.1">
+          </div>
+          <div>
+            <label data-i18n="spacingY">Pas Y</label>
+            <input type="number" id="spacing_y" value="10" min="0" step="0.1">
+          </div>
+        </div>
+      </div>
+
+      <div id="matrix-polar-fields" class="hidden">
+        <div class="row2">
+          <div>
+            <label data-i18n="radiusPolar">Rayon</label>
+            <input type="number" id="polar_radius" value="20" min="0.1" step="0.1">
+          </div>
+          <div>
+            <label data-i18n="numHoles">Nombre de trous</label>
+            <input type="number" id="polar_num_holes" value="6" min="1" step="1">
+          </div>
+        </div>
+        <div class="row2">
+          <div>
+            <label data-i18n="startAngle">Départ °</label>
+            <input type="number" id="polar_start_angle" value="90" min="-360" step="1">
+          </div>
+          <div>
+            <label data-i18n="totalAngle">Angle total °</label>
+            <input type="number" id="polar_total_angle" value="360" min="0" step="1">
+          </div>
+        </div>
       </div>
     </div>
     <div class="section mode-panel hidden" id="panel-4">
@@ -820,6 +1147,7 @@ document.addEventListener("DOMContentLoaded", () => {
       <select id="path_type_corner">
         <option value="conventional" data-i18n="opposition">Opposition</option>
         <option value="climb" data-i18n="climb">Avalant</option>
+        <option value="alternate" data-i18n="alternate">Alterné</option>
       </select>
     </div>
     <div class="section mode-panel hidden" id="panel-5">
@@ -868,6 +1196,74 @@ document.addEventListener("DOMContentLoaded", () => {
         </div>
       </div>
     </div>
+
+    <!-- MODE 7 -->
+    <div class="section mode-panel hidden" id="panel-7">
+      <div class="section-title" data-i18n="schemaPattern">Créer schéma</div>
+      <label data-i18n="sourceConfig">Configuration source</label>
+      <select id="schema_source">
+        <option value="1" data-i18n="opSurfacing">1 – Surfaçage</option>
+        <option value="2" data-i18n="opContour">2 – Perçages par détourage</option>
+        <option value="3" data-i18n="opMatrix">3 – Schéma de perçages</option>
+        <option value="4" data-i18n="opCorner">4 – Rayon sur 90°</option>
+        <option value="5" data-i18n="opOblong">5 – Trou oblong</option>
+        <option value="6" data-i18n="opThread">6 – Filetage</option>
+      </select>
+      <div class="row2">
+        <div>
+          <label data-i18n="matrixLayout">Disposition</label>
+          <select id="schema_layout">
+            <option value="rectangular" data-i18n="layoutRectangular">Rectangulaire</option>
+            <option value="polar" data-i18n="layoutPolar">Polaire</option>
+          </select>
+        </div>
+        <div></div>
+      </div>
+      <div id="schema-rect-fields">
+        <div class="row2">
+          <div>
+            <label data-i18n="columns">Nb sur X</label>
+            <input type="number" id="schema_num_x" value="2" min="1" step="1">
+          </div>
+          <div>
+            <label data-i18n="rows">Nb sur Y</label>
+            <input type="number" id="schema_num_y" value="2" min="1" step="1">
+          </div>
+        </div>
+        <div class="row2">
+          <div>
+            <label data-i18n="spacingX">Pas X</label>
+            <input type="number" id="schema_step_x" value="50" min="0" step="0.1">
+          </div>
+          <div>
+            <label data-i18n="spacingY">Pas Y</label>
+            <input type="number" id="schema_step_y" value="50" min="0" step="0.1">
+          </div>
+        </div>
+      </div>
+      <div id="schema-polar-fields" class="hidden">
+        <div class="row2">
+          <div>
+            <label data-i18n="radiusPolar">Rayon (mm)</label>
+            <input type="number" id="schema_polar_radius" value="40" min="0.1" step="0.1">
+          </div>
+          <div>
+            <label data-i18n="numHoles">Nombre</label>
+            <input type="number" id="schema_polar_num" value="6" min="1" step="1">
+          </div>
+        </div>
+        <div class="row2">
+          <div>
+            <label data-i18n="startAngle">Départ °</label>
+            <input type="number" id="schema_polar_start" value="0" step="1">
+          </div>
+          <div>
+            <label data-i18n="totalAngle">Angle total °</label>
+            <input type="number" id="schema_polar_total" value="360" min="0" step="1">
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <div class="main">
@@ -891,13 +1287,16 @@ document.addEventListener("DOMContentLoaded", () => {
             <div><span class="leg-start"></span> <span data-i18n="start">Départ</span></div>
             <div><span class="leg-rapid"></span> <span data-i18n="rapidG0">Rapide G0</span></div>
             <div><span class="leg-cut"></span> <span data-i18n="cuttingG1G2G3">Usinage G1/G2/G3</span></div>
-            <div><span class="leg-plunge"></span> <span data-i18n="verticalPlunge">Plongée verticale</span></div>
+            <div><span class="leg-plunge"></span> <span data-i18n="verticalPlunge">Plongée verticale (-Z)</span></div>
+            <div><span class="leg-part"></span> <span data-i18n="partProfile">Pièce</span></div>
+            <div><span class="leg-zero"></span> <span data-i18n="zeroPoint">Point Zéro</span></div>
           </div>
         </div>
       </div>
     </div>
     <div class="action-bar">
       <button class="action-btn" id="open-btn" onclick="openInViewer()" disabled data-i18n="openViewer">Ouvrir dans le viewer</button>
+      <button class="action-btn" id="help-btn" type="button">?</button>
       <span id="status"></span>
     </div>
   </div>
@@ -921,6 +1320,10 @@ window.addEventListener('message', e => {
       delete pending[e.data.id];
       e.data.error ? p.reject(new Error(e.data.error)) : p.resolve(e.data.result);
     }
+    return;
+  }
+  if (generatedCode) {
+    requestAnimationFrame(() => drawPreview(generatedCode));
   }
 });
 
@@ -946,6 +1349,8 @@ function showModePanel(op) {
   document.querySelectorAll('.mode-panel').forEach(el => el.classList.add('hidden'));
   const panel = document.getElementById('panel-' + op);
   if (panel) panel.classList.remove('hidden');
+  if (op === '3') updateMatrixLayoutUI();
+  if (op === '7') updateSchemaLayoutUI();
 }
 
 /* ========== Conversion mm ↔ in ========== */
@@ -955,33 +1360,26 @@ const DIMENSION_HTML_IDS = [
   'tool_diameter', 'feed_rate', 'depth_per_pass', 'total_depth',
   'width_x', 'length_y', 'hole_diameter', 'spacing_x', 'spacing_y',
   'radius', 'ob_length_x', 'ob_length_y', 'ob_width',
-  'th_hole_diameter', 'thread_pitch'
+  'th_hole_diameter', 'thread_pitch', 'polar_radius',
+  'schema_step_x', 'schema_step_y', 'schema_polar_radius'
 ];
 const DIMENSION_JSON_KEYS = new Set([
   'start_x', 'start_y', 'start_z', 'clearance_height',
   'tool_diameter', 'feed_rate', 'depth_per_pass', 'total_depth',
   'width_x', 'length_y', 'hole_diameter', 'spacing_x', 'spacing_y',
-  'radius', 'length_x', 'width', 'thread_pitch'
+  'radius', 'length_x', 'width', 'thread_pitch', 'polar_radius',
+  'schema_step_x', 'schema_step_y', 'schema_polar_radius'
 ]);
 let lastUnits = 'mm';
 
 function roundConverted(n, toUnits) {
   if (!Number.isFinite(n)) return n;
-
-  if (toUnits === 'in') {
-    // 4 décimales
-    return Math.round(n * 1e4) / 1e4;
-  }
-
-  // mm — 3 décimales, avec correction d'aller-retour
-  // Erreur max due à 4 digits en pouces : 0.00005 × 25.4 ≈ 0.00127 mm
+  if (toUnits === 'in') return Math.round(n * 1e4) / 1e4;
   const SNAP = 0.0013;
   for (let d = 0; d <= 3; d++) {
     const f = Math.pow(10, d);
     const candidate = Math.round(n * f) / f;
-    if (Math.abs(n - candidate) <= SNAP) {
-      return Math.round(candidate * 1e3) / 1e3;
-    }
+    if (Math.abs(n - candidate) <= SNAP) return Math.round(candidate * 1e3) / 1e3;
   }
   return Math.round(n * 1e3) / 1e3;
 }
@@ -996,7 +1394,7 @@ function convertAllDimensions(factor, toUnits) {
   }
   for (const mk of [
     'surfacing', 'contour_drilling', 'matrix_drilling',
-    'corner_radius', 'oblong_hole', 'threading'
+    'corner_radius', 'oblong_hole', 'threading', 'schema_pattern'
   ]) {
     const section = settingsCache[mk];
     if (!section || typeof section !== 'object') continue;
@@ -1061,6 +1459,8 @@ function parseGCodePaths(gcode) {
       plunges.push({ x: x1, y: y1, z: z1 });
     }
   }
+  const arcs = [];   // ← nouveau
+
   function addArc(x0, y0, z0, x1, y1, z1, i, j, cw) {
     const cx = x0 + (i || 0);
     const cy = y0 + (j || 0);
@@ -1075,6 +1475,10 @@ function parseGCodePaths(gcode) {
       if (Math.abs(da) < 1e-9) da = 2 * Math.PI;
     }
     const r = Math.hypot(x0 - cx, y0 - cy) || Math.hypot(x1 - cx, y1 - cy);
+
+    // mémoriser l’arc (pour le rayon pièce)
+    arcs.push({ cx, cy, r, a0, da, cw });
+
     const n = Math.max(8, Math.min(72, Math.ceil(Math.abs(da) / (Math.PI / 24))));
     let px = x0, py = y0, pz = z0;
     for (let k = 1; k <= n; k++) {
@@ -1121,7 +1525,7 @@ function parseGCodePaths(gcode) {
       z = p.z;
     }
   }
-  return { segs, startX, startY, startZ, startSet, plunges };
+    return { segs, startX, startY, startZ, startSet, plunges, arcs };
 }
 
 function fmtL(v) {
@@ -1130,22 +1534,158 @@ function fmtL(v) {
   return v.toFixed(2);
 }
 
-function drawView(canvas, segs, startA, startB, startSet, axisAKey, axisBKey, axisALabel, axisBLabel, w, h, pad, scale, minA, maxA, minB, maxB, toolDiameter, plungePoints) {
+function getProfileSide(p) {
+  // Mode 7 : déléguer à la configuration source (évite inversion / absence de profil)
+  if (p.operation === '7') {
+    const srcOp = String(p.schema_source || '1');
+    const src = collectParamsForOp(srcOp);
+    src.operation = srcOp;
+    return getProfileSide(src);
+  }
+  // interne = on ajoute le rayon fraise ; externe = on le soustrait
+  if (p.operation === '2') {
+    return p.drilling_type === 'outer' ? 'out' : 'in';
+  }
+  if (p.operation === '6') {
+    return p.thread_type === 'nut_internal' ? 'in' : 'out';
+  }
+  if (p.operation === '5') return 'in';  // oblong = rainure interne
+  if (p.operation === '4') return 'out'; // coin = extérieur
+  return 'out';
+}
+
+/** Positions d'instances du schéma (mode 7) — même logique que genSchema */
+function schemaInstancePositions(p, footprint) {
+  const positions = [];
+  const isPolar = p.schema_layout === 'polar';
+  if (isPolar) {
+    const n = Math.max(1, Math.round(p.schema_polar_num));
+    const a0 = (p.schema_polar_start || 0) * Math.PI / 180;
+    const totalDeg = p.schema_polar_total != null ? p.schema_polar_total : 360;
+    const total = totalDeg * Math.PI / 180;
+    const step = (n <= 1) ? 0
+      : (Math.abs(totalDeg - 360) < 1e-6 || Math.abs(totalDeg) < 1e-9)
+        ? total / n : total / (n - 1);
+    for (let i = 0; i < n; i++) {
+      const a = a0 + i * step;
+      positions.push({
+        x: p.start_x + p.schema_polar_radius * Math.cos(a),
+        y: p.start_y + p.schema_polar_radius * Math.sin(a)
+      });
+    }
+  } else {
+    for (let j = 0; j < p.schema_num_y; j++) {
+      for (let i = 0; i < p.schema_num_x; i++) {
+        positions.push({
+          x: p.start_x + i * p.schema_step_x,
+          y: p.start_y + j * p.schema_step_y
+        });
+      }
+    }
+  }
+  return positions;
+}
+
+/** Positions des trous d'un schéma de perçage (mode 3) */
+function matrixHolePositions(p) {
+  const holes = [];
+  if (p.matrix_layout === 'polar') {
+    const R = p.polar_radius;
+    const nh = Math.round(p.polar_num_holes);
+    const a0 = (p.polar_start_angle || 0) * Math.PI / 180;
+    const totalDeg = (p.polar_total_angle != null ? p.polar_total_angle : 360);
+    const total = totalDeg * Math.PI / 180;
+    const step = (nh <= 1) ? 0
+      : (Math.abs(totalDeg - 360) < 1e-6 || Math.abs(totalDeg) < 1e-9)
+        ? total / nh : total / (nh - 1);
+    for (let i = 0; i < nh; i++) {
+      const a = a0 + i * step;
+      holes.push({ x: p.start_x + R * Math.cos(a), y: p.start_y + R * Math.sin(a) });
+    }
+  } else {
+    for (let j = 0; j < p.num_rows; j++) {
+      for (let i = 0; i < p.num_cols; i++) {
+        holes.push({
+          x: p.start_x + i * p.spacing_x,
+          y: p.start_y + j * p.spacing_y
+        });
+      }
+    }
+  }
+  return holes;
+}
+
+/** Géométrie pièce pour le pointillé bleu (factorisé modes 1, 3, 5, 7) */
+function buildPartGeometry(p) {
+  if (p.operation === '1') {
+    return { kind: 'surf_rect', x: p.start_x, y: p.start_y, w: p.width_x, h: p.length_y };
+  }
+  if (p.operation === '3') {
+    return { kind: 'drill_holes', holes: matrixHolePositions(p) };
+  }
+  if (p.operation === '5') {
+    return {
+      kind: 'oblong_parts',
+      items: [{
+        cx: p.start_x, cy: p.start_y,
+        length_x: p.length_x, length_y: p.length_y, width: p.width
+      }]
+    };
+  }
+  if (p.operation === '7') {
+    const srcOp = String(p.schema_source || '1');
+    const src = collectParamsForOp(srcOp);
+    src.operation = srcOp;
+    const positions = schemaInstancePositions(p);
+    if (srcOp === '1') {
+      return {
+        kind: 'surf_rects',
+        rects: positions.map(pos => ({
+          x: pos.x, y: pos.y, w: src.width_x, h: src.length_y
+        }))
+      };
+    }
+    if (srcOp === '3') {
+      const holes = [];
+      for (const pos of positions) {
+        holes.push(...matrixHolePositions({ ...src, start_x: pos.x, start_y: pos.y }));
+      }
+      return { kind: 'drill_holes', holes };
+    }
+    if (srcOp === '5') {
+      return {
+        kind: 'oblong_parts',
+        items: positions.map(pos => ({
+          cx: pos.x, cy: pos.y,
+          length_x: src.length_x, length_y: src.length_y, width: src.width
+        }))
+      };
+    }
+  }
+  return null;
+}
+
+function drawView(canvas, segs, startA, startB, startSet,
+                  axisAKey, axisBKey, axisALabel, axisBLabel,
+                  w, h, pad, scale, minA, maxA, minB, maxB,
+                  toolDiameter, plungePoints, arcs, profileSide, partGeometry) {
   const dpr = window.devicePixelRatio || 1;
   canvas.width = Math.floor(w * dpr);
   canvas.height = Math.floor(h * dpr);
   const ctx = canvas.getContext('2d');
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, w, h);
-  ctx.fillStyle = '#0a0e16';
+  const t = previewTheme();
+  ctx.fillStyle = t.bg;
   ctx.fillRect(0, 0, w, h);
   if (!segs.length) {
     ctx.fillStyle = '#6a7898';
-    ctx.font = '12px system-ui';
+    ctx.font = '24px system-ui';
     ctx.textAlign = 'center';
     ctx.fillText(tr('previewEmpty'), w / 2, h / 2);
     return;
   }
+  
   const dA = Math.max(1e-6, maxA - minA);
   const dB = Math.max(1e-6, maxB - minB);
   const oA = (w - dA * scale) / 2 - minA * scale;
@@ -1162,9 +1702,7 @@ function drawView(canvas, segs, startA, startB, startSet, axisAKey, axisBKey, ax
   ctx.lineTo(tA(0), tB(maxB));
   ctx.stroke();
   ctx.setLineDash([]);
-  ctx.strokeStyle = '#1e293b';
-  ctx.lineWidth = 1;
-  ctx.strokeRect(tA(minA), tB(maxB), (maxA - minA) * scale, (maxB - minB) * scale);
+  // (cadre gris de bounding-box supprimé)
   for (const s of segs) {
     const a0 = s[axisAKey + '0'], a1 = s[axisAKey + '1'];
     const b0 = s[axisBKey + '0'], b1 = s[axisBKey + '1'];
@@ -1197,19 +1735,22 @@ function drawView(canvas, segs, startA, startB, startSet, axisAKey, axisBKey, ax
     const cx = tA(startA);
     const cy = tB(startB);
     const isXZ = (axisAKey === 'x' && axisBKey === 'z');
+    
     if (isXZ) {
+      const cy0 = tB(0);                 // ← aligné sur Z=0
       const ww = toolRadiusPx * 2;
       const hh = toolRadiusPx * 6;
       ctx.beginPath();
-      ctx.rect(cx - ww / 2, cy - hh / 2, ww, hh);
+      ctx.rect(cx - ww / 2, cy0 - hh, ww, hh);  // bas du rectangle = Z0
       ctx.fillStyle = 'rgba(34, 197, 94, 0.15)';
       ctx.fill();
       ctx.strokeStyle = '#22c55e';
       ctx.lineWidth = 2;
       ctx.setLineDash([]);
       ctx.stroke();
+      // petit point à la pointe (Z0)
       ctx.beginPath();
-      ctx.arc(cx, cy, 2.5, 0, Math.PI * 2);
+      ctx.arc(cx, cy0, 2.5, 0, Math.PI * 2);
       ctx.fillStyle = '#22c55e';
       ctx.fill();
     } else {
@@ -1227,27 +1768,205 @@ function drawView(canvas, segs, startA, startB, startSet, axisAKey, axisBKey, ax
       ctx.fill();
     }
   }
+    // ========== Profil fini (pointillés bleus) — vue XY ==========
+  const isXY = (axisAKey === 'x' && axisBKey === 'y');
+  if (isXY && toolDiameter > 0) {
+    const toolR = toolDiameter / 2;
+    const side = profileSide || 'out';
+    const realArcs = (arcs || []).filter(a => a.r > 0.05);
+    const pureSlot = (side === 'in' && realArcs.length === 0);
+    const partGeom = (typeof partGeometry !== 'undefined') ? partGeometry : null;
+
+    ctx.setLineDash([5, 4]);
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 1.5;
+
+    function strokeArcProfile(cx, cy, r, a0, da) {
+      if (r < 0.05) return;
+      const n = Math.max(8, Math.min(48, Math.ceil(Math.abs(da) / (Math.PI / 24))));
+      ctx.beginPath();
+      for (let k = 0; k <= n; k++) {
+        const ang = a0 + da * (k / n);
+        const px = cx + r * Math.cos(ang);
+        const py = cy + r * Math.sin(ang);
+        if (k === 0) ctx.moveTo(tA(px), tB(py));
+        else ctx.lineTo(tA(px), tB(py));
+      }
+      ctx.stroke();
+    }
+
+    function strokeLineProfile(x0, y0, x1, y1) {
+      ctx.beginPath();
+      ctx.moveTo(tA(x0), tB(y0));
+      ctx.lineTo(tA(x1), tB(y1));
+      ctx.stroke();
+    }
+
+    function strokeCircleProfile(cx, cy, r) {
+      if (r < 0.05) return;
+      const n = 48;
+      ctx.beginPath();
+      for (let k = 0; k <= n; k++) {
+        const ang = (k / n) * Math.PI * 2;
+        const px = cx + r * Math.cos(ang);
+        const py = cy + r * Math.sin(ang);
+        if (k === 0) ctx.moveTo(tA(px), tB(py));
+        else ctx.lineTo(tA(px), tB(py));
+      }
+      ctx.stroke();
+    }
+
+    // --- Surfaçage : rectangle(s) exact(s) Largeur × Longueur ---
+    if (partGeom && (partGeom.kind === 'surf_rect' || partGeom.kind === 'surf_rects')) {
+      const rects = partGeom.kind === 'surf_rect'
+        ? [{ x: partGeom.x, y: partGeom.y, w: partGeom.w, h: partGeom.h }]
+        : (partGeom.rects || []);
+      for (const r of rects) {
+        const x0 = r.x, y0 = r.y, x1 = r.x + r.w, y1 = r.y + r.h;
+        strokeLineProfile(x0, y0, x1, y0);
+        strokeLineProfile(x1, y0, x1, y1);
+        strokeLineProfile(x1, y1, x0, y1);
+        strokeLineProfile(x0, y1, x0, y0);
+      }
+    }
+    // --- Perçage schéma : cercles Ø outil ---
+    else if (partGeom && partGeom.kind === 'drill_holes') {
+      const r = toolR;
+      const seen = new Set();
+      for (const h of (partGeom.holes || [])) {
+        const key = h.x.toFixed(3) + ',' + h.y.toFixed(3);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        strokeCircleProfile(h.x, h.y, r);
+      }
+    }
+    // --- Oblong (mode 5 / schéma) : profil fini depuis géométrie ---
+    else if (partGeom && partGeom.kind === 'oblong_parts') {
+      for (const it of (partGeom.items || [])) {
+        const hx = it.length_x / 2, hy = it.length_y / 2;
+        const rr = it.width / 2; // rayon fini des extrémités
+        const cx = it.cx, cy = it.cy;
+        // rectangle arrondi : 4 arcs + 4 droites (sens CCW)
+        if (rr > 0.05 && hx >= rr && hy >= rr) {
+          const ix = hx - rr, iy = hy - rr; // demi-segments droits
+          strokeArcProfile(cx - ix, cy - iy, rr, Math.PI, Math.PI / 2);
+          strokeArcProfile(cx + ix, cy - iy, rr, -Math.PI / 2, Math.PI / 2);
+          strokeArcProfile(cx + ix, cy + iy, rr, 0, Math.PI / 2);
+          strokeArcProfile(cx - ix, cy + iy, rr, Math.PI / 2, Math.PI / 2);
+          strokeLineProfile(cx - ix, cy - hy, cx + ix, cy - hy);
+          strokeLineProfile(cx + hx, cy - iy, cx + hx, cy + iy);
+          strokeLineProfile(cx + ix, cy + hy, cx - ix, cy + hy);
+          strokeLineProfile(cx - hx, cy + iy, cx - hx, cy - iy);
+        } else {
+          // fallback rectangle simple
+          strokeLineProfile(cx - hx, cy - hy, cx + hx, cy - hy);
+          strokeLineProfile(cx + hx, cy - hy, cx + hx, cy + hy);
+          strokeLineProfile(cx + hx, cy + hy, cx - hx, cy + hy);
+          strokeLineProfile(cx - hx, cy + hy, cx - hx, cy - hy);
+        }
+      }
+    }
+    // --- Cas spécial oblong pure-slot sans géométrie fournie ---
+    else if (pureSlot) {
+      let minPx = Infinity, maxPx = -Infinity, minPy = Infinity, maxPy = -Infinity;
+      let hasSeg = false;
+      for (const s of segs) {
+        if (s.type !== 'cut') continue;
+        const len = Math.hypot(s.x1 - s.x0, s.y1 - s.y0);
+        if (len < 1.0) continue;
+        minPx = Math.min(minPx, s.x0, s.x1);
+        maxPx = Math.max(maxPx, s.x0, s.x1);
+        minPy = Math.min(minPy, s.y0, s.y1);
+        maxPy = Math.max(maxPy, s.y0, s.y1);
+        hasSeg = true;
+      }
+      if (hasSeg && toolR > 0.05) {
+        // Quarts de cercle extérieurs en sens trigonométrique (CCW, da > 0)
+        // angles standard: 0=+X, π/2=+Y, π=-X, -π/2=-Y
+        const corners = [
+          { cx: minPx, cy: minPy, a0: Math.PI,       da:  Math.PI / 2 }, // bas-gauche : π → 3π/2
+          { cx: maxPx, cy: minPy, a0: -Math.PI / 2,  da:  Math.PI / 2 }, // bas-droit  : -π/2 → 0
+          { cx: maxPx, cy: maxPy, a0: 0,             da:  Math.PI / 2 }, // haut-droit : 0 → π/2
+          { cx: minPx, cy: maxPy, a0: Math.PI / 2,   da:  Math.PI / 2 }  // haut-gauche: π/2 → π
+        ];
+        for (const c of corners) strokeArcProfile(c.cx, c.cy, toolR, c.a0, c.da);
+        strokeLineProfile(minPx, minPy - toolR, maxPx, minPy - toolR);
+        strokeLineProfile(maxPx + toolR, minPy, maxPx + toolR, maxPy);
+        strokeLineProfile(maxPx, maxPy + toolR, minPx, maxPy + toolR);
+        strokeLineProfile(minPx - toolR, maxPy, minPx - toolR, minPy);
+      }
+    } else {
+      // --- Cas normal (oblong avec rayons, contour, etc.) ---
+      for (const a of realArcs) {
+        const rPart = (side === 'in') ? (a.r + toolR) : (a.r - toolR);
+        if (rPart < 0.05) continue;
+        strokeArcProfile(a.cx, a.cy, rPart, a.a0, a.da);
+      }
+      if (side === 'in') {
+        let cx = 0, cy = 0, cn = 0;
+        for (const s of segs) {
+          if (s.type !== 'cut') continue;
+          const len = Math.hypot(s.x1 - s.x0, s.y1 - s.y0);
+          if (len < 1.0) continue;
+          cx += (s.x0 + s.x1) / 2;
+          cy += (s.y0 + s.y1) / 2;
+          cn++;
+        }
+        if (cn > 0) { cx /= cn; cy /= cn; }
+        const seen = new Set();
+        for (const s of segs) {
+          if (s.type !== 'cut') continue;
+          const dx = s.x1 - s.x0;
+          const dy = s.y1 - s.y0;
+          const len = Math.hypot(dx, dy);
+          if (len < 1.0) continue;
+          const xa = Math.min(s.x0, s.x1).toFixed(2);
+          const ya = Math.min(s.y0, s.y1).toFixed(2);
+          const xb = Math.max(s.x0, s.x1).toFixed(2);
+          const yb = Math.max(s.y0, s.y1).toFixed(2);
+          const key = xa + ',' + ya + '|' + xb + ',' + yb;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          const nx = (-dy / len) * toolR;
+          const ny = ( dx / len) * toolR;
+          const mx = (s.x0 + s.x1) / 2;
+          const my = (s.y0 + s.y1) / 2;
+          const dPlus  = Math.hypot(mx + nx - cx, my + ny - cy);
+          const dMinus = Math.hypot(mx - nx - cx, my - ny - cy);
+          const sign = (dPlus >= dMinus) ? 1 : -1;
+          strokeLineProfile(
+            s.x0 + sign * nx, s.y0 + sign * ny,
+            s.x1 + sign * nx, s.y1 + sign * ny
+          );
+        }
+      }
+    }
+
+    ctx.setLineDash([]);
+  }
+  // ========== fin profil fini ==========
+
   ctx.fillStyle = '#38bdf8';
   ctx.beginPath();
-  ctx.arc(tA(0), tB(0), 3.5, 0, Math.PI * 2);
+  ctx.arc(tA(0), tB(0), 7, 0, Math.PI * 2);
   ctx.fill();
-  ctx.font = '10px ui-monospace, monospace';
+  ctx.font = '20px ui-monospace, monospace';
   ctx.textBaseline = 'middle';
   function labelAt(a, b, text, anchor) {
     const px = tA(a), py = tB(b);
     let ax = 0, ay = 0;
-    if (anchor === 'left') { ctx.textAlign = 'left'; ax = 5; }
-    else if (anchor === 'right') { ctx.textAlign = 'right'; ax = -5; }
+    if (anchor === 'left') { ctx.textAlign = 'left'; ax = 8; }
+    else if (anchor === 'right') { ctx.textAlign = 'right'; ax = -8; }
     else { ctx.textAlign = 'center'; }
-    if (anchor === 'top') ay = -9;
-    else if (anchor === 'bottom') ay = 11;
+    if (anchor === 'top') ay = -16;
+    else if (anchor === 'bottom') ay = 18;
     else if (anchor === 'left' || anchor === 'right') ay = 0;
-    else ay = -11;
+    else ay = -18;
     const tw = ctx.measureText(text).width;
     const bx = px + ax - (ctx.textAlign === 'center' ? tw / 2 : ctx.textAlign === 'right' ? tw : 0);
-    const by = py + ay - 6;
+    const by = py + ay - 10;
     ctx.fillStyle = 'rgba(10,14,22,0.75)';
-    ctx.fillRect(bx - 3, by, tw + 6, 12);
+    ctx.fillRect(bx - 4, by, tw + 8, 20);
     ctx.fillStyle = '#cbd5e1';
     ctx.fillText(text, px + ax, py + ay);
   }
@@ -1256,6 +1975,7 @@ function drawView(canvas, segs, startA, startB, startSet, axisAKey, axisBKey, ax
   labelAt(maxA, (minB + maxB) / 2, axisALabel + 'max ' + fmtL(maxA), 'left');
   labelAt((minA + maxA) / 2, minB, axisBLabel + 'min ' + fmtL(minB), 'top');
   labelAt((minA + maxA) / 2, maxB, axisBLabel + 'max ' + fmtL(maxB), 'bottom');
+  
 }
 
 function computeTopPaneFraction(segs) {
@@ -1275,10 +1995,15 @@ function computeTopPaneFraction(segs) {
 
 let lastToolDiameter = 10;
 
-function drawPreview(gcode, toolDiameter) {
+let lastPartGeometry = null;
+
+function drawPreview(gcode, toolDiameter, profileSide, partGeometry) {
   if (toolDiameter != null) lastToolDiameter = toolDiameter;
+  if (partGeometry !== undefined) lastPartGeometry = partGeometry;
   const td = lastToolDiameter;
-  const { segs, startX, startY, startZ, startSet, plunges } = parseGCodePaths(gcode);
+  const side = profileSide || 'out';
+  const partGeom = (partGeometry !== undefined) ? partGeometry : lastPartGeometry;
+  const { segs, startX, startY, startZ, startSet, plunges, arcs } = parseGCodePaths(gcode);
   const paneXZ = document.getElementById('viz-pane-xz');
   const paneXY = document.getElementById('viz-pane-xy');
   const frac = computeTopPaneFraction(segs);
@@ -1310,6 +2035,49 @@ function drawPreview(gcode, toolDiameter) {
   minX = Math.min(minX, 0); maxX = Math.max(maxX, 0);
   minY = Math.min(minY, 0); maxY = Math.max(maxY, 0);
   minZ = Math.min(minZ, 0); maxZ = Math.max(maxZ, 0);
+  // Cadrage : profil fini / géométrie pièce
+  const toolRBound = (td > 0) ? (td / 2) : 0;
+  if (toolRBound > 0 && side === 'in') {
+    minX -= toolRBound; maxX += toolRBound;
+    minY -= toolRBound; maxY += toolRBound;
+  }
+  if (arcs && arcs.length && toolRBound > 0) {
+    for (const a of arcs) {
+      if (!(a.r > 0.05)) continue;
+      const rPart = (side === 'in') ? (a.r + toolRBound) : Math.max(0, a.r - toolRBound);
+      minX = Math.min(minX, a.cx - rPart);
+      maxX = Math.max(maxX, a.cx + rPart);
+      minY = Math.min(minY, a.cy - rPart);
+      maxY = Math.max(maxY, a.cy + rPart);
+    }
+  }
+  if (partGeom && (partGeom.kind === 'surf_rect' || partGeom.kind === 'surf_rects')) {
+    const rects = partGeom.kind === 'surf_rect'
+      ? [{ x: partGeom.x, y: partGeom.y, w: partGeom.w, h: partGeom.h }]
+      : (partGeom.rects || []);
+    for (const r of rects) {
+      minX = Math.min(minX, r.x, r.x + r.w);
+      maxX = Math.max(maxX, r.x, r.x + r.w);
+      minY = Math.min(minY, r.y, r.y + r.h);
+      maxY = Math.max(maxY, r.y, r.y + r.h);
+    }
+  }
+  if (partGeom && partGeom.kind === 'drill_holes' && toolRBound > 0) {
+    for (const h of (partGeom.holes || [])) {
+      minX = Math.min(minX, h.x - toolRBound);
+      maxX = Math.max(maxX, h.x + toolRBound);
+      minY = Math.min(minY, h.y - toolRBound);
+      maxY = Math.max(maxY, h.y + toolRBound);
+    }
+  }
+  if (partGeom && partGeom.kind === 'oblong_parts') {
+    for (const it of (partGeom.items || [])) {
+      minX = Math.min(minX, it.cx - it.length_x / 2);
+      maxX = Math.max(maxX, it.cx + it.length_x / 2);
+      minY = Math.min(minY, it.cy - it.length_y / 2);
+      maxY = Math.max(maxY, it.cy + it.length_y / 2);
+    }
+  }
   const dX = Math.max(1e-6, maxX - minX);
   const dY = Math.max(1e-6, maxY - minY);
   const dZ = Math.max(1e-6, maxZ - minZ);
@@ -1317,9 +2085,11 @@ function drawPreview(gcode, toolDiameter) {
     (wXZ - 2 * pad) / dX, (hXZ - 2 * pad) / dZ,
     (wXY - 2 * pad) / dX, (hXY - 2 * pad) / dY
   );
-  drawView(canvasXZ, segs, startX, startZ, startSet, 'x', 'z', 'X', 'Z', wXZ, hXZ, pad, scale, minX, maxX, minZ, maxZ, td);
-  drawView(canvasXY, segs, startX, startY, startSet, 'x', 'y', 'X', 'Y', wXY, hXY, pad, scale, minX, maxX, minY, maxY, td, plunges);
-}
+  drawView(canvasXZ, segs, startX, startZ, startSet, 'x', 'z', 'X', 'Z',
+            wXZ, hXZ, pad, scale, minX, maxX, minZ, maxZ, td, null, null, side, null);
+  drawView(canvasXY, segs, startX, startY, startSet, 'x', 'y', 'X', 'Y',
+            wXY, hXY, pad, scale, minX, maxX, minY, maxY, td, plunges, arcs, side, partGeom);
+  }
 
 window.addEventListener('resize', () => {
   if (generatedCode) drawPreview(generatedCode);
@@ -1342,8 +2112,12 @@ const MODE_MAP = {
   '3': { key: 'matrix_drilling', fields: {
     start_x:'start_x', start_y:'start_y', start_z:'start_z', clearance_height:'clearance_height',
     tool_diameter:'tool_diameter', spindle_speed:'spindle_speed', feed_rate:'feed_rate',
-    depth_per_pass:'depth_per_pass', total_depth:'total_depth', num_cols:'num_cols', num_rows:'num_rows',
-    spacing_x:'spacing_x', spacing_y:'spacing_y'
+    depth_per_pass:'depth_per_pass', total_depth:'total_depth',
+    matrix_layout:'matrix_layout',
+    num_cols:'num_cols', num_rows:'num_rows',
+    spacing_x:'spacing_x', spacing_y:'spacing_y',
+    polar_radius:'polar_radius', polar_num_holes:'polar_num_holes',
+    polar_start_angle:'polar_start_angle', polar_total_angle:'polar_total_angle'
   }},
   '4': { key: 'corner_radius', fields: {
     start_x:'start_x', start_y:'start_y', start_z:'start_z', clearance_height:'clearance_height',
@@ -1363,6 +2137,16 @@ const MODE_MAP = {
     depth_per_pass:'depth_per_pass', total_depth:'total_depth', th_hole_diameter:'hole_diameter',
     thread_type:'thread_type', path_type_thread:'path_type', thread_pitch:'thread_pitch',
     thread_number:'thread_number'
+  }},
+  '7': { key: 'schema_pattern', fields: {
+    start_x:'start_x', start_y:'start_y', start_z:'start_z', clearance_height:'clearance_height',
+    tool_diameter:'tool_diameter', spindle_speed:'spindle_speed', feed_rate:'feed_rate',
+    depth_per_pass:'depth_per_pass', total_depth:'total_depth',
+    schema_source:'schema_source', schema_layout:'schema_layout',
+    schema_num_x:'schema_num_x', schema_num_y:'schema_num_y',
+    schema_step_x:'schema_step_x', schema_step_y:'schema_step_y',
+    schema_polar_radius:'schema_polar_radius', schema_polar_num:'schema_polar_num',
+    schema_polar_start:'schema_polar_start', schema_polar_total:'schema_polar_total'
   }}
 };
 
@@ -1371,7 +2155,7 @@ let settingsCache = {
   global_units: 'mm', global_feed_rate_percent: '50%', language: 'fr',
   startup_codes: 'M7 M8 M3 G04P5',
   surfacing: {}, contour_drilling: {}, matrix_drilling: {},
-  corner_radius: {}, oblong_hole: {}, threading: {}
+  corner_radius: {}, oblong_hole: {}, threading: {}, schema_pattern: {}
 };
 
 function parseFieldValue(el) {
@@ -1397,6 +2181,8 @@ function writeModeToForm(op, section) {
     const el = document.getElementById(htmlId);
     if (el && section[jsonKey] !== undefined && section[jsonKey] !== null) el.value = section[jsonKey];
   }
+  if (op === '3') updateMatrixLayoutUI();
+  if (op === '7') updateSchemaLayoutUI();
 }
 function captureMode(op) {
   const map = MODE_MAP[op];
@@ -1499,6 +2285,12 @@ async function loadSettings() {
     if (el.id === 'global_units') {
       applyUnitsChange(el.value);
     }
+    if (el.id === 'matrix_layout') {
+      updateMatrixLayoutUI();
+    }
+    if (el.id === 'schema_layout') {
+      updateSchemaLayoutUI();
+    }
     if (el.tagName === 'SELECT') trigger(0);
   });
 })();
@@ -1532,18 +2324,19 @@ function generateHeader(p, stockX, stockY, stockZ) {
   ].join('\n');
 }
 function footer(clearance) {
-  return [`G00 Z${fmt(clearance)}`, 'G90', 'M5', 'M30'].join('\n');
+  return [`G00 Z${fmt(clearance)}`, 'G0 X0 Y0', 'G90', 'M5', 'M30'].join('\n');
 }
 
 function genSurfacing(p) {
   const pathCode = { conventional: '1', climb: '2', alternate: '3' }[p.path_type] || '1';
   const labels = { conventional: 'Opposition', climb: 'Avalant', alternate: 'Alterné' };
-  // --- genSurfacing ---
   if (p.depth_per_pass > p.total_depth) throw new Error(tr('depthPassError'));
   if (p.overlap_percent < 0 || p.overlap_percent >= 100) throw new Error(tr('overlapRangeError'));
   const stepOver = p.tool_diameter * (1 - p.overlap_percent / 100);
   const numPassesZ = Math.ceil(p.total_depth / p.depth_per_pass);
-  const numPassesY = Math.ceil(p.length_y / stepOver);
+  // Nombre impair de passes Y : le dernier segment finit du côté opposé au départ
+  let numPassesY = Math.ceil(p.length_y / stepOver);
+  if (numPassesY % 2 === 0) numPassesY += 1;
   const offset = p.tool_diameter / 2;
   const initialX = p.start_x - offset, initialY = p.start_y - offset;
   const endX = p.start_x + p.width_x, endY = p.start_y + p.length_y;
@@ -1579,7 +2372,6 @@ function genSurfacing(p) {
   }
   g.push(`G00 Z${fmt(p.clearance_height)}`);
 
-    // --- Tour de finition sur les 4 faces (décalage = rayon outil) ---
   const toolR = p.tool_diameter / 2;
   const xMin = p.start_x - toolR;
   const xMax = p.start_x + p.width_x + toolR;
@@ -1594,26 +2386,23 @@ function genSurfacing(p) {
   g.push(`G01 Z${fmt(finalZ)} F${fmt(plunge)}`);
 
   if (pathCode === '1') {
-    // Opposition → horaire (CW)
     g.push(`G01 X${fmt(xMax)} Y${fmt(yMin)} F${feed}`);
     g.push(`G01 X${fmt(xMax)} Y${fmt(endY)} F${feed}`);
     g.push(`G01 X${fmt(xMin)} Y${fmt(endY)} F${feed}`);
     g.push(`G01 X${fmt(xMin)} Y${fmt(yMin)} F${feed}`);
   } else if (pathCode === '2')  {
-    // Avalant / Alterné → anti-horaire (CCW)
     g.push(`G01 X${fmt(xMax)} Y${fmt(yMin)} F${feed}`);
     g.push(`G01 X${fmt(xMax)} Y${fmt(endY)} F${feed}`);
     g.push(`G01 X${fmt(xMin)} Y${fmt(endY)} F${feed}`);
     g.push(`G0 X${fmt(xMin)} Y${fmt(yMin)} Z${fmt(p.clearance_height)}`);
   } else {
-    // Avalant / Alterné → anti-horaire (CCW)
     g.push(`G01 X${fmt(xMin)} Y${fmt(endY)} F${feed}`);
     g.push(`G01 X${fmt(xMax)} Y${fmt(endY)} F${feed}`);
     g.push(`G01 X${fmt(xMax)} Y${fmt(yMin)} F${feed}`);
     g.push(`G01 X${fmt(xMin)} Y${fmt(yMin)} F${feed}`);
   }
 
-  g.push(`G00 Z${fmt(p.clearance_height)}`);
+  //g.push(`G00 Z${fmt(p.clearance_height)}`);
   return {
     body: g.join('\n'),
     stockX: p.width_x + p.tool_diameter,
@@ -1659,48 +2448,90 @@ function genContour(p) {
         : `G03 X${fmt(tx)} Y${fmt(p.start_y)} I${fmt(-r)} J0.000 F${Math.round(p.feed_rate)}`);
     }
   }
-  g.push(`G00 Z${fmt(p.clearance_height)}`);
-  g.push(`G00 X${fmt(p.start_x)} Y${fmt(p.start_y)}`);
+  //g.push(`G00 Z${fmt(p.clearance_height)}`);
+  //g.push(`G00 X${fmt(p.start_x)} Y${fmt(p.start_y)}`);
   const stock = p.drilling_type === 'outer' ? p.hole_diameter + 2 * p.tool_diameter : p.hole_diameter + p.tool_diameter;
   return { body: g.join('\n'), stockX: stock, stockY: stock, stockZ: p.total_depth + p.clearance_height };
 }
 
 function genMatrix(p) {
-  if (p.num_cols < 1 || p.num_rows < 1) throw new Error(tr('colsRowsError'));
+  const isPolar = p.matrix_layout === 'polar';
+  if (isPolar) {
+    if (!(p.polar_radius > 0)) throw new Error(tr('polarRadiusError'));
+    if (p.polar_num_holes < 1) throw new Error(tr('polarHolesError'));
+  } else {
+    if (p.num_cols < 1 || p.num_rows < 1) throw new Error(tr('colsRowsError'));
+  }
   if (p.depth_per_pass > p.total_depth) throw new Error(tr('depthPassError'));
+
   const numPassesZ = Math.ceil(p.total_depth / p.depth_per_pass);
   const plunge = p.feed_rate * p.plunge_percent / 100;
   const approachOffset = 1;
   let g = [];
-  g.push('; Matrix drilling RAST');
-  g.push(`; ${p.num_cols} x ${p.num_rows} holes`);
+  g.push('; pattern drilling');
+
+  const holes = [];
+  if (isPolar) {
+    const R = p.polar_radius;
+    const n = Math.round(p.polar_num_holes);
+    const a0 = (p.polar_start_angle || 0) * Math.PI / 180;
+    const totalDeg = (p.polar_total_angle != null ? p.polar_total_angle : 360);
+    const total = totalDeg * Math.PI / 180;
+    const step = (n <= 1) ? 0
+      : (Math.abs(totalDeg - 360) < 1e-6 || Math.abs(totalDeg) < 1e-9)
+        ? total / n
+        : total / (n - 1);
+    g.push(`; Polar: R=${fmt(R)}  N=${n}  start=${fmt(p.polar_start_angle)}°  total=${fmt(totalDeg)}°`);
+    g.push(`; Center X=${fmt(p.start_x)} Y=${fmt(p.start_y)}`);
+    for (let i = 0; i < n; i++) {
+      const a = a0 + i * step;
+      holes.push({
+        x: p.start_x + R * Math.cos(a),
+        y: p.start_y + R * Math.sin(a)
+      });
+    }
+  } else {
+    g.push(`; ${p.num_cols} x ${p.num_rows} holes (rectangular)`);
+    for (let j = 0; j < p.num_rows; j++) {
+      const cy = p.start_y + j * p.spacing_y;
+      let xs = [];
+      for (let i = 0; i < p.num_cols; i++) xs.push(p.start_x + i * p.spacing_x);
+      if (j % 2 === 1) xs.reverse();
+      for (const cx of xs) holes.push({ x: cx, y: cy });
+    }
+  }
+
   g.push(`G0 S${Math.round(p.spindle_speed)} F${Math.round(p.feed_rate)}`);
   g.push(`G00 Z${fmt(p.clearance_height)} F${Math.round(p.feed_rate)}`);
-  g.push(`G00 X${fmt(p.start_x)} Y${fmt(p.start_y)}`);
-  for (let j = 0; j < p.num_rows; j++) {
-    const cy = p.start_y + j * p.spacing_y;
-    let xs = [];
-    for (let i = 0; i < p.num_cols; i++) xs.push(p.start_x + i * p.spacing_x);
-    if (j % 2 === 1) xs.reverse();
-    for (const cx of xs) {
-      g.push(`; Hole X=${fmt(cx)} Y=${fmt(cy)}`);
-      g.push(`G00 X${fmt(cx)} Y${fmt(cy)}`);
-      let currentZ = p.start_z;
-      let prevZ = p.start_z;
-      for (let k = 0; k < numPassesZ; k++) {
-        currentZ -= Math.min(p.depth_per_pass, p.total_depth - k * p.depth_per_pass);
-        if (k > 0) g.push(`G00 Z${fmt(prevZ + approachOffset)}`);
-        g.push(`G01 Z${fmt(currentZ)} F${fmt(plunge)}`);
-        prevZ = currentZ;
-        if (k < numPassesZ - 1) g.push(`G00 Z${fmt(p.clearance_height)}`);
-      }
-      g.push(`G00 Z${fmt(p.clearance_height)}`);
+  if (holes.length) g.push(`G00 X${fmt(holes[0].x)} Y${fmt(holes[0].y)}`);
+
+  for (const h of holes) {
+    g.push(`; Hole X=${fmt(h.x)} Y=${fmt(h.y)}`);
+    g.push(`G00 X${fmt(h.x)} Y${fmt(h.y)}`);
+    let currentZ = p.start_z;
+    let prevZ = p.start_z;
+    for (let k = 0; k < numPassesZ; k++) {
+      currentZ -= Math.min(p.depth_per_pass, p.total_depth - k * p.depth_per_pass);
+      if (k > 0) g.push(`G00 Z${fmt(prevZ + approachOffset)}`);
+      g.push(`G01 Z${fmt(currentZ)} F${fmt(plunge)}`);
+      prevZ = currentZ;
+      if (k < numPassesZ - 1) g.push(`G00 Z${fmt(p.clearance_height)}`);
     }
+    //g.push(`G00 Z${fmt(p.clearance_height)}`);
+  }
+
+  let stockX, stockY;
+  if (isPolar) {
+    stockX = 2 * p.polar_radius;
+    stockY = 2 * p.polar_radius;
+  } else {
+    stockX = p.num_cols > 1 ? (p.num_cols - 1) * p.spacing_x : 10;
+    stockY = p.num_rows > 1 ? (p.num_rows - 1) * p.spacing_y : 10;
   }
   return {
     body: g.join('\n'),
-    stockX: p.num_cols > 1 ? (p.num_cols - 1) * p.spacing_x : 10,
-    stockY: p.num_rows > 1 ? (p.num_rows - 1) * p.spacing_y : 10,
+    stockX,
+    stockY,
     stockZ: p.total_depth + p.clearance_height
   };
 }
@@ -1708,95 +2539,204 @@ function genMatrix(p) {
 function genCorner(p) {
   if (p.radius <= 0 || p.tool_diameter <= 0) throw new Error(tr('radiusToolError'));
   if (p.depth_per_pass > p.total_depth) throw new Error(tr('depthPassError'));
+
   const numPassesZ = Math.ceil(p.total_depth / p.depth_per_pass);
   const arcR = p.radius + p.tool_diameter / 2;
   const plunge = p.feed_rate * p.plunge_percent / 100;
-  const conv = p.path_type !== 'conventional';
-  let arcCmd, returnX, returnY;
-  if (p.corner_type === 'front_left') {
-    if (conv) { arcCmd = `G03 X${fmt(arcR)} Y-${fmt(arcR)} I${fmt(arcR)} J0.000 F${Math.round(p.feed_rate)}`; returnX = `G00 X-${fmt(arcR)}`; returnY = `G00 Y${fmt(arcR)}`; }
-    else { arcCmd = `G02 X-${fmt(arcR)} Y${fmt(arcR)} I0.000 J${fmt(arcR)} F${Math.round(p.feed_rate)}`; returnX = `G00 X${fmt(arcR)}`; returnY = `G00 Y-${fmt(arcR)}`; }
-  } else if (p.corner_type === 'front_right') {
-    if (conv) { arcCmd = `G03 X${fmt(arcR)} Y${fmt(arcR)} I0.000 J${fmt(arcR)} F${Math.round(p.feed_rate)}`; returnX = `G00 X-${fmt(arcR)}`; returnY = `G00 Y-${fmt(arcR)}`; }
-    else { arcCmd = `G02 X-${fmt(arcR)} Y-${fmt(arcR)} I-${fmt(arcR)} J0.000 F${Math.round(p.feed_rate)}`; returnX = `G00 X${fmt(arcR)}`; returnY = `G00 Y${fmt(arcR)}`; }
-  } else if (p.corner_type === 'rear_right') {
-    if (conv) { arcCmd = `G03 X-${fmt(arcR)} Y${fmt(arcR)} I-${fmt(arcR)} J0.000 F${Math.round(p.feed_rate)}`; returnX = `G00 X${fmt(arcR)}`; returnY = `G00 Y-${fmt(arcR)}`; }
-    else { arcCmd = `G02 X${fmt(arcR)} Y-${fmt(arcR)} I0.000 J-${fmt(arcR)} F${Math.round(p.feed_rate)}`; returnX = `G00 X-${fmt(arcR)}`; returnY = `G00 Y${fmt(arcR)}`; }
-  } else {
-    if (conv) { arcCmd = `G03 X-${fmt(arcR)} Y-${fmt(arcR)} I0.000 J-${fmt(arcR)} F${Math.round(p.feed_rate)}`; returnX = `G00 X${fmt(arcR)}`; returnY = `G00 Y${fmt(arcR)}`; }
-    else { arcCmd = `G02 X${fmt(arcR)} Y${fmt(arcR)} I${fmt(arcR)} J0.000 F${Math.round(p.feed_rate)}`; returnX = `G00 X-${fmt(arcR)}`; returnY = `G00 Y-${fmt(arcR)}`; }
+  const feed = Math.round(p.feed_rate);
+  const isAlternate = p.path_type === 'alternate';
+  // isClimb : sens « avalant » pour la passe de référence (passe 0 en alterné = opposition)
+  const isClimb = p.path_type === 'climb';
+
+  /** Arc + retour XY pour un sens donné (climb=true → G02 côté code historique « conv ») */
+  function cornerMoves(climb) {
+    let arcCmd, returnX, returnY, offsetCmd;
+    if (p.corner_type === 'front_left') {          // AVG
+      if (climb) {
+        arcCmd = `G02 X-${fmt(arcR)} Y${fmt(arcR)} I0.000 J${fmt(arcR)} F${feed}`;
+        returnX = `G00 X${fmt(arcR)}`;
+        returnY = `G00 Y-${fmt(arcR)}`;
+        offsetCmd = `G00 X${fmt(arcR)}`;
+      } else {
+        arcCmd = `G03 X${fmt(arcR)} Y-${fmt(arcR)} I${fmt(arcR)} J0.000 F${feed}`;
+        returnX = `G00 X-${fmt(arcR)}`;
+        returnY = `G00 Y${fmt(arcR)}`;
+        offsetCmd = `G00 Y${fmt(arcR)}`;
+      }
+    } else if (p.corner_type === 'front_right') { // AVD
+      if (climb) {
+        arcCmd = `G02 X-${fmt(arcR)} Y-${fmt(arcR)} I-${fmt(arcR)} J0.000 F${feed}`;
+        returnX = `G00 X${fmt(arcR)}`;
+        returnY = `G00 Y${fmt(arcR)}`;
+        offsetCmd = `G00 Y${fmt(arcR)}`;
+      } else {
+        arcCmd = `G03 X${fmt(arcR)} Y${fmt(arcR)} I0.000 J${fmt(arcR)} F${feed}`;
+        returnX = `G00 X-${fmt(arcR)}`;
+        returnY = `G00 Y-${fmt(arcR)}`;
+        offsetCmd = `G00 X-${fmt(arcR)}`;
+      }
+    } else if (p.corner_type === 'rear_right') {  // ARD
+      if (climb) {
+        arcCmd = `G02 X${fmt(arcR)} Y-${fmt(arcR)} I0.000 J-${fmt(arcR)} F${feed}`;
+        returnX = `G00 X-${fmt(arcR)}`;
+        returnY = `G00 Y${fmt(arcR)}`;
+        offsetCmd = `G00 X-${fmt(arcR)}`;
+      } else {
+        arcCmd = `G03 X-${fmt(arcR)} Y${fmt(arcR)} I-${fmt(arcR)} J0.000 F${feed}`;
+        returnX = `G00 X${fmt(arcR)}`;
+        returnY = `G00 Y-${fmt(arcR)}`;
+        offsetCmd = `G00 Y-${fmt(arcR)}`;
+      }
+    } else {                                      // ARG = rear_left
+      if (climb) {
+        arcCmd = `G02 X${fmt(arcR)} Y${fmt(arcR)} I${fmt(arcR)} J0.000 F${feed}`;
+        returnX = `G00 X-${fmt(arcR)}`;
+        returnY = `G00 Y-${fmt(arcR)}`;
+        offsetCmd = `G00 Y-${fmt(arcR)}`;
+      } else {
+        arcCmd = `G03 X-${fmt(arcR)} Y-${fmt(arcR)} I0.000 J-${fmt(arcR)} F${feed}`;
+        returnX = `G00 X${fmt(arcR)}`;
+        returnY = `G00 Y${fmt(arcR)}`;
+        offsetCmd = `G00 X${fmt(arcR)}`;
+      }
+    }
+    return { arcCmd, returnX, returnY, offsetCmd };
   }
+
+  const fwd = cornerMoves(isAlternate ? false : isClimb); // alterné commence en opposition
+  const rev = cornerMoves(true);  // sens inverse (avalant) pour passes impaires
+
   let g = [];
-  g.push('; Corner radius 90°');
-  g.push(`G0 S${Math.round(p.spindle_speed)} F${Math.round(p.feed_rate)}`);
-  g.push(`G00 Z${fmt(p.clearance_height)} F${Math.round(p.feed_rate)}`);
+  g.push('; Corner radius 90 deg' + (isAlternate ? ' (Alternating)' : ''));
+  g.push('; Ensure bit is tangeant to both edges X and Y');
+  g.push(`G0 S${Math.round(p.spindle_speed)} F${feed}`);
+  g.push(`G00 Z${fmt(p.clearance_height)} F${feed}`);
+  g.push('G90');
+  g.push(`${fwd.offsetCmd} F${feed}`);
+
+  // Dégagement Z entre passes :
+  //   ARG + AVD en opposition ; ARD + AVG en avalant
+  //   jamais en mode Alterné
+  const needZClearance = !isAlternate && (
+    (!isClimb && (p.corner_type === 'rear_left' || p.corner_type === 'front_right')) ||
+    ( isClimb && (p.corner_type === 'rear_right' || p.corner_type === 'front_left'))
+  );
+
   g.push('G91');
   for (let i = 0; i < numPassesZ; i++) {
     const depth = Math.min(p.depth_per_pass, p.total_depth - i * p.depth_per_pass);
     const targetZ = p.start_z - (i * p.depth_per_pass + depth);
-    g.push(`; Pass ${i + 1} at Z=${fmt(targetZ)}`);
+    const useRev = isAlternate && (i % 2 === 1);
+    const mv = useRev ? rev : fwd;
+    g.push(`; Pass ${i + 1} at Z=${fmt(targetZ)}` + (isAlternate ? (useRev ? ' (rev)' : ' (fwd)') : ''));
     g.push('G90');
     g.push(`G01 Z${fmt(targetZ)} F${fmt(plunge)}`);
     g.push('G91');
-    g.push(arcCmd);
+    g.push(mv.arcCmd);
     g.push('G90');
-    g.push(`G00 Z${fmt(p.clearance_height)}`);
-    if (i < numPassesZ - 1) { g.push('G91'); g.push(returnX); g.push(returnY); }
+    if (i < numPassesZ - 1) {
+      if (isAlternate) {
+        // Alterné : pas de retour XY ni dégagement Z — la passe suivante repart en sens inverse
+        continue;
+      }
+      if (needZClearance) {
+        g.push(`G00 Z${fmt(p.clearance_height)}`);
+      }
+      g.push('G91');
+      g.push(mv.returnX);
+      g.push(mv.returnY);
+    }
   }
-  return { body: g.join('\n'), stockX: arcR * 2, stockY: arcR * 2, stockZ: p.clearance_height + p.total_depth };
-}
 
+  return {
+    body: g.join('\n'),
+    stockX: arcR * 2,
+    stockY: arcR * 2,
+    stockZ: p.clearance_height + p.total_depth
+  };
+}
 function genOblong(p) {
   if (p.width < p.tool_diameter) throw new Error(tr('widthToolError'));
   if (p.depth_per_pass > p.total_depth) throw new Error(tr('depthPassError'));
+
   const numPassesZ = Math.ceil(p.total_depth / p.depth_per_pass);
-  const halfW = (p.width - p.tool_diameter) / 2, halfLx = p.length_x / 2, halfLy = p.length_y / 2;
+  const r       = (p.width - p.tool_diameter) / 2;
+  const tcHalfX = (p.length_x - p.tool_diameter) / 2;
+  const tcHalfY = (p.length_y - p.tool_diameter) / 2;
+  const halfLx  = tcHalfX - r;
+  const halfLy  = tcHalfY - r;
+
+  if (halfLx < 0 || halfLy < 0)
+    throw new Error('Corner radius too large for length_x/length_y');
+
   const plunge = p.feed_rate * p.plunge_percent / 100;
-  const conv = p.path_type === 'conventional';
+  const conv   = p.path_type === 'conventional';
   let g = [];
+
+  // Point de départ du contour (sur le segment droit inférieur)
+  const startMachX = p.start_x - halfLx;
+  const startMachY = p.start_y - tcHalfY;
+
   g.push('; Oblong hole');
   g.push('G90');
   g.push(`G00 Z${fmt(p.clearance_height)} F${Math.round(p.feed_rate)}`);
-  g.push(`G00 X${fmt(p.start_x)} Y${fmt(p.start_y)}  F${Math.round(p.feed_rate)}`);
+  g.push(`G00 X${fmt(p.start_x)} Y${fmt(p.start_y)} F${Math.round(p.feed_rate)}`);
+
+  // Aller directement au point de départ du contour en G0
+  g.push(`G00 X${fmt(startMachX)} Y${fmt(startMachY)} F${Math.round(p.feed_rate)}`);
+
+  // Condition : diamètre fraise = largeur rainure ET (long X ou long Y) = diamètre fraise
+  const isPureSlot = (p.tool_diameter === p.width); // && (p.length_x === p.tool_diameter || p.length_y === p.tool_diameter);
+                    
+
+  const arcPrefix = isPureSlot ? ';' : '';
+  const arcSuffix = isPureSlot ? ' Inutile' : '';
+
   for (let i = 0; i < numPassesZ; i++) {
     const targetZ = p.start_z - Math.min((i + 1) * p.depth_per_pass, p.total_depth);
     g.push(`; Pass ${i + 1} at Z=${fmt(targetZ)}`);
+
+    // Plongée uniquement
+    g.push(`G01 Z${fmt(targetZ)} F${fmt(plunge)}`);
+
+    g.push('G91');
+
     if (conv) {
-      g.push('G90');
-      g.push(`G01 X${fmt(p.start_x)} Y${fmt(p.start_y - halfW)} F${Math.round(p.feed_rate)}`);
-      g.push(`G01 Z${fmt(targetZ)} F${fmt(plunge)}`);
-      g.push('G91');
-      g.push(`G01 X${fmt(-halfLx)} Y${fmt(-halfLy)}`);
-      g.push(`G02 X${fmt(-halfW)} Y${fmt(halfW)} I0.000 J${fmt(halfW)} F${Math.round(p.feed_rate)}`);
-      g.push(`G01 X0.000 Y${fmt(p.length_y)} F${Math.round(p.feed_rate)}`);
-      g.push(`G02 X${fmt(halfW)} Y${fmt(halfW)} I${fmt(halfW)} J0.000 F${Math.round(p.feed_rate)}`);
-      g.push(`G01 X${fmt(p.length_x)} Y0.000 F${Math.round(p.feed_rate)}`);
-      g.push(`G02 X${fmt(halfW)} Y${fmt(-halfW)} I0.000 J${fmt(-halfW)} F${Math.round(p.feed_rate)}`);
-      g.push(`G01 X0.000 Y${fmt(-p.length_y)} F${Math.round(p.feed_rate)}`);
-      g.push(`G02 X${fmt(-halfW)} Y${fmt(-halfW)} I${fmt(-halfW)} J0.000 F${Math.round(p.feed_rate)}`);
-      g.push(`G01 X${fmt(-p.length_x)} Y0.000 F${Math.round(p.feed_rate)}`);
-      g.push('G90');
+      // Conventional (G02) – sens horaire
+      g.push(`${arcPrefix}G02 X${fmt(-r)} Y${fmt(r)} I0.000 J${fmt(r)} F${Math.round(p.feed_rate)} ${arcSuffix}`);
+      g.push(`G01 X0.000 Y${fmt(2 * halfLy)} F${Math.round(p.feed_rate)}`);
+      g.push(`${arcPrefix}G02 X${fmt(r)} Y${fmt(r)} I${fmt(r)} J0.000 F${Math.round(p.feed_rate)} ${arcSuffix}`);
+      g.push(`G01 X${fmt(2 * halfLx)} Y0.000 F${Math.round(p.feed_rate)}`);
+      g.push(`${arcPrefix}G02 X${fmt(r)} Y${fmt(-r)} I0.000 J${fmt(-r)} F${Math.round(p.feed_rate)} ${arcSuffix}`);
+      g.push(`G01 X0.000 Y${fmt(-2 * halfLy)} F${Math.round(p.feed_rate)}`);
+      g.push(`${arcPrefix}G02 X${fmt(-r)} Y${fmt(-r)} I${fmt(-r)} J0.000 F${Math.round(p.feed_rate)} ${arcSuffix}`);
+      g.push(`G01 X${fmt(-2 * halfLx)} Y0.000 F${Math.round(p.feed_rate)}`);
     } else {
-      g.push('G90');
-      g.push(`G01 X${fmt(p.start_x - halfW)} Y${fmt(p.start_y - p.length_y)} F${Math.round(p.feed_rate)}`);
-      g.push(`G01 Z${fmt(targetZ)} F${fmt(plunge)}`);
-      g.push('G91');
-      g.push(`G01 X${fmt(-halfLx)} Y${fmt(halfLy)}`);
-      g.push(`G03 X${fmt(halfW)} Y${fmt(-halfW)} I${fmt(halfW)} J0.000 F${Math.round(p.feed_rate)}`);
-      g.push(`G01 X${fmt(p.length_x)} Y0.000 F${Math.round(p.feed_rate)}`);
-      g.push(`G03 X${fmt(halfW)} Y${fmt(halfW)} I0.000 J${fmt(halfW)} F${Math.round(p.feed_rate)}`);
-      g.push(`G01 X0.000 Y${fmt(p.length_y)} F${Math.round(p.feed_rate)}`);
-      g.push(`G03 X${fmt(-halfW)} Y${fmt(halfW)} I${fmt(-halfW)} J0.000 F${Math.round(p.feed_rate)}`);
-      g.push(`G01 X${fmt(-p.length_x)} Y0.000 F${Math.round(p.feed_rate)}`);
-      g.push(`G03 X${fmt(-halfW)} Y${fmt(-halfW)} I0.000 J${fmt(-halfW)} F${Math.round(p.feed_rate)}`);
-      g.push(`G01 X0.000 Y${fmt(-p.length_y)} F${Math.round(p.feed_rate)}`);
-      g.push('G90');
+      // Climb (G03) – sens anti-horaire
+      g.push(`G01 X${fmt(2 * halfLx)} Y0.000 F${Math.round(p.feed_rate)}`);
+      g.push(`${arcPrefix}G03 X${fmt(r)} Y${fmt(r)} I0.000 J${fmt(r)} F${Math.round(p.feed_rate)} ${arcSuffix}`);
+      g.push(`G01 X0.000 Y${fmt(2 * halfLy)} F${Math.round(p.feed_rate)}`);
+      g.push(`${arcPrefix}G03 X${fmt(-r)} Y${fmt(r)} I${fmt(-r)} J0.000 F${Math.round(p.feed_rate)} ${arcSuffix}`);
+      g.push(`G01 X${fmt(-2 * halfLx)} Y0.000 F${Math.round(p.feed_rate)}`);
+      g.push(`${arcPrefix}G03 X${fmt(-r)} Y${fmt(-r)} I0.000 J${fmt(-r)} F${Math.round(p.feed_rate)} ${arcSuffix}`);
+      g.push(`G01 X0.000 Y${fmt(-2 * halfLy)} F${Math.round(p.feed_rate)}`);
+      g.push(`${arcPrefix}G03 X${fmt(r)} Y${fmt(-r)} I${fmt(r)} J0.000 F${Math.round(p.feed_rate)} ${arcSuffix}`);
     }
+
+    g.push('G90');
   }
-  g.push(`G00 Z${fmt(p.clearance_height)} F${Math.round(p.feed_rate)}`);
-  g.push(`G00 X${fmt(p.start_x)} Y${fmt(p.start_y)}  F${Math.round(p.feed_rate)}`);
-  g.push('G90');
-  return { body: g.join('\n'), stockX: p.length_x + p.tool_diameter, stockY: p.length_y + p.tool_diameter, stockZ: p.start_z + p.total_depth };
+
+  // Remontée UNIQUEMENT à la fin
+ // g.push(`G00 Z${fmt(p.clearance_height)} F${Math.round(p.feed_rate)}`);
+ // g.push(`G00 X${fmt(p.start_x)} Y${fmt(p.start_y)} F${Math.round(p.feed_rate)}`);
+ // g.push('G90');
+
+  return {
+    body: g.join('\n'),
+    stockX: p.length_x + p.tool_diameter,
+    stockY: p.length_y + p.tool_diameter,
+    stockZ: p.start_z + p.total_depth
+  };
 }
 
 function genThreading(p) {
@@ -1837,9 +2777,237 @@ function genThreading(p) {
       if (pass < numRadial) g.push(`G00 Z${fmt(p.start_z)}`);
     }
   }
-  g.push(`G00 Z${fmt(p.clearance_height)}`);
+  //g.push(`G00 Z${fmt(p.clearance_height)}`);
   const stock = p.hole_diameter + p.tool_diameter;
   return { body: g.join('\n'), stockX: stock, stockY: stock, stockZ: p.total_depth + p.clearance_height };
+}
+
+/** Collecte les paramètres d'une opération source (1-6) depuis le formulaire (champs toujours dans le DOM). */
+function collectParamsForOp(op) {
+  const base = {
+    operation: op,
+    project_name: str('project_name') || 'test',
+    machine: str('machine') || 'CNC',
+    global_units: str('global_units') || 'mm',
+    plunge_percent: Math.min(100, Math.max(1, num('plunge_percent', 50))),
+    startup_codes: str('startup_codes') || 'M7 M8 M3 G04P5',
+    start_x: num('start_x', 0), start_y: num('start_y', 0), start_z: num('start_z', 0),
+    clearance_height: Math.max(0.1, num('clearance_height', 5)),
+    tool_diameter: Math.max(0.1, num('tool_diameter', 10)),
+    spindle_speed: Math.max(0, num('spindle_speed', 1000)),
+    feed_rate: Math.max(1, num('feed_rate', 1800)),
+    depth_per_pass: Math.max(0.01, num('depth_per_pass', 1)),
+    total_depth: Math.max(0.01, num('total_depth', 2))
+  };
+  // Prefer saved settings of the source mode if available
+  const map = MODE_MAP[op];
+  if (map && settingsCache[map.key] && Object.keys(settingsCache[map.key]).length) {
+    const s = settingsCache[map.key];
+    if (s.start_z != null) base.start_z = Number(s.start_z);
+    if (s.clearance_height != null) base.clearance_height = Math.max(0.1, Number(s.clearance_height));
+    if (s.tool_diameter != null) base.tool_diameter = Math.max(0.1, Number(s.tool_diameter));
+    if (s.spindle_speed != null) base.spindle_speed = Math.max(0, Number(s.spindle_speed));
+    if (s.feed_rate != null) base.feed_rate = Math.max(1, Number(s.feed_rate));
+    if (s.depth_per_pass != null) base.depth_per_pass = Math.max(0.01, Number(s.depth_per_pass));
+    if (s.total_depth != null) base.total_depth = Math.max(0.01, Number(s.total_depth));
+  }
+
+  if (op === '1') {
+    const s = settingsCache.surfacing || {};
+    return {
+      ...base,
+      width_x: Math.max(0.1, Number(s.width_x ?? num('width_x', 100))),
+      length_y: Math.max(0.1, Number(s.length_y ?? num('length_y', 100))),
+      overlap_percent: Math.min(99, Math.max(0, Number(s.overlap_percent ?? num('overlap_percent', 50)))),
+      path_type: s.path_type || str('path_type_surf') || 'conventional'
+    };
+  }
+  if (op === '2') {
+    const s = settingsCache.contour_drilling || {};
+    return {
+      ...base,
+      hole_diameter: Math.max(0.1, Number(s.hole_diameter ?? num('hole_diameter', 30))),
+      drilling_type: s.drilling_type || str('drilling_type') || 'contour',
+      path_type: s.path_type || str('path_type_contour') || 'conventional',
+      overlap_percent: Math.min(99, Math.max(0, Number(s.overlap_percent ?? num('overlap_blind', 50))))
+    };
+  }
+  if (op === '3') {
+    const s = settingsCache.matrix_drilling || {};
+    const layout = s.matrix_layout || str('matrix_layout') || 'rectangular';
+    return {
+      ...base,
+      matrix_layout: layout,
+      num_cols: Math.max(1, Math.round(Number(s.num_cols ?? num('num_cols', 3)))),
+      num_rows: Math.max(1, Math.round(Number(s.num_rows ?? num('num_rows', 3)))),
+      spacing_x: Math.max(0, Number(s.spacing_x ?? num('spacing_x', 10))),
+      spacing_y: Math.max(0, Number(s.spacing_y ?? num('spacing_y', 10))),
+      polar_radius: Math.max(0.1, Number(s.polar_radius ?? num('polar_radius', 20))),
+      polar_num_holes: Math.max(1, Math.round(Number(s.polar_num_holes ?? num('polar_num_holes', 6)))),
+      polar_start_angle: Number(s.polar_start_angle ?? num('polar_start_angle', 90)),
+      polar_total_angle: Math.max(0, Number(s.polar_total_angle ?? num('polar_total_angle', 360)))
+    };
+  }
+  if (op === '4') {
+    const s = settingsCache.corner_radius || {};
+    return {
+      ...base,
+      radius: Math.max(0.1, Number(s.radius ?? num('radius', 10))),
+      corner_type: s.corner_type || str('corner_type') || 'front_left',
+      path_type: s.path_type || str('path_type_corner') || 'conventional'
+    };
+  }
+  if (op === '5') {
+    const s = settingsCache.oblong_hole || {};
+    return {
+      ...base,
+      length_x: Math.max(0, Number(s.length_x ?? num('ob_length_x', 20))),
+      length_y: Math.max(0, Number(s.length_y ?? num('ob_length_y', 20))),
+      width: Math.max(0.1, Number(s.width ?? num('ob_width', 10))),
+      path_type: s.path_type || str('path_type_oblong') || 'conventional'
+    };
+  }
+  if (op === '6') {
+    const s = settingsCache.threading || {};
+    return {
+      ...base,
+      hole_diameter: Math.max(0.1, Number(s.hole_diameter ?? num('th_hole_diameter', 30))),
+      thread_type: s.thread_type || str('thread_type') || 'nut_internal',
+      path_type: s.path_type || str('path_type_thread') || 'right',
+      thread_pitch: Math.max(0.01, Number(s.thread_pitch ?? num('thread_pitch', 1.5))),
+      thread_number: Math.max(1, Math.round(Number(s.thread_number ?? num('thread_number', 6))))
+    };
+  }
+  return base;
+}
+
+function estimateFootprint(sourceOp, p) {
+  switch (sourceOp) {
+    case '1':
+      return { w: p.width_x + p.tool_diameter, h: p.length_y + p.tool_diameter };
+    case '2': {
+      const d = p.drilling_type === 'outer'
+        ? p.hole_diameter + 2 * p.tool_diameter
+        : p.hole_diameter + p.tool_diameter;
+      return { w: d, h: d };
+    }
+    case '3':
+      if (p.matrix_layout === 'polar') {
+        return { w: 2 * p.polar_radius + p.tool_diameter, h: 2 * p.polar_radius + p.tool_diameter };
+      }
+      return {
+        w: (p.num_cols > 1 ? (p.num_cols - 1) * p.spacing_x : 0) + p.tool_diameter,
+        h: (p.num_rows > 1 ? (p.num_rows - 1) * p.spacing_y : 0) + p.tool_diameter
+      };
+    case '4': {
+      const r = p.radius + p.tool_diameter / 2;
+      return { w: 2 * r, h: 2 * r };
+    }
+    case '5':
+      return { w: p.length_x + p.tool_diameter, h: p.length_y + p.tool_diameter };
+    case '6': {
+      const d = p.hole_diameter + p.tool_diameter;
+      return { w: d, h: d };
+    }
+    default:
+      return { w: 10, h: 10 };
+  }
+}
+
+function genSchema(p) {
+  const sourceOp = String(p.schema_source || '1');
+  if (!['1', '2', '3', '4', '5', '6'].includes(sourceOp)) {
+    throw new Error(tr('unknownMode'));
+  }
+
+  // Capture éventuelle des réglages du mode courant avant de lire la source
+  captureMode(str('operation') || '7');
+
+  const sourceParams = collectParamsForOp(sourceOp);
+  // Départ Z / clearance / outil de la source (déjà dans collectParamsForOp via cache)
+  // On force quand même le clearance du mode 7 pour les liaisons entre instances
+  const linkClearance = p.clearance_height;
+
+  const footprint = estimateFootprint(sourceOp, sourceParams);
+  const isPolar = p.schema_layout === 'polar';
+  const positions = [];
+
+  if (isPolar) {
+    if (!(p.schema_polar_radius > 0)) throw new Error(tr('polarRadiusError'));
+    const n = Math.max(1, Math.round(p.schema_polar_num));
+    if (n < 1) throw new Error(tr('polarHolesError'));
+    const a0 = (p.schema_polar_start || 0) * Math.PI / 180;
+    const totalDeg = p.schema_polar_total != null ? p.schema_polar_total : 360;
+    const total = totalDeg * Math.PI / 180;
+    const step = (n <= 1) ? 0
+      : (Math.abs(totalDeg - 360) < 1e-6 || Math.abs(totalDeg) < 1e-9)
+        ? total / n
+        : total / (n - 1);
+    for (let i = 0; i < n; i++) {
+      const a = a0 + i * step;
+      positions.push({
+        x: p.start_x + p.schema_polar_radius * Math.cos(a),
+        y: p.start_y + p.schema_polar_radius * Math.sin(a)
+      });
+    }
+  } else {
+    if (p.schema_num_x < 1 || p.schema_num_y < 1) throw new Error(tr('schemaNumError'));
+    if (p.schema_step_x + 1e-9 < footprint.w || p.schema_step_y + 1e-9 < footprint.h) {
+      throw new Error(
+        tr('schemaStepTooSmall') +
+        ` (min ≈ ${fmt(footprint.w)} × ${fmt(footprint.h)})`
+      );
+    }
+    for (let j = 0; j < p.schema_num_y; j++) {
+      for (let i = 0; i < p.schema_num_x; i++) {
+        positions.push({
+          x: p.start_x + i * p.schema_step_x,
+          y: p.start_y + j * p.schema_step_y
+        });
+      }
+    }
+  }
+
+  let g = [];
+  g.push(`; Schema of mode ${sourceOp} – ${positions.length} instances`);
+  g.push(`; Footprint approx ${fmt(footprint.w)} x ${fmt(footprint.h)}`);
+  g.push(`G00 Z${fmt(linkClearance)} S${Math.round(sourceParams.spindle_speed)}`);
+
+  let maxStockX = 0, maxStockY = 0, maxStockZ = 0;
+
+  for (let idx = 0; idx < positions.length; idx++) {
+    const pos = positions[idx];
+    const inst = { ...sourceParams };
+    inst.start_x = pos.x;
+    inst.start_y = pos.y;
+    // start_z, tool, feed, depths : ceux de la config source
+
+    let result;
+    switch (sourceOp) {
+      case '1': result = genSurfacing(inst); break;
+      case '2': result = genContour(inst); break;
+      case '3': result = genMatrix(inst); break;
+      case '4': result = genCorner(inst); break;
+      case '5': result = genOblong(inst); break;
+      case '6': result = genThreading(inst); break;
+      default: throw new Error(tr('unknownMode'));
+    }
+
+    g.push(`; --- Instance ${idx + 1}/${positions.length} @ X=${fmt(pos.x)} Y=${fmt(pos.y)} ---`);
+    g.push(result.body);
+    g.push(`G00 Z${fmt(linkClearance)}`);
+
+    maxStockX = Math.max(maxStockX, Math.abs(pos.x - p.start_x) + result.stockX);
+    maxStockY = Math.max(maxStockY, Math.abs(pos.y - p.start_y) + result.stockY);
+    maxStockZ = Math.max(maxStockZ, result.stockZ);
+  }
+
+  return {
+    body: g.join('\n'),
+    stockX: Math.max(maxStockX, footprint.w),
+    stockY: Math.max(maxStockY, footprint.h),
+    stockZ: maxStockZ
+  };
 }
 
 function collectParams() {
@@ -1861,10 +3029,53 @@ function collectParams() {
   };
   if (op === '1') return { ...base, width_x: Math.max(0.1, num('width_x', 100)), length_y: Math.max(0.1, num('length_y', 100)), overlap_percent: Math.min(99, Math.max(0, num('overlap_percent', 50))), path_type: str('path_type_surf') || 'conventional' };
   if (op === '2') return { ...base, hole_diameter: Math.max(0.1, num('hole_diameter', 30)), drilling_type: str('drilling_type') || 'contour', path_type: str('path_type_contour') || 'conventional', overlap_percent: Math.min(99, Math.max(0, num('overlap_blind', 50))) };
-  if (op === '3') return { ...base, num_cols: Math.max(1, Math.round(num('num_cols', 1))), num_rows: Math.max(1, Math.round(num('num_rows', 1))), spacing_x: Math.max(0, num('spacing_x', 10)), spacing_y: Math.max(0, num('spacing_y', 10)) };
+  if (op === '3') {
+    const layout = str('matrix_layout') || 'rectangular';
+    if (layout === 'polar') {
+      return {
+        ...base,
+        matrix_layout: 'polar',
+        polar_radius: Math.max(0.1, num('polar_radius', 20)),
+        polar_num_holes: Math.max(1, Math.round(num('polar_num_holes', 6))),
+        polar_start_angle: num('polar_start_angle', 90),
+        polar_total_angle: Math.max(0, num('polar_total_angle', 360)),
+        num_cols: Math.max(1, Math.round(num('num_cols', 3))),
+        num_rows: Math.max(1, Math.round(num('num_rows', 3))),
+        spacing_x: Math.max(0, num('spacing_x', 10)),
+        spacing_y: Math.max(0, num('spacing_y', 10))
+      };
+    }
+    return {
+      ...base,
+      matrix_layout: 'rectangular',
+      num_cols: Math.max(1, Math.round(num('num_cols', 3))),
+      num_rows: Math.max(1, Math.round(num('num_rows', 3))),
+      spacing_x: Math.max(0, num('spacing_x', 10)),
+      spacing_y: Math.max(0, num('spacing_y', 10)),
+      polar_radius: Math.max(0.1, num('polar_radius', 20)),
+      polar_num_holes: Math.max(1, Math.round(num('polar_num_holes', 6))),
+      polar_start_angle: num('polar_start_angle', 90),
+      polar_total_angle: Math.max(0, num('polar_total_angle', 360))
+    };
+  }
   if (op === '4') return { ...base, radius: Math.max(0.1, num('radius', 10)), corner_type: str('corner_type') || 'front_left', path_type: str('path_type_corner') || 'conventional' };
   if (op === '5') return { ...base, length_x: Math.max(0, num('ob_length_x', 20)), length_y: Math.max(0, num('ob_length_y', 20)), width: Math.max(0.1, num('ob_width', 10)), path_type: str('path_type_oblong') || 'conventional' };
   if (op === '6') return { ...base, hole_diameter: Math.max(0.1, num('th_hole_diameter', 30)), thread_type: str('thread_type') || 'nut_internal', path_type: str('path_type_thread') || 'right', thread_pitch: Math.max(0.01, num('thread_pitch', 1.5)), thread_number: Math.max(1, Math.round(num('thread_number', 6))) };
+  if (op === '7') {
+    return {
+      ...base,
+      schema_source: str('schema_source') || '1',
+      schema_layout: str('schema_layout') || 'rectangular',
+      schema_num_x: Math.max(1, Math.round(num('schema_num_x', 2))),
+      schema_num_y: Math.max(1, Math.round(num('schema_num_y', 2))),
+      schema_step_x: Math.max(0, num('schema_step_x', 50)),
+      schema_step_y: Math.max(0, num('schema_step_y', 50)),
+      schema_polar_radius: Math.max(0.1, num('schema_polar_radius', 40)),
+      schema_polar_num: Math.max(1, Math.round(num('schema_polar_num', 6))),
+      schema_polar_start: num('schema_polar_start', 0),
+      schema_polar_total: Math.max(0, num('schema_polar_total', 360))
+    };
+  }
   return base;
 }
 
@@ -1879,12 +3090,21 @@ async function generate() {
       case '4': result = genCorner(p); break;
       case '5': result = genOblong(p); break;
       case '6': result = genThreading(p); break;
-      default: throw new Error('Mode inconnu');
+      case '7': result = genSchema(p); break;
+      default: throw new Error(tr('unknownMode'));
     }
     generatedCode = generateHeader(p, result.stockX, result.stockY, result.stockZ) + '\n' + result.body + '\n' + footer(p.clearance_height);
     document.getElementById('gcode-output').value = generatedCode;
     document.getElementById('open-btn').disabled = false;
-    requestAnimationFrame(() => drawPreview(generatedCode, p.tool_diameter));
+    const profileSide = getProfileSide(p); // résout aussi mode 7 → source
+    const partGeometry = buildPartGeometry(p);
+    // Ø outil de la source en mode 7 (le champ mode 7 est informatif)
+    let previewTool = p.tool_diameter;
+    if (p.operation === '7') {
+      const src = collectParamsForOp(String(p.schema_source || '1'));
+      if (src.tool_diameter > 0) previewTool = src.tool_diameter;
+    }
+    requestAnimationFrame(() => drawPreview(generatedCode, previewTool, profileSide, partGeometry));
     const ok = await saveSettings();
     setStatus(ok ? tr('gcodeGeneratedPreviewOk') : tr('gcodeGeneratedSettingsError'), ok ? 'ok' : 'err');
   } catch (e) {
@@ -1896,7 +3116,7 @@ async function openInViewer() {
   if (!generatedCode) { setStatus(tr('generateFirst'), 'err'); return; }
   const p = collectParams();
   const safe = (p.project_name || 'test').replace(/[<>:"/\\|?*]/g, '_');
-  const names = { '1': 'surf', '2': 'contour', '3': 'matrix', '4': 'corner', '5': 'oblong', '6': 'thread' };
+  const names = { '1': 'surf', '2': 'contour', '3': 'matrix', '4': 'corner', '5': 'oblong', '6': 'thread', '7': 'schema' };
   const path = `/sd/${names[p.operation] || 'op'}_${safe}.nc`;
   try {
     await saveSettings();
@@ -1918,7 +3138,399 @@ async function openInViewer() {
   }
 }
 
+const HELP_CONTENT = {
+  fr: {
+    title: "Aide — Utility G-code Generator",
+    nav: ["Commun", "1 Surfaçage", "2 Détourage", "3 Matrice", "4 Rayon 90°", "5 Oblong", "6 Filetage", "7 Schéma"],
+    sections: {
+      common: `
+<h3 id="help-common">Paramètres communs</h3>
+<p>Ces réglages s’appliquent à tous les modes.</p>
+<table>
+  <tr><th>Paramètre</th><th>Rôle</th></tr>
+  <tr><td>Nom projet</td><td>En-tête G-code et nom du fichier exporté.</td></tr>
+  <tr><td>Machine</td><td>Identifiant informatif dans l’en-tête.</td></tr>
+  <tr><td>Codes démarrage</td><td>Codes G/M (ex. <code>M7 M8 M3 G04P5</code>). Si M3 est présent, S + RPM est ajouté après.</td></tr>
+  <tr><td>Unités</td><td>mm (G21) ou pouces (G20). Conversion auto des cotes.</td></tr>
+  <tr><td>Plongée %</td><td>Vitesse de descente Z en % de l’avance de coupe.</td></tr>
+  <tr><td>Départ X/Y/Z</td><td>Origine du parcours (sens selon le mode).</td></tr>
+  <tr><td>Dégagement Z</td><td>Hauteur de sécurité pour les rapides G0.</td></tr>
+  <tr><td>Ø outil, Broche, Avance</td><td>Outil et vitesses d’usinage.</td></tr>
+  <tr><td>Prof. / passe &amp; Prof. totale</td><td>La profondeur par passe ne doit pas dépasser la totale.</td></tr>
+</table>
+<div class="tip"><strong>Astuce :</strong> les réglages sont mémorisés <em>par mode</em>.</div>
+`,
+      "1": `
+<h3 id="help-1">Mode 1 — Surfaçage</h3>
+<p>Surfacer une zone rectangulaire avec passes en Z et tour de finition périphérique.</p>
+<h4>Départ X / Y</h4>
+<p><strong>Coin de référence</strong> de la zone (avant compensation rayon outil).</p>
+<table>
+  <tr><th>Paramètre</th><th>Description</th></tr>
+  <tr><td>Largeur X / Longueur Y</td><td>Dimensions de la zone.</td></tr>
+  <tr><td>Chevauchement %</td><td>Recouvrement entre passes (0–99 % du Ø outil).</td></tr>
+  <tr><td>Type de parcours</td><td>Opposition, Avalant ou Alterné (va-et-vient).</td></tr>
+</table>
+<p>Pas latéral = Ø outil × (1 − chevauchement/100). Un contour de finition décalé du rayon outil nettoie les bords.</p>
+`,
+      "2": `
+<h3 id="help-2">Mode 2 — Perçage par détourage</h3>
+<p>Trou ou contour circulaire par fraisage (G02/G03), pas par foret seul.</p>
+<h4>Départ X / Y</h4>
+<p><strong>Centre</strong> du trou ou de la pièce.</p>
+<table>
+  <tr><th>Paramètre</th><th>Description</th></tr>
+  <tr><td>Ø trou</td><td>Diamètre final.</td></tr>
+  <tr><td>Type</td><td>Traversant (1 cercle), Borgne (cercles concentriques), Diamètre extérieur (contour externe).</td></tr>
+  <tr><td>Chevauchement % (borgne)</td><td>Entre cercles concentriques.</td></tr>
+  <tr><td>Parcours</td><td>Opposition (G02) ou Avalant (G03).</td></tr>
+</table>
+<div class="tip"><strong>Contrainte :</strong> Ø trou &gt; Ø outil.</div>
+`,
+      "3": `
+<h3 id="help-3">Mode 3 — Matrice RAST</h3>
+<p>Grille de trous (rectangulaire) ou cercle de trous (polaire), avec passes en profondeur.</p>
+<h4>Départ X / Y</h4>
+<ul>
+  <li><strong>Rectangulaire :</strong> coin du premier trou.</li>
+  <li><strong>Polaire :</strong> centre du cercle.</li>
+</ul>
+<h4>Rectangulaire</h4>
+<table>
+  <tr><th>Paramètre</th><th>Description</th></tr>
+  <tr><td>Colonnes X / Lignes Y</td><td>Nombre de trous.</td></tr>
+  <tr><td>Pas X / Pas Y</td><td>Entraxes.</td></tr>
+</table>
+<p>Parcours zigzag (RAST) : lignes impaires en sens inverse.</p>
+<h4>Polaire</h4>
+<table>
+  <tr><th>Paramètre</th><th>Description</th></tr>
+  <tr><td>Rayon</td><td>Distance centre → trous.</td></tr>
+  <tr><td>Nombre de trous</td><td>Sur le cercle ou l’arc.</td></tr>
+  <tr><td>Départ °</td><td>0° = +X, 90° = +Y.</td></tr>
+  <tr><td>Angle total °</td><td>360° = cercle complet (pas = 360/N).</td></tr>
+</table>
+<div class="tip">Les variables rectangulaire et polaire sont indépendantes et mémorisées séparément.</div>
+`,
+      "4": `
+<h3 id="help-4">Mode 4 — Rayon sur 90°</h3>
+<p>Congé / arrondi sur un angle droit de pièce.</p>
+<h4>Départ X / Y</h4>
+<p>Position de l’<strong>angle</strong> de la pièce.</p>
+<table>
+  <tr><th>Paramètre</th><th>Description</th></tr>
+  <tr><td>Rayon</td><td>Rayon fini de la pièce (hors outil).</td></tr>
+  <tr><td>Coin</td><td>Avant/Arrière × Gauche/Droit.</td></tr>
+  <tr><td>Parcours</td><td>Opposition, Avalant, ou Alterné (va-et-vient sans remontée Z).</td></tr>
+</table>
+<div class="tip">IMPORTANT: le zéro est la tangeance de la fraise sur X et sur Y .</div>
+`,
+      "5": `
+<h3 id="help-5">Mode 5 — Trou oblong</h3>
+<p>Rainure oblongue (deux demi-cercles + segments).</p>
+<h4>Départ X / Y</h4>
+<p><strong>Centre</strong> de la rainure.</p>
+<table>
+  <tr><th>Paramètre</th><th>Description</th></tr>
+  <tr><td>Longueur X / Y</td><td>Dimensions de l’oblong.</td></tr>
+  <tr><td>Largeur</td><td>Doit être ≥ Ø outil.</td></tr>
+  <tr><td>Parcours</td><td>Opposition ou Avalant.</td></tr>
+</table>
+<div class="tip">Pour réaliser une simple coupe (Rayon fraise = largeur rainure), le rayon sera ignoré dans le Gcode.</div>
+`,
+      "6": `
+<h3 id="help-6">Mode 6 — Filetage</h3>
+<p>Filetage par fraisage en hélices (interne ou externe).</p>
+<h4>Départ X / Y</h4>
+<p><strong>Centre</strong> de l’alésage ou de la pièce.</p>
+<table>
+  <tr><th>Paramètre</th><th>Description</th></tr>
+  <tr><td>Ø trou / pièce</td><td>Diamètre nominal.</td></tr>
+  <tr><td>Pas filet</td><td>Distance entre filets.</td></tr>
+  <tr><td>Nb filets</td><td>Nombre de tours d’hélice.</td></tr>
+  <tr><td>Type</td><td>Écrou (interne) ou Vis (externe).</td></tr>
+  <tr><td>Sens</td><td>Droite (G02) ou Gauche (G03).</td></tr>
+</table>
+<div class="tip">La « profondeur totale » est ici une profondeur <strong>radiale</strong> (pénétration du filet). <br>
+  Pour un écrou, la pièce doit être percée au préalable au diamètre nominal moins la profondeur totale (au moins le pas)
+  Ajouter 1% du diamètre nominal afin de laisser un jeu fonctionnel.</div>`,
+      "7": `
+<h3 id="help-7">Mode 7 — Créer schéma</h3>
+<p>Multiplie l’une des configurations 1 à 6 et dispose les instances en matrice <strong>rectangulaire</strong> ou <strong>polaire</strong>.</p>
+<h4>Workflow recommandé</h4>
+<ol>
+  <li>Configurer d’abord le mode source (1–6) avec les bons paramètres (outil, profondeurs, dimensions…).</li>
+  <li>Passer en mode 7, choisir la même configuration source.</li>
+  <li>Définir Départ X/Y du schéma, disposition et pas / rayon.</li>
+</ol>
+<p>Les paramètres d’usinage (outil, avance, profondeurs, géométrie) sont pris dans les <em>réglages mémorisés</em> du mode source.</p>
+<h4>Départ X / Y</h4>
+<ul>
+  <li><strong>Rectangulaire :</strong> position de la première instance (coin bas-gauche de la grille).</li>
+  <li><strong>Polaire :</strong> centre du cercle.</li>
+</ul>
+<table>
+  <tr><th>Paramètre</th><th>Description</th></tr>
+  <tr><td>Configuration source</td><td>Mode 1 à 6 à répéter.</td></tr>
+  <tr><td>Disposition</td><td>Rectangulaire ou polaire.</td></tr>
+  <tr><td>Nb sur X / Y</td><td>Nombre d’instances (rectangulaire).</td></tr>
+  <tr><td>Pas X / Y</td><td>Entraxes. Doivent être ≥ encombrement estimé de la config source.</td></tr>
+  <tr><td>Rayon / Nombre / Angles</td><td>Placement polaire (comme mode 3).</td></tr>
+</table>
+<div class="tip">Si le pas est trop petit, un message d’erreur indique l’encombrement minimum approximatif.</div>
+`
+    }
+  },
+  en: {
+    title: "Help — Utility G-code Generator",
+    nav: ["Common", "1 Surfacing", "2 Contour", "3 Matrix", "4 Corner", "5 Slot", "6 Thread", "7 Pattern"],
+    sections: {
+      common: `
+<h3 id="help-common">Common parameters</h3>
+<p>These settings apply to all modes.</p>
+<table>
+  <tr><th>Parameter</th><th>Role</th></tr>
+  <tr><td>Project name</td><td>G-code header and export file name.</td></tr>
+  <tr><td>Machine</td><td>Informational ID in the header.</td></tr>
+  <tr><td>Startup codes</td><td>G/M codes (e.g. <code>M7 M8 M3 G04P5</code>). If M3 is present, S + RPM is inserted after it.</td></tr>
+  <tr><td>Units</td><td>mm (G21) or inches (G20). Dimensions convert automatically.</td></tr>
+  <tr><td>Plunge %</td><td>Z descent speed as a % of cutting feed.</td></tr>
+  <tr><td>Start X/Y/Z</td><td>Path origin (meaning depends on mode).</td></tr>
+  <tr><td>Z clearance</td><td>Safe height for G0 rapids.</td></tr>
+  <tr><td>Tool Ø, Spindle, Feed</td><td>Tool and cutting speeds.</td></tr>
+  <tr><td>Depth / pass &amp; Total depth</td><td>Depth per pass must not exceed total depth.</td></tr>
+</table>
+<div class="tip"><strong>Tip:</strong> settings are stored <em>per mode</em>.</div>
+`,
+      "1": `
+<h3 id="help-1">Mode 1 — Surfacing</h3>
+<p>Face a rectangular area with Z passes and a perimeter finish pass.</p>
+<h4>Start X / Y</h4>
+<p><strong>Reference corner</strong> of the area (before tool radius compensation).</p>
+<table>
+  <tr><th>Parameter</th><th>Description</th></tr>
+  <tr><td>Width X / Length Y</td><td>Area size.</td></tr>
+  <tr><td>Overlap %</td><td>Overlap between passes (0–99 % of tool Ø).</td></tr>
+  <tr><td>Path type</td><td>Conventional, Climb, or Alternating.</td></tr>
+</table>
+<p>Stepover = tool Ø × (1 − overlap/100). A finish contour offset by tool radius cleans the edges.</p>
+`,
+      "2": `
+<h3 id="help-2">Mode 2 — Contour drilling</h3>
+<p>Circular hole or outer contour by milling (G02/G03).</p>
+<h4>Start X / Y</h4>
+<p><strong>Center</strong> of the hole or part.</p>
+<table>
+  <tr><th>Parameter</th><th>Description</th></tr>
+  <tr><td>Hole Ø</td><td>Final diameter.</td></tr>
+  <tr><td>Type</td><td>Through (single circle), Blind (concentric), Outer diameter (external contour).</td></tr>
+  <tr><td>Overlap % (blind)</td><td>Between concentric circles.</td></tr>
+  <tr><td>Path</td><td>Conventional (G02) or Climb (G03).</td></tr>
+</table>
+<div class="tip"><strong>Constraint:</strong> hole Ø &gt; tool Ø.</div>
+`,
+      "3": `
+<h3 id="help-3">Mode 3 — RAST matrix</h3>
+<p>Grid of holes (rectangular) or bolt circle (polar), with depth passes.</p>
+<h4>Start X / Y</h4>
+<ul>
+  <li><strong>Rectangular:</strong> first hole corner.</li>
+  <li><strong>Polar:</strong> circle center.</li>
+</ul>
+<h4>Rectangular</h4>
+<table>
+  <tr><th>Parameter</th><th>Description</th></tr>
+  <tr><td>Columns X / Rows Y</td><td>Hole counts.</td></tr>
+  <tr><td>Spacing X / Y</td><td>Pitch between holes.</td></tr>
+</table>
+<p>Zigzag (RAST) path: odd rows reverse direction.</p>
+<h4>Polar</h4>
+<table>
+  <tr><th>Parameter</th><th>Description</th></tr>
+  <tr><td>Radius</td><td>Center to hole distance.</td></tr>
+  <tr><td>Number of holes</td><td>On the circle or arc.</td></tr>
+  <tr><td>Start °</td><td>0° = +X, 90° = +Y.</td></tr>
+  <tr><td>Total angle °</td><td>360° = full circle (step = 360/N).</td></tr>
+</table>
+<div class="tip">Rectangular and polar values are independent and stored separately.</div>
+`,
+      "4": `
+<h3 id="help-4">Mode 4 — 90° corner radius</h3>
+<p>Fillet / round a right-angle corner.</p>
+<h4>Start X / Y</h4>
+<p>Position of the part <strong>corner</strong>.</p>
+<table>
+  <tr><th>Parameter</th><th>Description</th></tr>
+  <tr><td>Radius</td><td>Finished part radius (excluding tool).</td></tr>
+  <tr><td>Corner</td><td>Front/Rear × Left/Right.</td></tr>
+  <tr><td>Path</td><td>Conventional, Climb, or Alternating (no Z retract between passes).</td></tr>
+</table>
+<div class="tip">IMPORTANT: le zéro is the tool tangency on both X and Y.</div>
+`,
+      "5": `
+<h3 id="help-5">Mode 5 — Oblong / slot</h3>
+<p>Oblong slot (two half-circles + straight segments).</p>
+<h4>Start X / Y</h4>
+<p><strong>Center</strong> of the slot.</p>
+<table>
+  <tr><th>Parameter</th><th>Description</th></tr>
+  <tr><td>Length X / Y</td><td>Slot dimensions.</td></tr>
+  <tr><td>Width</td><td>Must be ≥ tool Ø.</td></tr>
+  <tr><td>Path</td><td>Conventional or Climb.</td></tr>
+</table>
+<div class="tip">To use as a single cut (bit diameter = slot width), radius will be ignored in Gcode.</div>
+`,
+      "6": `
+<h3 id="help-6">Mode 6 — Threading</h3>
+<p>Thread milling with helical passes (internal or external).</p>
+<h4>Start X / Y</h4>
+<p><strong>Center</strong> of the bore or part.</p>
+<table>
+  <tr><th>Parameter</th><th>Description</th></tr>
+  <tr><td>Hole / part Ø</td><td>Nominal diameter.</td></tr>
+  <tr><td>Thread pitch</td><td>Distance between threads.</td></tr>
+  <tr><td>Thread count</td><td>Number of helix turns.</td></tr>
+  <tr><td>Type</td><td>Nut (internal) or Screw (external).</td></tr>
+  <tr><td>Direction</td><td>Right (G02) or Left (G03).</td></tr>
+</table>
+<div class="tip">The "total depth" here is a depth <strong>radial</strong> (net penetration). <br>
+  For a nut, the part must first be drilled to the nominal diameter minus the total depth (pitch at least)<br>
+  Add 1% of the nominal diameter to leave a functional clearance.</div>
+`,
+      "7": `
+<h3 id="help-7">Mode 7 — Create pattern</h3>
+<p>Repeats one of configurations 1–6 and places instances in a <strong>rectangular</strong> or <strong>polar</strong> matrix.</p>
+<h4>Recommended workflow</h4>
+<ol>
+  <li>First configure the source mode (1–6) with the correct parameters (tool, depths, dimensions…).</li>
+  <li>Switch to mode 7 and select the same source configuration.</li>
+  <li>Set schema Start X/Y, layout and pitch / radius.</li>
+</ol>
+<p>Machining parameters (tool, feed, depths, geometry) are taken from the <em>stored settings</em> of the source mode.</p>
+<h4>Start X / Y</h4>
+<ul>
+  <li><strong>Rectangular:</strong> position of the first instance (bottom-left of the grid).</li>
+  <li><strong>Polar:</strong> circle center.</li>
+</ul>
+<table>
+  <tr><th>Parameter</th><th>Description</th></tr>
+  <tr><td>Source configuration</td><td>Mode 1 to 6 to repeat.</td></tr>
+  <tr><td>Layout</td><td>Rectangular or polar.</td></tr>
+  <tr><td>Count X / Y</td><td>Number of instances (rectangular).</td></tr>
+  <tr><td>Pitch X / Y</td><td>Center distances. Must be ≥ estimated footprint of the source config.</td></tr>
+  <tr><td>Radius / Count / Angles</td><td>Polar placement (same idea as mode 3).</td></tr>
+</table>
+<div class="tip">If the pitch is too small, an error message shows the approximate minimum footprint.</div>
+`
+    }
+  }
+};
+
+function renderHelp(focusMode) {
+  const lang = getLanguage();
+  const pack = HELP_CONTENT[lang] || HELP_CONTENT.fr;
+  const titleEl = document.getElementById('help-title');
+  const navEl = document.getElementById('help-nav');
+  const bodyEl = document.getElementById('help-body');
+  if (!titleEl || !navEl || !bodyEl) return;
+
+  titleEl.textContent = pack.title;
+  const closeBtn = document.getElementById('help-close-btn');
+  if (closeBtn) closeBtn.textContent = '✕ ' + tr('helpClose');
+
+  const keys = ['common', '1', '2', '3', '4', '5', '6', '7'];
+  navEl.innerHTML = '';
+  keys.forEach((k, i) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = pack.nav[i];
+    btn.dataset.target = 'help-' + (k === 'common' ? 'common' : k);
+    if (String(focusMode) === k || (k === 'common' && !focusMode)) btn.classList.add('active');
+    btn.addEventListener('click', () => {
+      navEl.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const target = document.getElementById(btn.dataset.target);
+      if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+    navEl.appendChild(btn);
+  });
+
+  bodyEl.innerHTML = keys.map(k => pack.sections[k]).join('\n');
+}
+
+function openHelp() {
+  const op = str('operation') || '1';
+  renderHelp(op);
+  const overlay = document.getElementById('help-overlay');
+  if (overlay) overlay.classList.remove('hidden');
+  requestAnimationFrame(() => {
+    const id = 'help-' + op;
+    const el = document.getElementById(id);
+    if (el) el.scrollIntoView({ behavior: 'auto', block: 'start' });
+    const navEl = document.getElementById('help-nav');
+    if (navEl) {
+      navEl.querySelectorAll('button').forEach(b => {
+        b.classList.toggle('active', b.dataset.target === id);
+      });
+    }
+  });
+}
+
+function closeHelp() {
+  const overlay = document.getElementById('help-overlay');
+  if (overlay) overlay.classList.add('hidden');
+}
+
+document.getElementById('help-btn')?.addEventListener('click', openHelp);
+document.getElementById('help-close-btn')?.addEventListener('click', closeHelp);
+document.getElementById('help-overlay')?.addEventListener('click', (e) => {
+  if (e.target.id === 'help-overlay') closeHelp();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeHelp();
+});
+
 loadSettings().finally(() => { applyLanguage(); generate(); });
+function cssVar(name, fallback) {
+  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return v || fallback;
+}
+
+function withAlpha(cssColor, alpha) {
+  const el = document.createElement('div');
+  el.style.color = cssColor;
+  document.body.appendChild(el);
+  const rgb = getComputedStyle(el).color;
+  document.body.removeChild(el);
+  const m = rgb.match(/(\d+),\s*(\d+),\s*(\d+)/);
+  if (!m) return cssColor;
+  return `rgba(${m[1]},${m[2]},${m[3]},${alpha})`;
+}
+
+function previewTheme() {
+  return {
+    bg:     cssVar('--bg', '#0a0e16'),
+    border: cssVar('--border', '#222840'),
+    strong: cssVar('--border-strong', '#334155'),
+    muted:  cssVar('--text-muted', '#6a7898'),
+    text:   cssVar('--text-primary', '#e2e6f4'),
+    elev:   cssVar('--elevated', '#1a2235'),
+    accent: cssVar('--accent', '#f0a030'),
+    ok:     cssVar('--ok', '#22c55e'),
+    info:   cssVar('--info', '#38bdf8'),
+  };
+}
+
 </script>
+<div id="help-overlay" class="help-overlay hidden" role="dialog" aria-modal="true">
+  <div class="help-dialog">
+    <div class="help-header">
+      <h2 id="help-title">Aide</h2>
+      <button type="button" class="help-close" id="help-close-btn">✕</button>
+    </div>
+    <div class="help-nav" id="help-nav"></div>
+    <div class="help-body" id="help-body"></div>
+  </div>
+</div>
 </body>
 </html>
