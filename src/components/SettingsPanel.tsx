@@ -17,7 +17,6 @@ import {
   Radio,
   Trash2,
   Square,
-  AlertTriangle,
   Target,
   FileCode2,
 } from "lucide-react";
@@ -1584,6 +1583,7 @@ export function SettingsPanel({
   const [filter, setFilter] = useState("");
   const [category, setCategory] = useState("workspace");
   const [subKey, setSubKey] = useState("");
+  const [configSublistExpanded, setConfigSublistExpanded] = useState(false);
   const [restarting, setRestarting] = useState(false);
   const [pendingConfigChanges, setPendingConfigChanges] = useState<
     Record<string, PendingConfigChange>
@@ -1791,9 +1791,15 @@ export function SettingsPanel({
   const activeCat = CAT_DEFS[category];
 
   function selectCategory(id: string) {
+    if (id === "config" && category === "config" && !filter.trim()) {
+      setConfigSublistExpanded((expanded) => !expanded);
+      return;
+    }
+
     setCategory(id);
     setSubKey("");
     setFilter("");
+    setConfigSublistExpanded(id === "config");
   }
 
   return (
@@ -1916,22 +1922,55 @@ export function SettingsPanel({
             {categories.map((cat) => {
               const Icon = cat.icon;
               const active = !isSearching && category === cat.id;
+              const showConfigSublist =
+                cat.id === "config" &&
+                active &&
+                configSublistExpanded &&
+                subKeys.length > 1;
+
               return (
-                <button
-                  key={cat.id}
-                  onClick={() => selectCategory(cat.id)}
-                  className={`flex items-center gap-1.5 sm:gap-2.5 sm:w-full
-                              px-2.5 sm:px-3 py-1.5 sm:py-2 rounded
-                              text-sm sm:text-base whitespace-nowrap
-                              transition-all text-left ${
-                                active
-                                  ? "bg-accent/[0.12] text-accent font-medium"
-                                  : "text-text-muted hover:text-text-primary hover:bg-elevated"
-                              }`}
-                >
-                  <Icon size={14} className="shrink-0" />
-                  {cat.label}
-                </button>
+                <div key={cat.id} className="shrink-0 sm:w-full">
+                  <button
+                    onClick={() => selectCategory(cat.id)}
+                    aria-expanded={
+                      cat.id === "config" ? showConfigSublist : undefined
+                    }
+                    className={`flex items-center gap-1.5 sm:gap-2.5 sm:w-full
+                                px-2.5 sm:px-3 py-1.5 sm:py-2 rounded
+                                text-sm sm:text-base whitespace-nowrap
+                                transition-all text-left ${
+                                  active
+                                    ? "bg-accent/[0.12] text-accent font-medium"
+                                    : "text-text-muted hover:text-text-primary hover:bg-elevated"
+                                }`}
+                  >
+                    <Icon size={14} className="shrink-0" />
+                    {cat.label}
+                  </button>
+
+                  {showConfigSublist && (
+                    <div
+                      className="flex flex-row sm:flex-col gap-1 mt-1 sm:ml-3 sm:pl-2 sm:border-l sm:border-border"
+                      role="group"
+                      aria-label="Machine Config sections"
+                    >
+                      {subKeys.map((k) => (
+                        <button
+                          key={k}
+                          onClick={() => setSubKey(k)}
+                          aria-current={subKey === k ? "page" : undefined}
+                          className={`px-2.5 py-1 text-sm text-left whitespace-nowrap rounded transition-colors ${
+                            subKey === k
+                              ? "bg-accent/[0.12] text-accent font-medium"
+                              : "text-text-muted hover:text-text-primary hover:bg-elevated"
+                          }`}
+                        >
+                          {k}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               );
             })}
           </nav>
@@ -1943,7 +1982,10 @@ export function SettingsPanel({
               <div className="flex items-center justify-between gap-3 px-5 py-3 border-b border-border">
                 <h3 className="min-w-0 text-base font-semibold text-text-primary flex items-center gap-2">
                   <activeCat.icon size={14} className="text-accent shrink-0" />
-                  <span className="truncate">{activeCat.label}</span>
+                  <span className="truncate">
+                    {activeCat.label}
+                    {category === "config" && subKey && ` › ${subKey}`}
+                  </span>
                 </h3>
                 {category === "config" && (
                   <button
@@ -1955,8 +1997,7 @@ export function SettingsPanel({
                 )}
               </div>
 
-              {(category === "machine" || category === "config") &&
-                subKeys.length > 1 && (
+              {category === "machine" && subKeys.length > 1 && (
                   <div
                     className="flex border-b border-border overflow-x-auto px-2"
                     style={{ scrollbarWidth: "none" }}
