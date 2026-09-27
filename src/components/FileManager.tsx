@@ -37,6 +37,14 @@ import { isGCodeFileName } from "../lib/gcodeFiles";
 
 type Filesystem = "sd" | "local";
 type UploadTarget = { fs: Filesystem; path: string; name: string };
+type EditingFile = {
+  fs: Filesystem;
+  path: string;
+  filename: string;
+  content: string;
+  openStudio?: boolean;
+  restoreFromHistory?: boolean;
+};
 
 const isGcode = isGCodeFileName;
 const isYamlFile = (name: string) => /\.ya?ml$/i.test(name);
@@ -455,13 +463,8 @@ export function FileManager({ isTablet }: { isTablet?: boolean }) {
   const [showNewDir, setShowNewDir] = useState(false);
   const [newFileName, setNewFileName] = useState("");
   const [showNewFile, setShowNewFile] = useState(false);
-  const [editing, setEditing] = useState<{
-    fs: Filesystem;
-    path: string;
-    filename: string;
-    content: string;
-    openStudio?: boolean;
-  } | null>(null);
+  const [editing, setEditing] = useState<EditingFile | null>(null);
+  const editorHistoryRef = useRef<EditingFile | null>(null);
   const [editLoading, setEditLoading] = useState<string | null>(null);
   const [configChoices, setConfigChoices] = useState<FileEntry[] | null>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -499,6 +502,31 @@ export function FileManager({ isTablet }: { isTablet?: boolean }) {
     if (_fmCache.has("sd")) return;
     load(sdRoot, "sd");
   }, [load, sdRoot]);
+
+  useEffect(() => {
+    if (editing) editorHistoryRef.current = editing;
+  }, [editing]);
+
+  useEffect(() => {
+    const restoreEditor = (event: PopStateEvent) => {
+      const state = event.state as {
+        figuiCodeEditor?: { filename?: unknown };
+      } | null;
+      const filename = state?.figuiCodeEditor?.filename;
+      const previousEditor = editorHistoryRef.current;
+      if (
+        typeof filename !== "string" ||
+        !previousEditor ||
+        previousEditor.filename !== filename
+      )
+        return;
+
+      setEditing({ ...previousEditor, restoreFromHistory: true });
+    };
+
+    window.addEventListener("popstate", restoreEditor);
+    return () => window.removeEventListener("popstate", restoreEditor);
+  }, []);
 
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -1371,6 +1399,7 @@ export function FileManager({ isTablet }: { isTablet?: boolean }) {
           onSave={handleSaveFile}
           onClose={() => setEditing(null)}
           initialView={editing.openStudio ? "studio" : "code"}
+          restoreFromHistory={editing.restoreFromHistory}
         />
       )}
     </div>

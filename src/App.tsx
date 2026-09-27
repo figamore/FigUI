@@ -114,6 +114,7 @@ export function App() {
     let secondFrame: number | null = null
 
     const showConfigEditor = () => {
+      setFullPlugin(null)
       setSidebarTab('files')
       setMobilePanel('right')
 

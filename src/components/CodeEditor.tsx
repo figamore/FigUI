@@ -290,6 +290,7 @@ interface CodeEditorProps {
   onSave: (content: string) => Promise<void>;
   onClose: () => void;
   initialView?: "studio" | "code";
+  restoreFromHistory?: boolean;
 }
 
 export function CodeEditor({
@@ -298,6 +299,7 @@ export function CodeEditor({
   onSave,
   onClose,
   initialView = "code",
+  restoreFromHistory = false,
 }: CodeEditorProps) {
   const editorRef = useRef<HTMLDivElement>(null);
   const gutterRef = useRef<HTMLDivElement>(null);
@@ -545,8 +547,8 @@ export function CodeEditor({
     const currentState = window.history.state;
     window.history.pushState(
       currentState && typeof currentState === "object"
-        ? { ...currentState, figuiCodeEditor: true }
-        : { figuiCodeEditor: true },
+        ? { ...currentState, figuiCodeEditor: { filename } }
+        : { figuiCodeEditor: { filename } },
       "",
       window.location.href,
     );
@@ -598,7 +600,11 @@ export function CodeEditor({
   requestCloseRef.current = tryClose;
 
   useEffect(() => {
-    pushHistoryEntry();
+    if (restoreFromHistory) {
+      historyEntryRef.current = true;
+    } else {
+      pushHistoryEntry();
+    }
 
     const handlePopState = () => {
       if (ignoreNextPopstateRef.current) {
@@ -621,7 +627,7 @@ export function CodeEditor({
         window.history.back();
       }
     };
-  }, [pushHistoryEntry]);
+  }, [pushHistoryEntry, restoreFromHistory]);
 
   function handleDownload() {
     const blob = new Blob([currentContent.current], { type: "text/plain" });
