@@ -1594,7 +1594,14 @@ export function SettingsPanel({
     const closed = await requestClose();
     if (!closed) return;
     setTimeout(
-      () => window.dispatchEvent(new CustomEvent("config:open-studio")),
+      () =>
+        window.dispatchEvent(
+          new CustomEvent(
+            window.innerWidth < 768
+              ? "files:show-config-editor"
+              : "config:open-studio",
+          ),
+        ),
       0,
     );
   }
@@ -1992,7 +1999,9 @@ export function SettingsPanel({
                     className="btn btn-primary shrink-0 px-3 py-1.5 text-sm"
                     onClick={openConfigStudio}
                   >
-                    <FileCode2 size={14} /> Open Config Studio
+                    <FileCode2 size={14} />
+                    <span className="sm:hidden">Edit Config</span>
+                    <span className="hidden sm:inline">Open Config Studio</span>
                   </button>
                 )}
               </div>

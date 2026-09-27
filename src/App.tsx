@@ -109,6 +109,31 @@ export function App() {
   const [fullPlugin,      setFullPlugin]      = useState<Plugin | null>(null)
   const [jogPlugin,       setJogPlugin]       = useState<Plugin | null>(null)
 
+  useEffect(() => {
+    let firstFrame: number | null = null
+    let secondFrame: number | null = null
+
+    const showConfigEditor = () => {
+      setSidebarTab('files')
+      setMobilePanel('right')
+
+      // FileManager only exists while the mobile Files panel is visible.
+      // Dispatch once it has mounted and installed its event listener.
+      firstFrame = requestAnimationFrame(() => {
+        secondFrame = requestAnimationFrame(() => {
+          window.dispatchEvent(new CustomEvent('files:open-config-editor'))
+        })
+      })
+    }
+
+    window.addEventListener('files:show-config-editor', showConfigEditor)
+    return () => {
+      window.removeEventListener('files:show-config-editor', showConfigEditor)
+      if (firstFrame !== null) cancelAnimationFrame(firstFrame)
+      if (secondFrame !== null) cancelAnimationFrame(secondFrame)
+    }
+  }, [setSidebarTab])
+
   const handleLaunchPanel = useCallback((plugin: Plugin) => {
     const layout = getEffectiveLayout(plugin.manifest, activeLayout)
     if (layout === 'workspace') setWorkspacePlugin(plugin)

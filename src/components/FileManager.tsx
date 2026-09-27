@@ -536,6 +536,32 @@ export function FileManager({ isTablet }: { isTablet?: boolean }) {
     }
   }, []);
 
+  const openConfigEditor = useCallback(async () => {
+    setEditLoading("config.yaml");
+    try {
+      const content = await fetchFileContent("/config.yaml", "local");
+      setEditing({
+        fs: "local",
+        path: "/",
+        filename: "config.yaml",
+        content,
+      });
+    } catch (e) {
+      alert(
+        `Failed to open config.yaml: ${e instanceof Error ? e.message : "Unknown error"}`,
+      );
+    } finally {
+      setEditLoading(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    window.addEventListener("files:open-config-editor", openConfigEditor);
+    return () => {
+      window.removeEventListener("files:open-config-editor", openConfigEditor);
+    };
+  }, [openConfigEditor]);
+
   useEffect(() => {
     const openStudio = async () => {
       setEditLoading("YAML files");
