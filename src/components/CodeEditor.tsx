@@ -333,6 +333,9 @@ export function CodeEditor({
   const currentContent = useRef(content);
   const searchTermRef = useRef("");
   const matchIndexRef = useRef(0);
+  const historyEntryRef = useRef(false);
+  const ignoreNextPopstateRef = useRef(false);
+  const requestCloseRef = useRef<() => void>(() => {});
   const diagnosticRef = useRef<{
     line: number;
     severity: "error" | "warning";
@@ -538,6 +541,27 @@ export function CodeEditor({
     setView("code");
   }, []);
 
+  const pushHistoryEntry = useCallback(() => {
+    const currentState = window.history.state;
+    window.history.pushState(
+      currentState && typeof currentState === "object"
+        ? { ...currentState, figuiCodeEditor: true }
+        : { figuiCodeEditor: true },
+      "",
+      window.location.href,
+    );
+    historyEntryRef.current = true;
+  }, []);
+
+  const dismiss = useCallback(() => {
+    if (historyEntryRef.current) {
+      historyEntryRef.current = false;
+      ignoreNextPopstateRef.current = true;
+      window.history.back();
+    }
+    onClose();
+  }, [onClose]);
+
   const handleRestart = useCallback(async () => {
     if (
       !confirm(
@@ -546,16 +570,16 @@ export function CodeEditor({
     )
       return;
     useMachineStore.getState().setRestarting(true);
-    onClose();
+    dismiss();
     sendCommand("[ESP444]RESTART").catch(() => {});
-  }, []);
+  }, [dismiss]);
 
   /** Attempt to close — if dirty, show confirmation; otherwise close immediately */
   function tryClose() {
     if (dirty) {
       setConfirmClose(true);
     } else {
-      onClose();
+      dismiss();
     }
   }
 
@@ -563,13 +587,41 @@ export function CodeEditor({
     const saved = await handleSave();
     if (!saved) return;
     setConfirmClose(false);
-    onClose();
+    dismiss();
   }
 
   function confirmDiscardAndClose() {
     setConfirmClose(false);
-    onClose();
+    dismiss();
   }
+
+  requestCloseRef.current = tryClose;
+
+  useEffect(() => {
+    pushHistoryEntry();
+
+    const handlePopState = () => {
+      if (ignoreNextPopstateRef.current) {
+        ignoreNextPopstateRef.current = false;
+        return;
+      }
+
+      // Back moved to the page beneath the editor. Restore the same-URL entry
+      // so a cancelled unsaved-changes prompt keeps the editor open.
+      pushHistoryEntry();
+      requestCloseRef.current();
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+      if (historyEntryRef.current) {
+        historyEntryRef.current = false;
+        ignoreNextPopstateRef.current = true;
+        window.history.back();
+      }
+    };
+  }, [pushHistoryEntry]);
 
   function handleDownload() {
     const blob = new Blob([currentContent.current], { type: "text/plain" });
