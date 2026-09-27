@@ -3554,14 +3554,14 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
         {!simulationActive && (controllerSettings.hasMist || controllerSettings.hasFlood) && <>
           <div className="flex gap-1.5 sm:flex-[6]">
             {controllerSettings.hasMist && <button
-              onClick={() => { sendRealtime(0xA0); setCoolantState('mist') }}
+              onClick={() => { sendRealtime(0xA1); setCoolantState('mist') }}
               className={`btn gap-1.5 ${isTablet ? 'text-xl py-3' : 'text-lg'} justify-center flex-1 ${coolantState === 'mist' ? 'border-accent/50 text-accent' : 'btn-ghost'}`}
             >
               <CloudDrizzle size={isTablet ? 18 : 13} />
               Mist
             </button>}
             {controllerSettings.hasFlood && <button
-              onClick={() => { sendRealtime(0xA1); setCoolantState('flood') }}
+              onClick={() => { sendRealtime(0xA0); setCoolantState('flood') }}
               className={`btn gap-1.5 ${isTablet ? 'text-xl py-3' : 'text-lg'} justify-center flex-1 ${coolantState === 'flood' ? 'border-info/50 text-info' : 'btn-ghost'}`}
             >
               <Waves size={isTablet ? 18 : 13} />
