@@ -1957,7 +1957,7 @@ export function SettingsPanel({
 
                   {showConfigSublist && (
                     <div
-                      className="flex flex-row sm:flex-col gap-1 mt-1 sm:ml-3 sm:pl-2 sm:border-l sm:border-border"
+                      className="hidden sm:flex sm:flex-col gap-1 mt-1 sm:ml-3 sm:pl-2 sm:border-l sm:border-border"
                       role="group"
                       aria-label="Machine Config sections"
                     >
@@ -2005,6 +2005,29 @@ export function SettingsPanel({
                   </button>
                 )}
               </div>
+
+              {category === "config" && subKeys.length > 1 && (
+                <div className="sm:hidden flex items-center gap-3 px-4 py-2 border-b border-border">
+                  <label
+                    htmlFor="machine-config-section"
+                    className="shrink-0 text-sm font-medium text-text-muted"
+                  >
+                    Section
+                  </label>
+                  <select
+                    id="machine-config-section"
+                    value={subKey}
+                    onChange={(e) => setSubKey(e.target.value)}
+                    className="input-field flex-1 py-1.5 text-sm"
+                  >
+                    {subKeys.map((k) => (
+                      <option key={k} value={k}>
+                        {k}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               {category === "machine" && subKeys.length > 1 && (
                   <div
