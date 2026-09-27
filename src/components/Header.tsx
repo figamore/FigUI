@@ -165,7 +165,7 @@ export function Header({ onSettingsClick, onAboutClick, isTablet }: Props) {
 
         {!isTablet && (
           <button
-            className="btn-ghost px-2 py-1.5"
+            className="hidden md:inline-flex btn-ghost px-2 py-1.5"
             onClick={() => window.dispatchEvent(new CustomEvent('reset-layout'))}
             title="Reset layout to default"
           >
