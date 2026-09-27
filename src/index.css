@@ -3,6 +3,9 @@
 @tailwind utilities;
 
 :root {
+  /* Keeps UA-painted widgets (and any dropped author rule) in sync with the theme. */
+  color-scheme: light;
+
   --bg: #f0f2f8;
   --surface: #ffffff;
   --elevated: #e8ebf4;
@@ -38,6 +41,8 @@
 }
 
 .dark {
+  color-scheme: dark;
+
   --bg: #0c1018;
   --surface: #12172a;
   --elevated: #191e30;
@@ -73,6 +78,8 @@
 }
 
 .anthracite-dark {
+  color-scheme: dark;
+
   --bg: #1a1f2e;
   --surface: #1f2539;
   --elevated: #252c42;
@@ -108,6 +115,8 @@
 }
 
 .midnight-dark {
+  color-scheme: dark;
+
   --bg: #1e1e1e;
   --surface: #252526;
   --elevated: #2d2d30;
