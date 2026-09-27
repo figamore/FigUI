@@ -1433,38 +1433,6 @@ function ESPNowPendantsTab() {
 
   return (
     <div>
-      <div
-        className="flex items-start gap-2.5 mx-4 my-4 px-3 py-2.5 rounded
-                      bg-warn/10 border border-warn/30 text-sm text-text-muted"
-      >
-        <AlertTriangle size={15} className="text-warn shrink-0 mt-0.5" />
-        <div className="min-w-0 leading-relaxed">
-          <span className="font-medium text-text-primary">
-            Experimental feature.
-          </span>{" "}
-          Until ESP-NOW support is merged into FluidNC, both the pendant and
-          FluidNC machine must use the ESP-NOW fork available through the{" "}
-          <a
-            href="https://figamore.github.io/FluidDial/"
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-1 text-accent hover:underline"
-          >
-            preview installer
-          </a>
-          . See the{" "}
-          <a
-            href="https://github.com/figamore/FluidDial/blob/main/docs/ESP-NOW.md"
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-1 text-accent hover:underline"
-          >
-            ESP-NOW documentation
-          </a>{" "}
-          for setup details.
-        </div>
-      </div>
-
       <div className="flex flex-wrap items-center gap-2 px-5 py-3.5 border-b border-border">
         {secondsLeft > 0 ? (
           <>
