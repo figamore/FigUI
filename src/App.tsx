@@ -13,7 +13,6 @@ import { Header } from './components/Header'
 import { DRO } from './components/DRO'
 import { TabletJogPad } from './components/JogPad'
 import { ProbeOrProgramPanel } from './components/ProgramExecutionPanel'
-import { TabletAccordion } from './components/TabletAccordion'
 
 import { GCodeViewer } from './components/GCodeViewer'
 import { FileManager, prefetchInternalFiles } from './components/FileManager'
@@ -29,6 +28,9 @@ import { getEffectiveLayout } from './types'
 import { PluginFrame } from './components/PluginFrame'
 import { DesktopLayout } from './components/DesktopLayout'
 import { ManualATCPrompt } from './components/ManualATCPrompt'
+import { TabletMainShell } from './components/TabletMainShell'
+import { ViewportProvider, useViewportMetrics } from './lib/viewport'
+import type { TabletTabId } from './lib/tabletTabs'
 
 const SIDEBAR_TABS: { id: SidebarTab; label: string }[] = [
   { id: 'files',   label: 'Files'   },
@@ -37,22 +39,14 @@ const SIDEBAR_TABS: { id: SidebarTab; label: string }[] = [
 ]
 
 type MobilePanel = 'control' | 'viewer' | 'right' | 'terminal'
-type TabletRightTab = 'viewer' | 'files' | 'macros' | 'terminal'
 
 type Phase = 'connecting' | 'error' | 'ready'
 
 function useActiveLayout(layoutMode: 'auto' | 'tablet' | 'desktop'): ActiveLayout {
-  const [width, setWidth] = useState(() =>
-    typeof window === 'undefined' ? 1270 : window.innerWidth,
-  )
+  const { innerWidth: width } = useViewportMetrics()
   const [isCoarsePointer, setIsCoarsePointer] = useState(() =>
     typeof window === 'undefined' ? false : window.matchMedia('(pointer: coarse)').matches,
   )
-  useEffect(() => {
-    const onResize = () => setWidth(window.innerWidth)
-    window.addEventListener('resize', onResize)
-    return () => window.removeEventListener('resize', onResize)
-  }, [])
   useEffect(() => {
     const mq = window.matchMedia('(pointer: coarse)')
     const onChange = (e: MediaQueryListEvent) => setIsCoarsePointer(e.matches)
@@ -69,6 +63,14 @@ function useActiveLayout(layoutMode: 'auto' | 'tablet' | 'desktop'): ActiveLayou
 }
 
 export function App() {
+  return (
+    <ViewportProvider>
+      <AppContent />
+    </ViewportProvider>
+  )
+}
+
+function AppContent() {
   const connected = useMachineStore(s => s.connected)
   const restarting = useMachineStore(s => s.restarting)
   const sidebarTab = useMachineStore(s => s.sidebarTab)
@@ -84,6 +86,8 @@ export function App() {
   const spindleSpeed = useMachineStore(s => s.status.spindle)
   const spindleSpinupMs = useMachineStore(s => s.controllerSettings.spindleSpinupMs ?? 0)
   const activeLayout = useActiveLayout(layoutMode)
+  const { isCompactLandscape } = useViewportMetrics()
+  const compactLandscapeScroll = isCompactLandscape && activeLayout === 'tablet'
   const loadGCodeFile = useGCodeStore(s => s.loadFile)
   const senderPhase = useGCodeSenderStore(s => s.phase)
   const senderFileName = useGCodeSenderStore(s => s.fileName)
@@ -103,7 +107,7 @@ export function App() {
   }, [])
   const [aboutOpen, setAboutOpen] = useState(false)
   const [mobilePanel, setMobilePanel]     = useState<MobilePanel>('control')
-  const [tabletTab,   setTabletTab]       = useState<TabletRightTab>('viewer')
+  const [tabletTab,   setTabletTab]       = useState<TabletTabId>('viewer')
   const [workspacePlugin, setWorkspacePlugin] = useState<Plugin | null>(null)
   const [controlsPlugin,  setControlsPlugin]  = useState<Plugin | null>(null)
   const [fullPlugin,      setFullPlugin]      = useState<Plugin | null>(null)
@@ -565,7 +569,11 @@ export function App() {
   ) : null
 
   return (
-    <div className="flex flex-col min-h-[100svh] md:h-[100svh] landscape:h-[100svh] md:overflow-hidden landscape:overflow-hidden bg-[var(--bg)] relative">
+    <div className={`flex flex-col min-h-[100svh] md:h-[100svh] md:overflow-hidden bg-[var(--bg)] relative ${
+      compactLandscapeScroll
+        ? 'landscape:h-auto landscape:min-h-[100svh] landscape:overflow-y-auto'
+        : 'landscape:h-[100svh] landscape:overflow-hidden'
+    }`}>
       {restarting ? (
         <div className="fixed md:absolute inset-0 z-[120] bg-[var(--bg)]/80 backdrop-blur-sm
                         flex flex-col items-center justify-center gap-3">
@@ -586,6 +594,7 @@ export function App() {
       <Header
         onSettingsClick={() => setSettingsOpen(true)}
         onAboutClick={() => setAboutOpen(true)}
+        sticky={compactLandscapeScroll}
       />
 
       <ManualATCPrompt />
@@ -662,47 +671,18 @@ export function App() {
       </nav>}
 
 
-      {!fullPlugin && activeLayout === 'tablet' && !workspacePlugin && !controlsPlugin && (
-        <div className="flex-1 min-h-[0px] flex portrait:flex-col landscape:flex landscape:flex-row gap-3 p-3 overflow-y-auto landscape:overflow-hidden">
-          <div className="flex flex-col gap-1 portrait:shrink-0 landscape:flex-1 landscape:basis-1/2 landscape:min-h-0 landscape:overflow-hidden">
-            <DRO isTablet />
-            {jogPlugin ? (
-              <div className="panel flex flex-col flex-1 min-h-0 overflow-hidden">
-                <PluginFrame plugin={jogPlugin} onClose={() => setJogPlugin(null)} inline />
-              </div>
-            ) : (
-              <TabletJogPad />
-            )}
-          </div>
-          <TabletAccordion tabletTab={tabletTab} setTabletTab={setTabletTab} onLaunchPanel={handleLaunchPanel} />
-        </div>
-      )}
-
-      {!fullPlugin && activeLayout === 'tablet' && workspacePlugin && (
-        <div className="flex-1 min-h-[0px] flex portrait:flex-col landscape:flex-row gap-3 p-3 overflow-y-auto landscape:overflow-hidden">
-          <div className="flex flex-col gap-1 portrait:shrink-0 landscape:flex-1 landscape:basis-1/2 landscape:min-h-0 landscape:overflow-hidden">
-            <DRO isTablet />
-            {jogPlugin ? (
-              <div className="panel flex flex-col flex-1 min-h-0 overflow-hidden">
-                <PluginFrame plugin={jogPlugin} onClose={() => setJogPlugin(null)} inline />
-              </div>
-            ) : (
-              <TabletJogPad />
-            )}
-          </div>
-          <div className="panel flex flex-col landscape:flex-1 landscape:basis-1/2 landscape:min-h-0 portrait:min-h-[55vh] landscape:overflow-hidden">
-            <PluginFrame plugin={workspacePlugin} onClose={() => setWorkspacePlugin(null)} inline />
-          </div>
-        </div>
-      )}
-
-      {!fullPlugin && activeLayout === 'tablet' && controlsPlugin && (
-        <div className="flex-1 min-h-[0px] flex portrait:flex-col landscape:flex-row gap-3 p-3 overflow-y-auto landscape:overflow-hidden">
-          <div className="panel flex flex-col portrait:shrink-0 landscape:flex-1 landscape:basis-1/2 landscape:min-h-0 portrait:min-h-[55vh] landscape:overflow-hidden">
-            <PluginFrame plugin={controlsPlugin} onClose={() => setControlsPlugin(null)} inline />
-          </div>
-          <TabletAccordion tabletTab={tabletTab} setTabletTab={setTabletTab} onLaunchPanel={handleLaunchPanel} />
-        </div>
+      {!fullPlugin && activeLayout === 'tablet' && (
+        <TabletMainShell
+          tabletTab={tabletTab}
+          setTabletTab={setTabletTab}
+          onLaunchPanel={handleLaunchPanel}
+          jogPlugin={jogPlugin}
+          onCloseJogPlugin={() => setJogPlugin(null)}
+          workspacePlugin={workspacePlugin}
+          onCloseWorkspacePlugin={() => setWorkspacePlugin(null)}
+          controlsPlugin={controlsPlugin}
+          onCloseControlsPlugin={() => setControlsPlugin(null)}
+        />
       )}
 
       {!fullPlugin && activeLayout === 'desktop' && (

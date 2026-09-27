@@ -7,6 +7,7 @@ import { clearMachineAlarm } from '../lib/alarm'
 import { droFeedUnitLabel, formatAxisCoord, formatFeedRate } from '../lib/units'
 import { useControllerJobStarting } from '../lib/jobState'
 import { useManualAtcStore } from '../store/manualAtc'
+import { useIsPortrait } from '../lib/viewport'
 
 const ALARM_MESSAGES: Record<number, string> = {
   1: 'Hard limit triggered',
@@ -50,19 +51,6 @@ const E_STOP_HIDE_DELAY_MS = 700
 const HOME_ALL_ACTION_AXIS = 'all'
 const WORK_ORIGINS = ['G54', 'G55', 'G56', 'G57', 'G58', 'G59'] as const
 
-function useIsPortrait() {
-  const [portrait, setPortrait] = useState(() =>
-    typeof window !== 'undefined' && window.matchMedia('(orientation: portrait)').matches
-  )
-  useEffect(() => {
-    const mq = window.matchMedia('(orientation: portrait)')
-    const handler = (e: MediaQueryListEvent) => setPortrait(e.matches)
-    mq.addEventListener('change', handler)
-    return () => mq.removeEventListener('change', handler)
-  }, [])
-  return portrait
-}
-
 function useMotionControlLock(jobActive: boolean) {
   const [locked, setLocked] = useState(jobActive)
 
@@ -79,7 +67,14 @@ function useMotionControlLock(jobActive: boolean) {
   return locked
 }
 
-export function DRO({ isTablet = false }: { isTablet?: boolean }) {
+export function DRO({
+  isTablet = false,
+  layout = 'default',
+}: {
+  isTablet?: boolean
+  /** Fit beside Jog in short-height landscape without internal scroll. */
+  layout?: 'default' | 'topBand'
+}) {
   const status = useMachineStore(s => s.status)
   const controllerResetPending = useMachineStore(s => s.controllerResetPending)
   const controllerJobStarting = useControllerJobStarting()
@@ -96,9 +91,47 @@ export function DRO({ isTablet = false }: { isTablet?: boolean }) {
   const workOriginRef = useRef<HTMLDivElement>(null)
   const pos = activePosition(status, positionMode)
   const isPortrait = useIsPortrait()
-  const tabletBtnSize = isTablet && isPortrait ? 'w-20 h-20' : isTablet ? 'w-14 h-14' : 'w-8 h-8'
-  const tabletIconSize = isTablet && isPortrait ? 22 : isTablet ? 16 : 11
-  const tabletHomeIconSize = isTablet && isPortrait ? 30 : isTablet ? 22 : 13
+  const topBandLayout = layout === 'topBand'
+  const tightLayout = topBandLayout
+  const tabletBtnSize = isTablet && isPortrait
+    ? 'w-20 h-20'
+    : topBandLayout
+      ? 'w-12 h-12'
+      : isTablet
+        ? 'w-14 h-14'
+        : 'w-8 h-8'
+  const tabletIconSize = isTablet && isPortrait ? 22 : topBandLayout ? 14 : isTablet ? 16 : 11
+  const tabletHomeIconSize = isTablet && isPortrait ? 30 : topBandLayout ? 18 : isTablet ? 22 : 13
+  const tabletCoordBothSize = topBandLayout
+    ? 'text-[1.45rem]'
+    : isTablet
+      ? 'text-[2.25rem]'
+      : 'text-[1.05rem]'
+  const tabletCoordSingleSize = topBandLayout
+    ? 'text-[1.75rem]'
+    : isTablet
+      ? 'text-[3rem]'
+      : 'text-[1.75rem]'
+  const tabletAxisLabelSize = topBandLayout ? 'text-xl' : isTablet ? 'text-2xl' : 'text-base'
+  const tabletActionBtnClass = isTablet && isPortrait
+    ? 'h-20 text-xl'
+    : topBandLayout
+      ? 'h-11 text-base'
+      : isTablet
+        ? 'h-14 text-lg'
+        : 'h-7 text-base'
+  const tabletStopBtnClass = isTablet && isPortrait
+    ? 'h-20 text-xl'
+    : topBandLayout
+      ? 'h-11 text-sm'
+      : isTablet
+        ? 'h-14 text-lg'
+        : 'h-7 text-sm'
+  const tabletFooterTextSize = topBandLayout
+    ? 'text-sm'
+    : isTablet
+      ? 'text-xl'
+      : 'text-base'
   const activeWorkOrigin = WORK_ORIGINS.includes(status.gcodeModes?.wcs as (typeof WORK_ORIGINS)[number])
     ? status.gcodeModes?.wcs as (typeof WORK_ORIGINS)[number]
     : null
@@ -204,10 +237,10 @@ export function DRO({ isTablet = false }: { isTablet?: boolean }) {
   }
 
   return (
-    <div className="panel flex flex-col">
-      <div className="panel-header justify-between">
-        <span className='text-lg font-bold'>Position</span>
-        <div className="flex items-center gap-1.5">
+    <div className={`panel flex flex-col ${topBandLayout ? 'h-full min-h-0 overflow-hidden' : ''}`}>
+      <div className={`panel-header justify-between shrink-0 ${tightLayout ? 'flex-wrap gap-y-1 py-1.5' : ''}`}>
+        <span className={`font-bold ${tightLayout ? 'text-base' : 'text-lg'}`}>Position</span>
+        <div className={`flex items-center gap-1 ${tightLayout ? 'flex-wrap justify-end' : 'gap-1.5'}`}>
           <div className="flex items-center gap-0.5 bg-elevated rounded-sm border border-border p-0.5">
             {(['WPos', 'MPos'] as const).map(m => {
               const active = positionMode === m || positionMode === 'Both'
@@ -223,7 +256,7 @@ export function DRO({ isTablet = false }: { isTablet?: boolean }) {
                       setPositionMode(positionMode === 'Both' ? 'WPos' : 'Both')
                     }
                   }}
-                  className={`px-2.5 py-0.5 text-base rounded-sm transition-colors ${active
+                  className={`${tightLayout ? 'px-1.5 py-0.5 text-sm' : 'px-2.5 py-0.5 text-base'} rounded-sm transition-colors ${active
                     ? 'bg-surface border border-border text-text-primary shadow-sm'
                     : 'text-text-muted hover:text-text-primary'
                   }`}
@@ -236,7 +269,7 @@ export function DRO({ isTablet = false }: { isTablet?: boolean }) {
           <div ref={workOriginRef} className="relative">
             <button
               onClick={() => setWorkOriginOpen(open => !open)}
-              className={`flex items-center gap-1 px-2.5 py-1 text-base rounded-sm border transition-colors ${
+              className={`flex items-center gap-1 ${tightLayout ? 'px-1.5 py-0.5 text-sm' : 'px-2.5 py-1 text-base'} rounded-sm border transition-colors ${
                 workOriginOpen
                   ? 'bg-accent/10 border-accent/50 text-accent'
                   : 'bg-elevated border-border text-text-primary hover:border-border-strong'
@@ -279,7 +312,7 @@ export function DRO({ isTablet = false }: { isTablet?: boolean }) {
       </div>
 
       {/* Axis rows – compact */}
-      <div className="px-3 py-2 space-y-1">
+      <div className={`px-3 shrink-0 ${topBandLayout ? 'space-y-0 py-0.5' : 'space-y-0.5 py-2'}`}>
         {positionMode === 'Both' && (
           <div className="flex items-center gap-2 pb-0.5">
             <span className="w-4 shrink-0" />
@@ -298,9 +331,9 @@ export function DRO({ isTablet = false }: { isTablet?: boolean }) {
           </div>
         )}
         {visibleAxes.map(ax => (
-          <div key={ax} className="flex items-center gap-2">
+          <div key={ax} className={`flex items-center ${topBandLayout ? 'gap-1' : 'gap-2'}`}>
             <span
-              className={`font-black uppercase tracking-widest w-4 shrink-0 select-none ${isTablet ? 'text-2xl' : 'text-base'}`}
+              className={`font-black uppercase tracking-widest w-4 shrink-0 select-none ${tabletAxisLabelSize}`}
               style={{ color: AXIS_COLOR[ax] ?? 'var(--text-muted)' }}
             >
               {ax}
@@ -308,13 +341,13 @@ export function DRO({ isTablet = false }: { isTablet?: boolean }) {
             {positionMode === 'Both' ? (
               <div className="flex-1 grid grid-cols-2 gap-2 min-w-0">
                 <span
-                  className={`text-right font-mono tabular-nums tracking-tight min-w-0 overflow-hidden ${isTablet ? 'text-[2.25rem]' : 'text-[1.05rem]'}`}
+                  className={`text-right font-mono tabular-nums tracking-tight min-w-0 overflow-hidden ${tabletCoordBothSize}`}
                   style={{ fontWeight: 300, lineHeight: 1.2, color: 'var(--text-primary)' }}
                 >
                   {formatAxisCoord(wCoords[ax], ax, units)}
                 </span>
                 <span
-                  className={`text-right font-mono tabular-nums tracking-tight min-w-0 overflow-hidden ${isTablet ? 'text-[2.25rem]' : 'text-[1.05rem]'}`}
+                  className={`text-right font-mono tabular-nums tracking-tight min-w-0 overflow-hidden ${tabletCoordBothSize}`}
                   style={{ fontWeight: 300, lineHeight: 1.2, color: 'var(--text-muted)' }}
                 >
                   {formatAxisCoord(mCoords[ax], ax, units)}
@@ -322,7 +355,7 @@ export function DRO({ isTablet = false }: { isTablet?: boolean }) {
               </div>
             ) : (
               <span
-                className={`flex-1 text-right font-mono tabular-nums tracking-tight ${isTablet ? 'text-[3rem]' : 'text-[1.75rem]'}`}
+                className={`flex-1 text-right font-mono tabular-nums tracking-tight ${tabletCoordSingleSize}`}
                 style={{ fontWeight: 300, lineHeight: 1.2, color: 'var(--text-primary)' }}
               >
                 {formatAxisCoord(coordValues[ax], ax, units)}
@@ -401,10 +434,10 @@ export function DRO({ isTablet = false }: { isTablet?: boolean }) {
       </div>
 
       {/* Action buttons */}
-      <div className="border-t border-border px-3 py-2 flex gap-2">
+      <div className={`border-t border-border px-3 flex gap-2 shrink-0 ${topBandLayout ? 'py-1' : 'py-2'}`}>
         {!shouldHideMotionControls && !isHomeAllPending && (
           <button
-            className={`btn btn-warn flex-1 font-bold ${isTablet && isPortrait ? 'h-20 text-xl' : isTablet ? 'h-14 text-lg' : 'h-7 text-base'}`}
+            className={`btn btn-warn flex-1 font-bold ${tabletActionBtnClass}`}
             onClick={zeroAll}
             title="Set current position as work zero for all axes"
             disabled={areAxisButtonsDisabled}
@@ -414,22 +447,22 @@ export function DRO({ isTablet = false }: { isTablet?: boolean }) {
         )}
         {!shouldHideMotionControls && !isHomeAllPending && (
           <button
-            className={`btn btn-ghost flex-1 font-bold flex items-center justify-center gap-1.5 ${isTablet && isPortrait ? 'h-20 text-xl' : isTablet ? 'h-14 text-lg' : 'h-7 text-base'}`}
+            className={`btn btn-ghost flex-1 font-bold flex items-center justify-center gap-1.5 ${tabletActionBtnClass}`}
             onClick={homeAll}
             title="Home all axes"
             disabled={areAxisButtonsDisabled}
           >
-            <Home size={isTablet && isPortrait ? 24 : isTablet ? 20 : 12} />
+            <Home size={isTablet && isPortrait ? 24 : topBandLayout ? 18 : isTablet ? 20 : 12} />
             Home All
           </button>
         )}
         {!shouldHideMotionControls && isHomeAllPending && (
           <button
-            className={`btn btn-warn flex-1 font-bold flex items-center justify-center gap-1.5 ${isTablet && isPortrait ? 'h-20 text-xl' : isTablet ? 'h-14 text-lg' : 'h-7 text-sm'}`}
+            className={`btn btn-warn flex-1 font-bold flex items-center justify-center gap-1.5 ${tabletStopBtnClass}`}
             onClick={cancelPendingAxisAction}
             title="Abort homing (soft reset controller)"
           >
-            <Square size={isTablet && isPortrait ? 24 : isTablet ? 20 : 12} className="fill-current" />
+            <Square size={isTablet && isPortrait ? 24 : topBandLayout ? 18 : isTablet ? 20 : 12} className="fill-current" />
             Abort Homing
           </button>
         )}
@@ -474,7 +507,9 @@ export function DRO({ isTablet = false }: { isTablet?: boolean }) {
       )}
 
       {/* Feed / Spindle readout */}
-      <div className={`border-t border-border px-3 py-2 flex justify-between font-mono text-text-muted ${isTablet ? 'text-xl' : 'text-base'}`}>
+      <div className={`border-t border-border px-3 flex justify-between font-mono text-text-muted shrink-0 ${
+        topBandLayout ? 'py-0.5' : isTablet ? 'py-2' : 'py-1'
+      } ${tabletFooterTextSize}`}>
         <div className="flex items-center gap-1.5">
           <span>F</span>
           <span className="text-text-primary">{formatFeedRate(status.feed, units)}</span>
@@ -487,7 +522,7 @@ export function DRO({ isTablet = false }: { isTablet?: boolean }) {
         </div>
       </div>
 
-      <GCodeModesRow isTablet={isTablet} />
+      {!topBandLayout && <GCodeModesRow isTablet={isTablet} />}
     </div>
   )
 }

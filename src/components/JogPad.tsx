@@ -60,6 +60,18 @@ function alwaysCapturePointer(e: React.PointerEvent) {
   e.currentTarget.setPointerCapture(e.pointerId)
 }
 
+function tabletJogPointerHandlers(start: () => void, stop: () => void) {
+  return {
+    onPointerDown: (e: React.PointerEvent) => {
+      alwaysCapturePointer(e)
+      start()
+    },
+    onPointerUp: stop,
+    onPointerCancel: stop,
+    onLostPointerCapture: stop,
+  }
+}
+
 /**
  * Touch screens raise `contextmenu` on a long press, so holding a continuous
  * jog control pops the browser menu on release. Spread this onto a jog
@@ -1285,12 +1297,19 @@ export function OverridesPanel({ className, isTablet }: { className?: string; is
   )
 }
 
-export function TabletJogPad({ onSwitchStyle }: { onSwitchStyle?: () => void } = {}) {
+export function TabletJogPad({
+  onSwitchStyle,
+  layout = 'default',
+}: {
+  onSwitchStyle?: () => void
+  layout?: 'default' | 'topBand'
+} = {}) {
   const status = useMachineStore(s => s.status)
   const controllerResetPending = useMachineStore(s => s.controllerResetPending)
   const controllerJobStarting = useControllerJobStarting()
   const units = useMachineStore(s => s.units)
   const controllerSettings = useMachineStore(s => s.controllerSettings)
+  const topBand = layout === 'topBand'
 
   const [xyFeed, setXyFeed] = useState(() => loadPersistedJogFeed('jog.xyFeed', 1000))
   const [zFeed, setZFeed]   = useState(() => loadPersistedJogFeed('jog.zFeed', 200))
@@ -1344,6 +1363,24 @@ export function TabletJogPad({ onSwitchStyle }: { onSwitchStyle?: () => void } =
   const { start: startZm, stop: stopZm } = useHoldJog('Z', -1, zFeed, commandStepSize, continuous, jogDisabled)
 
   const steps = units === 'in' ? [0.001, 0.01, 0.1, 1] : [0.1, 1, 10, 100]
+  const stepBtnClass = topBand
+    ? 'flex-1 px-1 py-2 font-bold text-sm transition-colors'
+    : 'flex-1 px-2 sm:px-4 portrait:px-4 portrait:py-4 max-sm:portrait:py-2 font-bold text-base sm:text-lg portrait:text-xl max-sm:portrait:text-base transition-colors'
+  const jogBtnClass = topBand
+    ? 'flex items-center justify-center w-full h-full bg-elevated border border-border rounded-xl font-bold shadow-md active:scale-95 active:shadow-inner transition-transform text-xl'
+    : 'flex items-center justify-center w-full h-full bg-elevated border border-border rounded-xl font-bold shadow-md active:scale-95 active:shadow-inner transition-transform text-xl sm:text-3xl portrait:text-3xl max-sm:portrait:text-2xl'
+  const jogGridClass = topBand
+    ? 'grid grid-cols-3 grid-rows-3 gap-1.5 aspect-square h-full max-h-full w-auto shrink-0'
+    : 'grid grid-cols-3 grid-rows-3 gap-1.5 sm:gap-4 portrait:gap-4 max-sm:portrait:gap-2 h-full max-h-full aspect-square max-w-[min(100%,calc(100%-4rem))]'
+  const zColClass = topBand
+    ? 'flex flex-col gap-1.5 h-full max-h-full justify-between w-[3.75rem] shrink-0'
+    : 'flex flex-col gap-1.5 sm:gap-4 portrait:gap-4 max-sm:portrait:gap-2 h-full max-h-full justify-between aspect-[1/3] max-w-[28%]'
+  const jogAreaPadding = topBand ? 'p-1.5' : 'p-2 sm:p-4 portrait:p-5 landscape:p-6 max-sm:portrait:p-2'
+  const jogPadRootClass = onSwitchStyle
+    ? 'flex-none h-[440px]'
+    : topBand
+      ? 'h-full min-h-0'
+      : 'flex-1 min-h-0'
 
   useEffect(() => {
     if (!steps.includes(stepSize)) setStepSize(steps[1])
@@ -1370,9 +1407,9 @@ export function TabletJogPad({ onSwitchStyle }: { onSwitchStyle?: () => void } =
 
   return (
     <>
-    <div className={`panel flex flex-col portrait:flex-none portrait:h-[440px] max-sm:portrait:h-auto ${onSwitchStyle ? 'flex-none h-[440px]' : 'flex-1 min-h-0'}`}>
+    <div className={`panel flex flex-col portrait:flex-none portrait:h-[440px] max-sm:portrait:h-auto ${jogPadRootClass}`}>
       <div className="panel-header flex flex-row items-stretch justify-between shrink-0 !p-0 border-b border-border overflow-hidden">
-        <div className="flex flex-col items-center justify-center w-16 py-3 font-bold text-lg tracking-wider border-r border-border shrink-0 gap-2">
+        <div className={`flex flex-col items-center justify-center border-r border-border shrink-0 gap-2 font-bold tracking-wider ${topBand ? 'w-12 py-1.5 text-sm' : 'w-16 py-3 text-lg'}`}>
           JOG
           {onSwitchStyle && (
             <button
@@ -1388,56 +1425,57 @@ export function TabletJogPad({ onSwitchStyle }: { onSwitchStyle?: () => void } =
           {steps.map(s => (
             <button
               key={s}
-              className={`flex-1 px-2 sm:px-4 portrait:px-4 portrait:py-4 max-sm:portrait:py-2 font-bold text-base sm:text-lg portrait:text-xl max-sm:portrait:text-base transition-colors ${!continuous && stepSize === s ? 'bg-accent text-white shadow-inner' : 'bg-transparent text-text-primary hover:bg-elevated'}`}
+              className={`${stepBtnClass} ${!continuous && stepSize === s ? 'bg-accent text-white shadow-inner' : 'bg-transparent text-text-primary hover:bg-elevated'}`}
               onClick={() => { setContinuous(false); setStepSize(s); }}
             >
               {s}
             </button>
           ))}
           <button
-            className={`flex-1 px-2 sm:px-4 portrait:px-4 portrait:py-4 max-sm:portrait:py-2 font-bold text-base sm:text-lg portrait:text-xl max-sm:portrait:text-base transition-colors ${continuous ? 'bg-accent text-white shadow-inner' : 'bg-transparent text-text-primary hover:bg-elevated'}`}
+            className={`${stepBtnClass} ${continuous ? 'bg-accent text-white shadow-inner' : 'bg-transparent text-text-primary hover:bg-elevated'}`}
             onClick={() => setContinuous(true)}
           >
             Cont
           </button>
         </div>
       </div>
+
       <div className="flex flex-row flex-1 min-h-0 overflow-hidden">
 
-        <div className="flex flex-col w-16 max-sm:w-12 border-r border-border py-2 shrink-0">
+        <div className={`flex flex-col border-r border-border shrink-0 ${topBand ? 'w-12 py-1' : 'w-16 max-sm:w-12 py-2'}`}>
           <button
             onClick={() => openFeedModal('xy')}
-            className="flex flex-col items-center justify-center gap-3 flex-1 rounded-lg hover:bg-accent/5 transition-all group mx-1"
+            className={`flex flex-col items-center justify-center flex-1 rounded-lg hover:bg-accent/5 transition-all group ${topBand ? 'gap-1 mx-0.5' : 'gap-3 mx-1'}`}
           >
-            <span className="text-xl font-extrabold text-text-muted tracking-wider leading-none">XY</span>
+            <span className={`font-extrabold text-text-muted tracking-wider leading-none ${topBand ? 'text-sm' : 'text-xl'}`}>XY</span>
             <div className="flex items-center">
               <span
-                className="font-mono text-2xl font-semibold text-text-primary leading-none"
+                className={`font-mono font-semibold text-text-primary leading-none ${topBand ? 'text-base' : 'text-2xl'}`}
                 style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}
               >
                 {formatDisplayNumber(mmToDisplay(xyFeed, units), 0)}
               </span>
               <span
-                className="text-xl text-text-dim leading-none"
+                className={`text-text-dim leading-none ${topBand ? 'text-xs' : 'text-xl'}`}
                 style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}
               >{feedUnitLabel(units)}</span>
             </div>
           </button>
-          <div className="h-px bg-border mx-2 shrink-0" />
+          <div className={`h-px bg-border shrink-0 ${topBand ? 'mx-1' : 'mx-2'}`} />
           <button
             onClick={() => openFeedModal('z')}
-            className="flex flex-col items-center justify-center gap-3 flex-1 rounded-lg hover:bg-accent/5 transition-all group mx-1"
+            className={`flex flex-col items-center justify-center flex-1 rounded-lg hover:bg-accent/5 transition-all group ${topBand ? 'gap-1 mx-0.5' : 'gap-3 mx-1'}`}
           >
-            <span className="text-xl font-extrabold text-text-muted tracking-wider leading-none">Z</span>
+            <span className={`font-extrabold text-text-muted tracking-wider leading-none ${topBand ? 'text-sm' : 'text-xl'}`}>Z</span>
             <div className="flex items-center">
               <span
-                className="font-mono text-2xl font-semibold text-text-primary leading-none"
+                className={`font-mono font-semibold text-text-primary leading-none ${topBand ? 'text-base' : 'text-2xl'}`}
                 style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}
               >
                 {formatDisplayNumber(mmToDisplay(zFeed, units), 0)}
               </span>
               <span
-                className="text-xl text-text-dim leading-none"
+                className={`text-text-dim leading-none ${topBand ? 'text-xs' : 'text-xl'}`}
                 style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}
               >{feedUnitLabel(units)}</span>
             </div>
@@ -1445,7 +1483,7 @@ export function TabletJogPad({ onSwitchStyle }: { onSwitchStyle?: () => void } =
         </div>
 
         {/* Jog controls */}
-        <div className={`relative p-2 sm:p-4 portrait:p-5 landscape:p-6 max-sm:portrait:p-2 flex-1 min-h-0 flex justify-center items-center overflow-hidden ${jogDisabled ? 'opacity-40' : ''}`}>
+        <div className={`relative flex-1 min-h-0 flex justify-center items-center overflow-hidden ${jogAreaPadding} ${jogDisabled ? 'opacity-40' : ''}`}>
           {onSwitchStyle && continuous && (
             <button
               title={keyboardJog ? 'Keyboard jog ON — Arrows: X/Y · −/+: Z' : 'Enable keyboard jogging'}
@@ -1468,50 +1506,44 @@ export function TabletJogPad({ onSwitchStyle }: { onSwitchStyle?: () => void } =
               </svg>
             </button>
           )}
-          <div {...noContextMenu} className={`relative flex flex-row items-stretch justify-center portrait:h-[320px] portrait:gap-6 landscape:gap-5 landscape:w-full landscape:aspect-[7/5] landscape:max-h-full max-sm:portrait:w-full max-sm:portrait:h-[52vw] max-sm:portrait:gap-2 select-none [-webkit-touch-callout:none] ${jogDisabled ? 'pointer-events-none' : ''}`}>
-          <div className="grid grid-cols-3 grid-rows-3 gap-2 sm:gap-4 portrait:gap-4 max-sm:portrait:gap-2 landscape:shrink-0 aspect-square">
+          <div {...noContextMenu} className={`relative flex flex-row items-center justify-center h-full max-h-full w-full gap-2 sm:gap-4 portrait:h-[320px] portrait:gap-6 max-sm:portrait:w-full max-sm:portrait:h-[52vw] max-sm:portrait:gap-2 select-none [-webkit-touch-callout:none] ${jogDisabled ? 'pointer-events-none' : ''}`}>
+          <div className={jogGridClass}>
             <div />
             <button
-              onPointerDown={e => { alwaysCapturePointer(e); startYp(); }}
-              onPointerUp={stopYp} onPointerCancel={stopYp} onPointerLeave={stopYp}
-              className="flex items-center justify-center w-full h-full bg-elevated border border-border rounded-xl text-xl sm:text-3xl font-bold text-ok shadow-md active:scale-95 active:shadow-inner transition-transform"
+              {...tabletJogPointerHandlers(startYp, stopYp)}
+              className={`${jogBtnClass} text-ok`}
             >Y+</button>
             <div />
             <button
-              onPointerDown={e => { alwaysCapturePointer(e); startXm(); }}
-              onPointerUp={stopXm} onPointerCancel={stopXm} onPointerLeave={stopXm}
-              className="flex items-center justify-center w-full h-full bg-elevated border border-border rounded-xl text-xl sm:text-3xl font-bold text-danger shadow-md active:scale-95 active:shadow-inner transition-transform"
+              {...tabletJogPointerHandlers(startXm, stopXm)}
+              className={`${jogBtnClass} text-danger`}
             >X-</button>
             <button
               onClick={() => sendRealtime(0x85)}
               className="flex items-center justify-center w-full h-full bg-surface border border-border rounded-xl shadow-md active:scale-95 transition-transform"
             >
-              <Square className="w-8 h-8 sm:w-10 sm:h-10 text-danger fill-current" />
+              <Square className={`${topBand ? 'w-8 h-8' : 'w-8 h-8 sm:w-10 sm:h-10'} text-danger fill-current`} />
             </button>
             <button
-              onPointerDown={e => { alwaysCapturePointer(e); startXp(); }}
-              onPointerUp={stopXp} onPointerCancel={stopXp} onPointerLeave={stopXp}
-              className="flex items-center justify-center w-full h-full bg-elevated border border-border rounded-xl text-xl sm:text-3xl font-bold text-danger shadow-md active:scale-95 active:shadow-inner transition-transform"
+              {...tabletJogPointerHandlers(startXp, stopXp)}
+              className={`${jogBtnClass} text-danger`}
             >X+</button>
             <div />
             <button
-              onPointerDown={e => { alwaysCapturePointer(e); startYm(); }}
-              onPointerUp={stopYm} onPointerCancel={stopYm} onPointerLeave={stopYm}
-              className="flex items-center justify-center w-full h-full bg-elevated border border-border rounded-xl text-xl sm:text-3xl font-bold text-ok shadow-md active:scale-95 active:shadow-inner transition-transform"
+              {...tabletJogPointerHandlers(startYm, stopYm)}
+              className={`${jogBtnClass} text-ok`}
             >Y-</button>
             <div />
           </div>
-          <div className="flex flex-col gap-2 sm:gap-4 portrait:gap-4 max-sm:portrait:gap-2 landscape:shrink-0 justify-between aspect-[1/3]">
+          <div className={zColClass}>
             <button
-              onPointerDown={e => { alwaysCapturePointer(e); startZp(); }}
-              onPointerUp={stopZp} onPointerCancel={stopZp} onPointerLeave={stopZp}
-              className="flex flex-1 items-center justify-center w-full bg-elevated border border-border rounded-xl text-xl sm:text-3xl font-bold text-info shadow-md active:scale-95 active:shadow-inner transition-transform"
+              {...tabletJogPointerHandlers(startZp, stopZp)}
+              className={`${jogBtnClass} flex-1 text-info`}
             >Z+</button>
-            <div className="flex-1" />
+            {topBand && <div className="flex-1" />}
             <button
-              onPointerDown={e => { alwaysCapturePointer(e); startZm(); }}
-              onPointerUp={stopZm} onPointerCancel={stopZm} onPointerLeave={stopZm}
-              className="flex flex-1 items-center justify-center w-full bg-elevated border border-border rounded-xl text-xl sm:text-3xl font-bold text-info shadow-md active:scale-95 active:shadow-inner transition-transform"
+              {...tabletJogPointerHandlers(startZm, stopZm)}
+              className={`${jogBtnClass} flex-1 text-info`}
             >Z-</button>
           </div>
           </div>
@@ -1527,7 +1559,7 @@ export function TabletJogPad({ onSwitchStyle }: { onSwitchStyle?: () => void } =
         onClick={() => setFeedModal(null)}
       >
         <div
-          className="bg-surface border border-border rounded-2xl shadow-2xl p-8 w-[480px]"
+          className="bg-surface border border-border rounded-2xl shadow-2xl p-8 w-[min(480px,calc(100vw-2rem))]"
           onClick={e => e.stopPropagation()}
         >
           <div className="flex items-center justify-between mb-6">

@@ -154,6 +154,10 @@ The selected theme persists to local storage.
 
 ### Responsive Layouts
 
+FigUI switches between **mobile**, **tablet**, and **desktop** from viewport width and pointer type (`auto`, or a forced layout in Settings).
+
+On **short landscape tablets** (visible height under 640px), the tablet UI stacks POSITION and JOG side by side and puts Viewer/Files/Macros in a full-width tab strip, with page scroll so jog targets stay usable. Taller tablets keep the two-column landscape layout.
+
 Tablet Layout
 ![Tablet](docs/screenshots/figUI-tablet.png)
 
