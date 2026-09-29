@@ -1366,16 +1366,8 @@ export function TabletJogPad({
   const stepBtnClass = topBand
     ? 'flex-1 px-1 py-2 font-bold text-sm transition-colors'
     : 'flex-1 px-2 sm:px-4 portrait:px-4 portrait:py-4 max-sm:portrait:py-2 font-bold text-base sm:text-lg portrait:text-xl max-sm:portrait:text-base transition-colors'
-  const jogBtnClass = topBand
-    ? 'flex items-center justify-center w-full h-full bg-elevated border border-border rounded-xl font-bold shadow-md active:scale-95 active:shadow-inner transition-transform text-xl'
-    : 'flex items-center justify-center w-full h-full bg-elevated border border-border rounded-xl font-bold shadow-md active:scale-95 active:shadow-inner transition-transform text-xl sm:text-3xl portrait:text-3xl max-sm:portrait:text-2xl'
-  const jogGridClass = topBand
-    ? 'grid grid-cols-3 grid-rows-3 gap-1.5 aspect-square h-full max-h-full w-auto shrink-0'
-    : 'grid grid-cols-3 grid-rows-3 gap-1.5 sm:gap-4 portrait:gap-4 max-sm:portrait:gap-2 h-full max-h-full aspect-square max-w-[min(100%,calc(100%-4rem))]'
-  const zColClass = topBand
-    ? 'flex flex-col gap-1.5 h-full max-h-full justify-between w-[3.75rem] shrink-0'
-    : 'flex flex-col gap-1.5 sm:gap-4 portrait:gap-4 max-sm:portrait:gap-2 h-full max-h-full justify-between aspect-[1/3] max-w-[28%]'
-  const jogAreaPadding = topBand ? 'p-1.5' : 'p-2 sm:p-4 portrait:p-5 landscape:p-6 max-sm:portrait:p-2'
+  const jogClusterClass = topBand ? 'jog-cluster jog-cluster--top-band' : 'jog-cluster jog-cluster--default'
+  const jogAreaPadding = topBand ? 'p-1' : 'p-2 sm:p-3 portrait:p-3 landscape:p-4 max-sm:portrait:p-2'
   const jogPadRootClass = onSwitchStyle
     ? 'flex-none h-[440px]'
     : topBand
@@ -1407,7 +1399,7 @@ export function TabletJogPad({
 
   return (
     <>
-    <div className={`panel flex flex-col portrait:flex-none portrait:h-[440px] max-sm:portrait:h-auto ${jogPadRootClass}`}>
+    <div className={`panel flex flex-col portrait:flex-none portrait:min-h-[440px] ${jogPadRootClass}`}>
       <div className="panel-header flex flex-row items-stretch justify-between shrink-0 !p-0 border-b border-border overflow-hidden">
         <div className={`flex flex-col items-center justify-center border-r border-border shrink-0 gap-2 font-bold tracking-wider ${topBand ? 'w-12 py-1.5 text-sm' : 'w-16 py-3 text-lg'}`}>
           JOG
@@ -1483,7 +1475,10 @@ export function TabletJogPad({
         </div>
 
         {/* Jog controls */}
-        <div className={`relative flex-1 min-h-0 flex justify-center items-center overflow-hidden ${jogAreaPadding} ${jogDisabled ? 'opacity-40' : ''}`}>
+        <div
+          {...noContextMenu}
+          className={`jog-controls-area relative flex-1 min-h-0 flex justify-center items-center overflow-hidden ${jogAreaPadding} ${jogDisabled ? 'opacity-40 pointer-events-none' : ''}`}
+        >
           {onSwitchStyle && continuous && (
             <button
               title={keyboardJog ? 'Keyboard jog ON — Arrows: X/Y · −/+: Z' : 'Enable keyboard jogging'}
@@ -1506,46 +1501,21 @@ export function TabletJogPad({
               </svg>
             </button>
           )}
-          <div {...noContextMenu} className={`relative flex flex-row items-center justify-center h-full max-h-full w-full gap-2 sm:gap-4 portrait:h-[320px] portrait:gap-6 max-sm:portrait:w-full max-sm:portrait:h-[52vw] max-sm:portrait:gap-2 select-none [-webkit-touch-callout:none] ${jogDisabled ? 'pointer-events-none' : ''}`}>
-          <div className={jogGridClass}>
-            <div />
-            <button
-              {...tabletJogPointerHandlers(startYp, stopYp)}
-              className={`${jogBtnClass} text-ok`}
-            >Y+</button>
-            <div />
-            <button
-              {...tabletJogPointerHandlers(startXm, stopXm)}
-              className={`${jogBtnClass} text-danger`}
-            >X-</button>
-            <button
-              onClick={() => sendRealtime(0x85)}
-              className="flex items-center justify-center w-full h-full bg-surface border border-border rounded-xl shadow-md active:scale-95 transition-transform"
-            >
-              <Square className={`${topBand ? 'w-8 h-8' : 'w-8 h-8 sm:w-10 sm:h-10'} text-danger fill-current`} />
+          <div className={jogClusterClass}>
+            <div aria-hidden="true" />
+            <button {...tabletJogPointerHandlers(startYp, stopYp)} className="jog-cluster-btn text-ok">Y+</button>
+            <div aria-hidden="true" />
+            <button {...tabletJogPointerHandlers(startZp, stopZp)} className="jog-cluster-btn text-info">Z+</button>
+            <button {...tabletJogPointerHandlers(startXm, stopXm)} className="jog-cluster-btn text-danger">X-</button>
+            <button onClick={() => sendRealtime(0x85)} className="jog-cluster-stop" aria-label="Stop jog">
+              <Square className="jog-cluster-stop-icon" />
             </button>
-            <button
-              {...tabletJogPointerHandlers(startXp, stopXp)}
-              className={`${jogBtnClass} text-danger`}
-            >X+</button>
-            <div />
-            <button
-              {...tabletJogPointerHandlers(startYm, stopYm)}
-              className={`${jogBtnClass} text-ok`}
-            >Y-</button>
-            <div />
-          </div>
-          <div className={zColClass}>
-            <button
-              {...tabletJogPointerHandlers(startZp, stopZp)}
-              className={`${jogBtnClass} flex-1 text-info`}
-            >Z+</button>
-            {topBand && <div className="flex-1" />}
-            <button
-              {...tabletJogPointerHandlers(startZm, stopZm)}
-              className={`${jogBtnClass} flex-1 text-info`}
-            >Z-</button>
-          </div>
+            <button {...tabletJogPointerHandlers(startXp, stopXp)} className="jog-cluster-btn text-danger">X+</button>
+            <div aria-hidden="true" />
+            <div aria-hidden="true" />
+            <button {...tabletJogPointerHandlers(startYm, stopYm)} className="jog-cluster-btn text-ok">Y-</button>
+            <div aria-hidden="true" />
+            <button {...tabletJogPointerHandlers(startZm, stopZm)} className="jog-cluster-btn text-info">Z-</button>
           </div>
         </div>
 

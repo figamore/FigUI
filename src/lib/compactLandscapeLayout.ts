@@ -1,32 +1,32 @@
 import { useViewportMetrics, type ViewportMetrics } from './viewport'
 
-/** Share of layout viewport height for the Position + Jog band. */
-export const COMPACT_LANDSCAPE_TOP_ROW_RATIO = 0.55
+/** Share of the visible viewport used by the Position + Jog band. */
+const TOP_ROW_RATIO = 0.55
+const TOP_ROW_MIN_PX = 228
+const TOP_ROW_MAX_PX = 360
 
-export const COMPACT_LANDSCAPE_TOP_ROW_MIN_PX = 228
+/** Tab workspace is taller than the remaining fold; the page scrolls to reach it. */
+const TAB_CONTENT_RATIO = 0.85
+const TAB_CONTENT_MIN_PX = 320
+const TAB_CONTENT_MAX_PX = 560
 
-export const COMPACT_LANDSCAPE_TOP_ROW_MAX_PX = 360
-
-/** Stacked G-code viewer; dvh accounts for browser chrome. */
-export const COMPACT_LANDSCAPE_VIEWER_CLASS = 'h-[min(62dvh,28rem)]'
-
-/** Min height for inline plugin panels below the top row. */
-export const COMPACT_LANDSCAPE_PLUGIN_MIN_HEIGHT = 'min(50dvh, 24rem)'
-
-export function layoutViewportHeight(metrics: ViewportMetrics): number {
+/** Visible height, which excludes browser chrome on mobile browsers. */
+function layoutHeight(metrics: ViewportMetrics): number {
   return metrics.visualViewportHeight ?? metrics.innerHeight
 }
 
-export function compactLandscapeTopRowHeightPx(metrics: ViewportMetrics): number {
-  const h = layoutViewportHeight(metrics)
-  return Math.min(
-    Math.max(Math.round(h * COMPACT_LANDSCAPE_TOP_ROW_RATIO), COMPACT_LANDSCAPE_TOP_ROW_MIN_PX),
-    COMPACT_LANDSCAPE_TOP_ROW_MAX_PX,
-  )
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max)
 }
 
 export function useCompactLandscapeTopRowHeight(): number | undefined {
   const metrics = useViewportMetrics()
   if (!metrics.isCompactLandscape) return undefined
-  return compactLandscapeTopRowHeightPx(metrics)
+  return clamp(Math.round(layoutHeight(metrics) * TOP_ROW_RATIO), TOP_ROW_MIN_PX, TOP_ROW_MAX_PX)
+}
+
+export function useCompactLandscapeTabContentHeight(): number | undefined {
+  const metrics = useViewportMetrics()
+  if (!metrics.isCompactLandscape) return undefined
+  return clamp(Math.round(layoutHeight(metrics) * TAB_CONTENT_RATIO), TAB_CONTENT_MIN_PX, TAB_CONTENT_MAX_PX)
 }

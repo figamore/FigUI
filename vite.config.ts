@@ -55,6 +55,10 @@ export default defineConfig(({ mode }) => ({
       // Favor transfer size over minifier speed for the firmware artifact.
       minify: 'terser',
       cssMinify: 'lightningcss',
+      // Without a browser target LightningCSS assumes the newest engine and rewrites
+      // `background-color: transparent` as `#0000`, which the tablet WebView drops —
+      // bare buttons then fall back to the light UA ButtonFace.
+      cssTarget: 'chrome61',
       modulePreload: { polyfill: false },
       terserOptions: {
         ecma: 2022,

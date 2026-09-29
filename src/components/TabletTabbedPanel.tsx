@@ -17,9 +17,10 @@ interface TabletTabbedPanelProps {
   hasProbingInput: boolean
   hasSpindle: boolean
   hasManualATC?: boolean
+  /** Fixed content height in px; panels fill it instead of sizing to content. */
+  contentHeight?: number
   portraitMinHeight?: boolean
   tabLabelFontSize?: string
-  viewerClassName?: string
   fitToViewSignal?: boolean
 }
 
@@ -31,16 +32,23 @@ export function TabletTabbedPanel({
   hasProbingInput,
   hasSpindle,
   hasManualATC = false,
+  contentHeight,
   portraitMinHeight = false,
   tabLabelFontSize = 'clamp(10px, 2.2vw, 20px)',
-  viewerClassName,
   fitToViewSignal,
 }: TabletTabbedPanelProps) {
-  const viewerClass = viewerClassName ?? (portraitMinHeight ? 'min-h-[55vh]' : 'flex-1 min-h-[300px]')
+  const fills = contentHeight != null
+  const contentClass = fills
+    ? 'shrink-0 overflow-hidden'
+    : portraitMinHeight
+      ? 'min-h-[420px] overflow-hidden'
+      : undefined
+  const padded = fills ? 'h-full overflow-y-auto p-3' : 'p-3'
+  const paddedWide = fills ? 'h-full overflow-y-auto p-5' : 'p-5'
 
   return (
     <div className="panel flex flex-col">
-      <div className={`flex w-full border-b border-border shrink-0 overflow-x-auto`}>
+      <div className="flex w-full border-b border-border shrink-0 overflow-x-auto">
         {tabs.map(({ id, label, Icon }) => (
           <button
             key={id}
@@ -57,32 +65,36 @@ export function TabletTabbedPanel({
           </button>
         ))}
       </div>
-      <div className={portraitMinHeight ? 'min-h-[420px] overflow-hidden' : undefined}>
+      <div className={contentClass} style={fills ? { height: contentHeight } : undefined}>
         {activeTab === 'viewer' && (
-          <div className={portraitMinHeight ? 'flex flex-col gap-3 p-3' : 'p-3'}>
-            <GCodeViewer className={viewerClass} isTablet fitToViewSignal={fitToViewSignal} />
+          <div className={`flex flex-col gap-3 p-3 ${fills ? 'h-full' : ''}`}>
+            <GCodeViewer
+              className={fills ? 'flex-1 min-h-0' : 'min-h-[55vh]'}
+              isTablet
+              fitToViewSignal={fitToViewSignal}
+            />
           </div>
         )}
         {activeTab === 'files' && <FileManager isTablet />}
         {activeTab === 'macros' && <Macros isTablet />}
         {activeTab === 'tooling' && hasManualATC && (
-          <div className="p-3">
+          <div className={padded}>
             <ManualATCPanel isTablet embedded />
           </div>
         )}
         {activeTab === 'probing' && hasProbingInput && (
-          <div className="p-3">
+          <div className={padded}>
             <ProbePanel isTablet embedded />
           </div>
         )}
         {activeTab === 'terminal' && <Terminal />}
         {activeTab === 'spindle' && hasSpindle && (
-          <div className="p-5">
+          <div className={paddedWide}>
             <SpindlePanel className="border-none shadow-none p-0" isTablet />
           </div>
         )}
         {activeTab === 'overrides' && (
-          <div className="p-5">
+          <div className={paddedWide}>
             <OverridesPanel className="border-none shadow-none p-0" isTablet />
           </div>
         )}
