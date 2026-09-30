@@ -3,7 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Utility-G-code Generator</title>
+<title>Utility-G-code Generator v1.4.4</title>
+<link rel="icon" type="image/png" href="icon.png">
+<link rel="apple-touch-icon" href="icon.png">
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 body {
@@ -222,6 +224,17 @@ select { cursor: pointer; }
   gap: 8px;
   flex-shrink: 0;
 }
+.app-version {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted, #6a7898);
+  font-family: ui-monospace, monospace;
+  letter-spacing: .04em;
+  padding: 2px 8px;
+  border: 1px solid var(--border, #222840);
+  border-radius: 4px;
+  user-select: none;
+}
 
 .action-btn {
   padding: 7px 14px;
@@ -344,8 +357,6 @@ select { cursor: pointer; }
 </style>
 
 <script>
-  /** Version de l'application — à incrémenter à chaque modification significative */
-const APP_VERSION = '1.3.1';
 const TOOLTIPS = {
   fr: {
     common: {
@@ -654,7 +665,7 @@ const I18N = {
     totalAngle: "Angle total °",
     radius: "Rayon (mm)",
     corner: "Coin",
-    width: "Largeur (mm)",
+    width: "Rayon (mm)",
     threadHoleDiameter: "Ø trou / pièce (mm)",
     type: "Type",
     direction: "Sens",
@@ -668,7 +679,10 @@ const I18N = {
     verticalPlunge: "Plongée verticale (-Z)",
     partProfile: "Pièce",
     zeroPoint: "Point Zéro",
-    openViewer: "Ouvrir dans le viewer",
+    openViewer: "Ouvrir dans figUI",
+    downloadGcode: "Télécharger G-code",
+    toolAtLine: "Outil ligne {n}",
+    gcodeDownloaded: "G-code téléchargé",
     opSurfacing: "1 – Surfaçage",
     opContour: "2 – Perçages par détourage",
     opMatrix: "3 – Schéma de perçages",
@@ -716,7 +730,8 @@ const I18N = {
     schemaNumError: "Nb sur X/Y >= 1",
     help: "Aide",
     helpClose: "Fermer",
-    helpCommon: "Commun"
+    helpCommon: "Commun",
+    gcodeClickLine: "Cliquer sur une ligne"
   },
   en: {
     language: "Language",
@@ -768,7 +783,7 @@ const I18N = {
     totalAngle: "Total angle °",
     radius: "Radius (mm)",
     corner: "Corner",
-    width: "Width (mm)",
+    width: "Radius (mm)",
     threadHoleDiameter: "Hole / part Ø (mm)",
     type: "Type",
     direction: "Direction",
@@ -782,7 +797,10 @@ const I18N = {
     verticalPlunge: "Vertical plunge (-Z)",
     partProfile: "Part",
     zeroPoint: "Zero point",
-    openViewer: "Open in viewer",
+    openViewer: "Open in figUI",
+    downloadGcode: "Download G-code",
+    toolAtLine: "Tool at line {n}",
+    gcodeDownloaded: "G-code downloaded",
     opSurfacing: "1 – Surfacing",
     opContour: "2 – Contour drilling",
     opMatrix: "3 – Pattern drilling ",
@@ -830,7 +848,8 @@ const I18N = {
     schemaNumError: "Count on X/Y >= 1",
     help: "Help",
     helpClose: "Close",
-    helpCommon: "Common"
+    helpCommon: "Common",
+    gcodeClickLine: "Click on a line"
   }
 };
 
@@ -874,11 +893,14 @@ function applyLanguage() {
     const key = el.dataset.i18n;
     if (I18N[lang]?.[key]) el.textContent = unitize(I18N[lang][key]);
   });
+    const gcodeOut = document.getElementById('gcode-output');
+  if (gcodeOut) gcodeOut.title = tr('gcodeClickLine');
   const helpBtn = document.getElementById('help-btn');
   if (helpBtn) helpBtn.textContent = tr('help');
   updateMatrixLayoutUI();
   updateSchemaLayoutUI();
   applyTooltips();
+  
 }
 
 function applyTooltips() {
@@ -1010,7 +1032,7 @@ document.addEventListener("DOMContentLoaded", () => {
         <div><label data-i18n="feedRate">Avance (mm/min)</label><input type="number" id="feed_rate" value="1800" min="1" step="50"></div>
         <div><label data-i18n="spindleSpeed">Broche RPM</label><input type="number" id="spindle_speed" value="1000" min="0" step="100"></div>
       </div>
-      <div class="row3">
+      <div class="row3" id="tool-depth-row">
         <div><label data-i18n="toolDiameter">Ø outil (mm)</label><input type="number" id="tool_diameter" value="10" min="0.1" step="0.1"></div>
         <div><label data-i18n="depthPerPass">Prof. / passe</label><input type="number" id="depth_per_pass" value="1" min="0.01" step="0.1"></div>
         <div><label data-i18n="totalDepth">Prof. totale</label><input type="number" id="total_depth" value="2" min="0.01" step="0.1"></div>
@@ -1270,7 +1292,7 @@ document.addEventListener("DOMContentLoaded", () => {
     <div class="main-split">
       <div class="panel panel-left">
         <div class="panel-header" data-i18n="gcode">G-code</div>
-        <textarea id="gcode-output" readonly spellcheck="false" placeholder="Le G-code apparaîtra ici..."></textarea>
+        <textarea id="gcode-output" readonly spellcheck="false"  title="Cliquer sur une ligne"  placeholder="Le G-code apparaîtra ici..."></textarea>
       </div>
       <div class="panel">
         <div class="panel-header" data-i18n="preview2d">2D (XY)</div>
@@ -1295,22 +1317,61 @@ document.addEventListener("DOMContentLoaded", () => {
       </div>
     </div>
     <div class="action-bar">
-      <button class="action-btn" id="open-btn" onclick="openInViewer()" disabled data-i18n="openViewer">Ouvrir dans le viewer</button>
+      <button class="action-btn" id="open-btn" onclick="openInViewer()" disabled data-i18n="openViewer">Ouvrir dans le figUI</button>
+      <button class="action-btn" id="download-btn" onclick="downloadGCode()" disabled data-i18n="downloadGcode">Télécharger G-code</button>
       <button class="action-btn" id="help-btn" type="button">?</button>
+      <span class="app-version" id="app-version">v1.4.4</span>
       <span id="status"></span>
     </div>
   </div>
 </div>
 
 <script>
-/* ========== FigUI bridge ========== */
+/** Version de l'application — à incrémenter à chaque modification significative */
+const APP_VERSION = '1.4.4';
+
+/* ========== FigUI bridge + fallback navigateur local ========== */
 let msgId = 0;
 const pending = {};
-function call(method, params) {
+/** true si on tourne dans une iframe FigUI (parent ≠ self) */
+const IS_FIGUI = (window.parent && window.parent !== window);
+const LS_SETTINGS_KEY = 'utility-gcode-generator-settings';
+/** Timeout court : settings (détection / fallback localStorage) */
+const CALL_TIMEOUT_MS = 3000;
+/** Timeout long : écriture / ouverture de fichiers G-code dans FigUI */
+const CALL_TIMEOUT_FILE_MS = 30000;
+
+/**
+ * Appel FigUI via postMessage.
+ * @param {string} method
+ * @param {object} [params]
+ * @param {number} [timeoutMs] — défaut CALL_TIMEOUT_MS ; utiliser CALL_TIMEOUT_FILE_MS pour write/load
+ */
+function call(method, params, timeoutMs) {
   return new Promise((resolve, reject) => {
+    if (!IS_FIGUI) {
+      reject(new Error('FigUI unavailable'));
+      return;
+    }
     const id = String(++msgId);
-    pending[id] = { resolve, reject };
-    window.parent.postMessage({ type: 'fluid-request', id, method, params: params ?? {} }, '*');
+    const ms = (typeof timeoutMs === 'number' && timeoutMs > 0) ? timeoutMs : CALL_TIMEOUT_MS;
+    const timer = setTimeout(() => {
+      if (pending[id]) {
+        delete pending[id];
+        reject(new Error('FigUI timeout'));
+      }
+    }, ms);
+    pending[id] = {
+      resolve: (v) => { clearTimeout(timer); resolve(v); },
+      reject: (e) => { clearTimeout(timer); reject(e); }
+    };
+    try {
+      window.parent.postMessage({ type: 'fluid-request', id, method, params: params ?? {} }, '*');
+    } catch (e) {
+      clearTimeout(timer);
+      delete pending[id];
+      reject(e);
+    }
   });
 }
 window.addEventListener('message', e => {
@@ -1326,6 +1387,25 @@ window.addEventListener('message', e => {
     requestAnimationFrame(() => drawPreview(generatedCode));
   }
 });
+
+function loadSettingsFromLocalStorage() {
+  try {
+    const raw = localStorage.getItem(LS_SETTINGS_KEY);
+    if (!raw) return null;
+    const s = JSON.parse(raw);
+    return (s && typeof s === 'object') ? s : null;
+  } catch (_) {
+    return null;
+  }
+}
+function saveSettingsToLocalStorage(data) {
+  try {
+    localStorage.setItem(LS_SETTINGS_KEY, JSON.stringify(data));
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
 
 let generatedCode = '';
 
@@ -1351,6 +1431,8 @@ function showModePanel(op) {
   if (panel) panel.classList.remove('hidden');
   if (op === '3') updateMatrixLayoutUI();
   if (op === '7') updateSchemaLayoutUI();
+  const toolDepthRow = document.getElementById('tool-depth-row');
+  if (toolDepthRow) toolDepthRow.classList.toggle('hidden', op === '7');
 }
 
 /* ========== Conversion mm ↔ in ========== */
@@ -1444,6 +1526,7 @@ function parseGCodePaths(gcode) {
   let startX = 0, startY = 0, startZ = 0;
   const lines = String(gcode || '').split(/\r?\n/);
   const plunges = [];
+  const linePos = new Array(lines.length); // position outil après chaque ligne source
 
   function toAbs(nx, ny, nz) {
     return {
@@ -1459,7 +1542,7 @@ function parseGCodePaths(gcode) {
       plunges.push({ x: x1, y: y1, z: z1 });
     }
   }
-  const arcs = [];   // ← nouveau
+  const arcs = [];
 
   function addArc(x0, y0, z0, x1, y1, z1, i, j, cw) {
     const cx = x0 + (i || 0);
@@ -1475,10 +1558,7 @@ function parseGCodePaths(gcode) {
       if (Math.abs(da) < 1e-9) da = 2 * Math.PI;
     }
     const r = Math.hypot(x0 - cx, y0 - cy) || Math.hypot(x1 - cx, y1 - cy);
-
-    // mémoriser l’arc (pour le rayon pièce)
     arcs.push({ cx, cy, r, a0, da, cw });
-
     const n = Math.max(8, Math.min(72, Math.ceil(Math.abs(da) / (Math.PI / 24))));
     let px = x0, py = y0, pz = z0;
     for (let k = 1; k <= n; k++) {
@@ -1491,41 +1571,70 @@ function parseGCodePaths(gcode) {
     }
   }
 
-  for (let raw of lines) {
+    // Mode mouvement modal (G0/G1/G2/G3) — utile si la ligne n'a que X/Y/Z
+  let motion = null; // 0 | 1 | 2 | 3
+
+  for (let li = 0; li < lines.length; li++) {
+    const raw = lines[li];
     let line = raw.replace(/;.*$/, '').replace(/\(.*?\)/g, '').trim();
-    if (!line) continue;
-    if (/^G90\b/i.test(line)) { abs = true; continue; }
-    if (/^G91\b/i.test(line)) { abs = false; continue; }
-    const gMatch = line.match(/\bG0*(\d+)\b/i);
-    const g = gMatch ? parseInt(gMatch[1], 10) : null;
-    if (g == null && !/[XYZIJK]/i.test(line)) continue;
-    const nx = parseWord(line, 'X');
-    const ny = parseWord(line, 'Y');
-    const nz = parseWord(line, 'Z');
-    const ni = parseWord(line, 'I');
-    const nj = parseWord(line, 'J');
-    const p = toAbs(nx, ny, nz);
-    if (!startSet && (nx != null || ny != null)) {
-      startX = p.x; startY = p.y; startZ = p.z; startSet = true;
-    }
-    if (g === 0 || g === 00) {
-      addLine(x, y, z, p.x, p.y, p.z, true);
-      x = p.x; y = p.y; z = p.z;
-    } else if (g === 1) {
-      addLine(x, y, z, p.x, p.y, p.z, false);
-      x = p.x; y = p.y; z = p.z;
-    } else if (g === 2 || g === 3) {
-      addArc(x, y, z, p.x, p.y, p.z, ni || 0, nj || 0, g === 2);
-      x = p.x; y = p.y; z = p.z;
-    } else if (nx != null || ny != null || nz != null) {
-      if (nx != null || ny != null) {
-        addLine(x, y, z, p.x, p.y, p.z, false);
-        x = p.x; y = p.y;
+    if (line) {
+      // --- G90 / G91 n'importe où sur la ligne (le dernier gagne) ---
+      const modeMatches = [...line.matchAll(/\bG0*(90|91)\b/gi)];
+      for (const m of modeMatches) {
+        abs = (String(m[1]) === '90');
       }
-      z = p.z;
+
+      // --- Code G de mouvement éventuel (modal) ---
+      const gMatch = line.match(/\bG0*(\d+)\b/i);
+      if (gMatch) {
+        const gn = parseInt(gMatch[1], 10);
+        if (gn === 0 || gn === 1 || gn === 2 || gn === 3) motion = gn;
+        // G90/G91 déjà traités ; autres G ignorés pour le tracé
+      }
+
+      if (motion != null || /[XYZIJK]/i.test(line)) {
+        const nx = parseWord(line, 'X');
+        const ny = parseWord(line, 'Y');
+        const nz = parseWord(line, 'Z');
+        const ni = parseWord(line, 'I');
+        const nj = parseWord(line, 'J');
+
+        // Conversion relative → absolue selon le mode courant
+        const p = toAbs(nx, ny, nz);
+
+        if (!startSet && (nx != null || ny != null)) {
+          startX = p.x; startY = p.y; startZ = p.z; startSet = true;
+        }
+
+        // Ne tracer un mouvement que s'il y a au moins une coordonnée
+        const hasMove = (nx != null || ny != null || nz != null);
+
+        if (hasMove) {
+          if (motion === 0) {
+            addLine(x, y, z, p.x, p.y, p.z, true);
+            x = p.x; y = p.y; z = p.z;
+          } else if (motion === 1) {
+            addLine(x, y, z, p.x, p.y, p.z, false);
+            x = p.x; y = p.y; z = p.z;
+          } else if (motion === 2 || motion === 3) {
+            // I/J restent relatifs au point de départ de l'arc (standard)
+            addArc(x, y, z, p.x, p.y, p.z, ni || 0, nj || 0, motion === 2);
+            x = p.x; y = p.y; z = p.z;
+          } else if (nx != null || ny != null || nz != null) {
+            // Pas de G modal connu : traiter comme coupe linéaire
+            if (nx != null || ny != null) {
+              addLine(x, y, z, p.x, p.y, p.z, false);
+              x = p.x; y = p.y;
+            }
+            if (nz != null) z = p.z;
+          }
+        }
+      }
     }
+    // Toujours la position machine absolue après cette ligne
+    linePos[li] = { x, y, z };
   }
-    return { segs, startX, startY, startZ, startSet, plunges, arcs };
+  return { segs, startX, startY, startZ, startSet, plunges, arcs, linePos };
 }
 
 function fmtL(v) {
@@ -1620,6 +1729,13 @@ function buildPartGeometry(p) {
   if (p.operation === '1') {
     return { kind: 'surf_rect', x: p.start_x, y: p.start_y, w: p.width_x, h: p.length_y };
   }
+  // Mode 2 : cercle fini = Ø trou (interne ou OD pièce) — indépendant du rayon outil parcours
+  if (p.operation === '2') {
+    return {
+      kind: 'finish_circles',
+      circles: [{ cx: p.start_x, cy: p.start_y, r: p.hole_diameter / 2 }]
+    };
+  }
   if (p.operation === '3') {
     return { kind: 'drill_holes', holes: matrixHolePositions(p) };
   }
@@ -1645,6 +1761,13 @@ function buildPartGeometry(p) {
         }))
       };
     }
+    if (srcOp === '2') {
+      const r = src.hole_diameter / 2;
+      return {
+        kind: 'finish_circles',
+        circles: positions.map(pos => ({ cx: pos.x, cy: pos.y, r }))
+      };
+    }
     if (srcOp === '3') {
       const holes = [];
       for (const pos of positions) {
@@ -1668,7 +1791,7 @@ function buildPartGeometry(p) {
 function drawView(canvas, segs, startA, startB, startSet,
                   axisAKey, axisBKey, axisALabel, axisBLabel,
                   w, h, pad, scale, minA, maxA, minB, maxB,
-                  toolDiameter, plungePoints, arcs, profileSide, partGeometry) {
+                  toolDiameter, plungePoints, arcs, profileSide, partGeometry, toolCursor) {
   const dpr = window.devicePixelRatio || 1;
   canvas.width = Math.floor(w * dpr);
   canvas.height = Math.floor(h * dpr);
@@ -1840,6 +1963,12 @@ function drawView(canvas, segs, startA, startB, startSet,
         strokeCircleProfile(h.x, h.y, r);
       }
     }
+    // --- Mode 2 détourage : cercle fini = Ø trou (autour du parcours interne, ou OD externe) ---
+    else if (partGeom && partGeom.kind === 'finish_circles') {
+      for (const c of (partGeom.circles || [])) {
+        strokeCircleProfile(c.cx, c.cy, c.r);
+      }
+    }
     // --- Oblong (mode 5 / schéma) : profil fini depuis géométrie ---
     else if (partGeom && partGeom.kind === 'oblong_parts') {
       for (const it of (partGeom.items || [])) {
@@ -1975,7 +2104,61 @@ function drawView(canvas, segs, startA, startB, startSet,
   labelAt(maxA, (minB + maxB) / 2, axisALabel + 'max ' + fmtL(maxA), 'left');
   labelAt((minA + maxA) / 2, minB, axisBLabel + 'min ' + fmtL(minB), 'top');
   labelAt((minA + maxA) / 2, maxB, axisBLabel + 'max ' + fmtL(maxB), 'bottom');
-  
+
+    // Curseur outil (clic ligne G-code)
+  if (toolCursor && toolCursor[axisAKey] != null && toolCursor[axisBKey] != null) {
+    const ta = toolCursor[axisAKey], tb = toolCursor[axisBKey];
+    const px = tA(ta), py = tB(tb);
+    const toolRadiusPx = Math.max(2, ((toolDiameter || 0) / 2) * scale);
+    const isXZ = (axisAKey === 'x' && axisBKey === 'z');
+
+    ctx.save();
+    ctx.strokeStyle = '#f472b6';
+    ctx.fillStyle = 'rgba(244, 114, 182, 0.15)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([]);
+
+    if (isXZ) {
+      // Rectangle comme le vert : largeur = Ø outil, base (pointe) à Z courant
+      const ww = toolRadiusPx * 2;
+      const hh = toolRadiusPx * 6;
+      ctx.beginPath();
+      ctx.rect(px - ww / 2, py - hh, ww, hh);  // bas du rectangle = position Z du curseur
+      ctx.fill();
+      ctx.strokeStyle = '#f472b6';
+      ctx.stroke();
+      // Point à la pointe
+      ctx.beginPath();
+      ctx.arc(px, py, 2.5, 0, Math.PI * 2);
+      ctx.fillStyle = '#f472b6';
+      ctx.fill();
+    } else {
+      // Vue XY : cercle = diamètre réel à l'échelle
+      const arm = Math.max(10, toolRadiusPx + 4);
+      ctx.beginPath();
+      ctx.moveTo(px - arm, py); ctx.lineTo(px + arm, py);
+      ctx.moveTo(px, py - arm); ctx.lineTo(px, py + arm);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(px, py, toolRadiusPx, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(px, py, 2.5, 0, Math.PI * 2);
+      ctx.fillStyle = '#f472b6';
+      ctx.fill();
+    }
+
+    const lab = axisALabel + fmtL(ta) + '  ' + axisBLabel + fmtL(tb);
+    ctx.font = '14px ui-monospace, monospace';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'bottom';
+    const tw = ctx.measureText(lab).width;
+    ctx.fillStyle = 'rgba(10,14,22,0.8)';
+    ctx.fillRect(px + 8, py - 22, tw + 8, 18);
+    ctx.fillStyle = '#f9a8d4';
+    ctx.fillText(lab, px + 12, py - 6);
+    ctx.restore();
+  }
 }
 
 function computeTopPaneFraction(segs) {
@@ -1994,16 +2177,20 @@ function computeTopPaneFraction(segs) {
 }
 
 let lastToolDiameter = 10;
-
 let lastPartGeometry = null;
+let lastProfileSide = 'out';
+let lastLinePos = null;   // positions par ligne G-code
+let toolCursor = null;    // {x,y,z} position sélectionnée
 
 function drawPreview(gcode, toolDiameter, profileSide, partGeometry) {
   if (toolDiameter != null) lastToolDiameter = toolDiameter;
   if (partGeometry !== undefined) lastPartGeometry = partGeometry;
+  if (profileSide != null) lastProfileSide = profileSide;
   const td = lastToolDiameter;
-  const side = profileSide || 'out';
+  const side = (profileSide != null) ? profileSide : lastProfileSide;
   const partGeom = (partGeometry !== undefined) ? partGeometry : lastPartGeometry;
-  const { segs, startX, startY, startZ, startSet, plunges, arcs } = parseGCodePaths(gcode);
+  const { segs, startX, startY, startZ, startSet, plunges, arcs, linePos } = parseGCodePaths(gcode);
+  lastLinePos = linePos || null;
   const paneXZ = document.getElementById('viz-pane-xz');
   const paneXY = document.getElementById('viz-pane-xy');
   const frac = computeTopPaneFraction(segs);
@@ -2070,6 +2257,14 @@ function drawPreview(gcode, toolDiameter, profileSide, partGeometry) {
       maxY = Math.max(maxY, h.y + toolRBound);
     }
   }
+  if (partGeom && partGeom.kind === 'finish_circles') {
+    for (const c of (partGeom.circles || [])) {
+      minX = Math.min(minX, c.cx - c.r);
+      maxX = Math.max(maxX, c.cx + c.r);
+      minY = Math.min(minY, c.cy - c.r);
+      maxY = Math.max(maxY, c.cy + c.r);
+    }
+  }
   if (partGeom && partGeom.kind === 'oblong_parts') {
     for (const it of (partGeom.items || [])) {
       minX = Math.min(minX, it.cx - it.length_x / 2);
@@ -2086,9 +2281,9 @@ function drawPreview(gcode, toolDiameter, profileSide, partGeometry) {
     (wXY - 2 * pad) / dX, (hXY - 2 * pad) / dY
   );
   drawView(canvasXZ, segs, startX, startZ, startSet, 'x', 'z', 'X', 'Z',
-            wXZ, hXZ, pad, scale, minX, maxX, minZ, maxZ, td, null, null, side, null);
+            wXZ, hXZ, pad, scale, minX, maxX, minZ, maxZ, td, null, null, side, null, toolCursor);
   drawView(canvasXY, segs, startX, startY, startSet, 'x', 'y', 'X', 'Y',
-            wXY, hXY, pad, scale, minX, maxX, minY, maxY, td, plunges, arcs, side, partGeom);
+            wXY, hXY, pad, scale, minX, maxX, minY, maxY, td, plunges, arcs, side, partGeom, toolCursor);
   }
 
 window.addEventListener('resize', () => {
@@ -2197,40 +2392,65 @@ function captureMode(op) {
 }
 async function saveSettings() {
   captureMode(str('operation') || '1');
-  try {
-    await call('saveSettings', { data: settingsCache });
-    return true;
-  } catch (e) {
-    setStatus('Settings: ' + (e.message || e), 'err');
-    return false;
+  // 1) FigUI → settings.json sur disque
+  if (IS_FIGUI) {
+    try {
+      await call('saveSettings', { data: settingsCache });
+      // miroir local pour un usage navigateur ultérieur
+      saveSettingsToLocalStorage(settingsCache);
+      return true;
+    } catch (e) {
+      // FigUI en échec : fallback navigateur
+      if (saveSettingsToLocalStorage(settingsCache)) return true;
+      setStatus('Settings: ' + (e.message || e), 'err');
+      return false;
+    }
   }
+  // 2) Navigateur local → localStorage (pas d'accès écriture à settings.json)
+  return saveSettingsToLocalStorage(settingsCache);
 }
-async function loadSettings() {
-  try {
-    const s = await call('getSettings');
-    if (s && typeof s === 'object') {
-      if (s.language === 'fr' || s.language === 'en') settingsCache.language = s.language;
-      if (s.surfacing || s.threading || s.last_operation) Object.assign(settingsCache, s);
-      else {
-        const op = String(s.operation || '1');
-        settingsCache.last_operation = op;
-        settingsCache.project_name = s.project_name || settingsCache.project_name;
-        settingsCache.machine = s.machine || settingsCache.machine;
-        settingsCache.global_units = s.global_units || 'mm';
-        if (s.plunge_percent !== undefined) settingsCache.global_feed_rate_percent = String(s.plunge_percent).replace('%','') + '%';
-        if (s.startup_codes !== undefined) settingsCache.startup_codes = s.startup_codes;
-        const map = MODE_MAP[op];
-        if (map) {
-          const section = {};
-          for (const [htmlId, jsonKey] of Object.entries(map.fields)) {
-            if (s[htmlId] !== undefined) {
-              const n = parseFloat(s[htmlId]);
-              section[jsonKey] = Number.isFinite(n) && document.getElementById(htmlId)?.tagName !== 'SELECT' ? n : s[htmlId];
-            }
-          }
-          settingsCache[map.key] = section;
+
+function applyLoadedSettingsObject(s) {
+  if (!s || typeof s !== 'object') return;
+  if (s.language === 'fr' || s.language === 'en') settingsCache.language = s.language;
+  if (s.surfacing || s.threading || s.last_operation) Object.assign(settingsCache, s);
+  else {
+    const op = String(s.operation || '1');
+    settingsCache.last_operation = op;
+    settingsCache.project_name = s.project_name || settingsCache.project_name;
+    settingsCache.machine = s.machine || settingsCache.machine;
+    settingsCache.global_units = s.global_units || 'mm';
+    if (s.plunge_percent !== undefined) settingsCache.global_feed_rate_percent = String(s.plunge_percent).replace('%','') + '%';
+    if (s.startup_codes !== undefined) settingsCache.startup_codes = s.startup_codes;
+    const map = MODE_MAP[op];
+    if (map) {
+      const section = {};
+      for (const [htmlId, jsonKey] of Object.entries(map.fields)) {
+        if (s[htmlId] !== undefined) {
+          const n = parseFloat(s[htmlId]);
+          section[jsonKey] = Number.isFinite(n) && document.getElementById(htmlId)?.tagName !== 'SELECT' ? n : s[htmlId];
         }
       }
+      settingsCache[map.key] = section;
+    }
+  }
+}
+
+async function loadSettings() {
+  try {
+    let s = null;
+    if (IS_FIGUI) {
+      try {
+        s = await call('getSettings');
+      } catch (_) {
+        s = null;
+      }
+    }
+    if (!s || typeof s !== 'object') {
+      s = loadSettingsFromLocalStorage();
+    }
+    if (s && typeof s === 'object') {
+      applyLoadedSettingsObject(s);
     }
   } catch (_) {}
   const op = String(settingsCache.last_operation || '1');
@@ -2315,16 +2535,16 @@ function generateHeader(p, stockX, stockY, stockZ) {
   const units = p.global_units === 'in' ? 'G20' : 'G21';
   const startupLines = expandStartupCodes(p.startup_codes, p.spindle_speed);
   return [
-    '; NC from Utility-G-code Generator (FigUI)',
+    `; NC from Utility-G-code Generator v${APP_VERSION} (FigUI)`,
     '; ' + p.project_name, '; ' + now, '; ' + p.machine,
     `; (${fmt(stockX)}, ${fmt(stockY)}, ${fmt(stockZ)} ${p.global_units})`,
-    `${units} ;(${p.global_units})`, 'G90',
+    `${units} ;(${p.global_units})`, 'G90 ;Coord Absolute',
     ...startupLines,
     ''
   ].join('\n');
 }
 function footer(clearance) {
-  return [`G00 Z${fmt(clearance)}`, 'G0 X0 Y0', 'G90', 'M5', 'M30'].join('\n');
+  return [`G00 Z${fmt(clearance)}`, 'G0 X0 Y0', 'G90 ;Coord Absolute', 'M5', 'M30'].join('\n');
 }
 
 function genSurfacing(p) {
@@ -2612,28 +2832,29 @@ function genCorner(p) {
   g.push(`G0 S${Math.round(p.spindle_speed)} F${feed}`);
   g.push(`G00 Z${fmt(p.clearance_height)} F${feed}`);
   g.push('G90');
+  // Coin de la pièce = point de tangence outil
+  g.push(`G00 X${fmt(p.start_x)} Y${fmt(p.start_y)} F${feed}`);
+  // offsetCmd est un déplacement relatif depuis ce point
+  g.push('G91');
   g.push(`${fwd.offsetCmd} F${feed}`);
 
-  // Dégagement Z entre passes :
-  //   ARG + AVD en opposition ; ARD + AVG en avalant
-  //   jamais en mode Alterné
+  // Dégagement Z entre passes : ...
   const needZClearance = !isAlternate && (
     (!isClimb && (p.corner_type === 'rear_left' || p.corner_type === 'front_right')) ||
     ( isClimb && (p.corner_type === 'rear_right' || p.corner_type === 'front_left'))
   );
 
-  g.push('G91');
   for (let i = 0; i < numPassesZ; i++) {
     const depth = Math.min(p.depth_per_pass, p.total_depth - i * p.depth_per_pass);
     const targetZ = p.start_z - (i * p.depth_per_pass + depth);
     const useRev = isAlternate && (i % 2 === 1);
     const mv = useRev ? rev : fwd;
     g.push(`; Pass ${i + 1} at Z=${fmt(targetZ)}` + (isAlternate ? (useRev ? ' (rev)' : ' (fwd)') : ''));
-    g.push('G90');
+    g.push('G90 ;Coord Absolute');
     g.push(`G01 Z${fmt(targetZ)} F${fmt(plunge)}`);
-    g.push('G91');
+    g.push('G91 ;Coord Relative');
     g.push(mv.arcCmd);
-    g.push('G90');
+    g.push('G90 ;Coord Absolute');
     if (i < numPassesZ - 1) {
       if (isAlternate) {
         // Alterné : pas de retour XY ni dégagement Z — la passe suivante repart en sens inverse
@@ -2642,7 +2863,7 @@ function genCorner(p) {
       if (needZClearance) {
         g.push(`G00 Z${fmt(p.clearance_height)}`);
       }
-      g.push('G91');
+      g.push('G91 ;Coord Relative');
       g.push(mv.returnX);
       g.push(mv.returnY);
     }
@@ -2678,7 +2899,7 @@ function genOblong(p) {
   const startMachY = p.start_y - tcHalfY;
 
   g.push('; Oblong hole');
-  g.push('G90');
+  g.push('G90 ;Coord Absolute');
   g.push(`G00 Z${fmt(p.clearance_height)} F${Math.round(p.feed_rate)}`);
   g.push(`G00 X${fmt(p.start_x)} Y${fmt(p.start_y)} F${Math.round(p.feed_rate)}`);
 
@@ -2699,7 +2920,7 @@ function genOblong(p) {
     // Plongée uniquement
     g.push(`G01 Z${fmt(targetZ)} F${fmt(plunge)}`);
 
-    g.push('G91');
+    g.push('G91 ;Coord Relative');
 
     if (conv) {
       // Conventional (G02) – sens horaire
@@ -2723,13 +2944,13 @@ function genOblong(p) {
       g.push(`${arcPrefix}G03 X${fmt(r)} Y${fmt(-r)} I${fmt(r)} J0.000 F${Math.round(p.feed_rate)} ${arcSuffix}`);
     }
 
-    g.push('G90');
+    g.push('G90 ;Coord Absolute');
   }
 
   // Remontée UNIQUEMENT à la fin
  // g.push(`G00 Z${fmt(p.clearance_height)} F${Math.round(p.feed_rate)}`);
  // g.push(`G00 X${fmt(p.start_x)} Y${fmt(p.start_y)} F${Math.round(p.feed_rate)}`);
- // g.push('G90');
+ // g.push('G90 ;Coord Absolute');
 
   return {
     body: g.join('\n'),
@@ -3096,6 +3317,8 @@ async function generate() {
     generatedCode = generateHeader(p, result.stockX, result.stockY, result.stockZ) + '\n' + result.body + '\n' + footer(p.clearance_height);
     document.getElementById('gcode-output').value = generatedCode;
     document.getElementById('open-btn').disabled = false;
+    const dlBtn = document.getElementById('download-btn');
+    if (dlBtn) dlBtn.disabled = false;
     const profileSide = getProfileSide(p); // résout aussi mode 7 → source
     const partGeometry = buildPartGeometry(p);
     // Ø outil de la source en mode 7 (le champ mode 7 est informatif)
@@ -3112,6 +3335,24 @@ async function generate() {
   }
 }
 
+function downloadGCode() {
+  if (!generatedCode) { setStatus(tr('generateFirst'), 'err'); return; }
+  const p = collectParams();
+  const safe = (p.project_name || 'test').replace(/[<>:"/\\|?*\s]+/g, '_');
+  const names = { '1': 'surf', '2': 'contour', '3': 'matrix', '4': 'corner', '5': 'oblong', '6': 'thread', '7': 'schema' };
+  const fname = (names[p.operation] || 'op') + '_' + safe + '.nc';
+  const blob = new Blob([generatedCode], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fname;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  setStatus(tr('gcodeDownloaded') + ' · ' + fname, 'ok');
+}
+
 async function openInViewer() {
   if (!generatedCode) { setStatus(tr('generateFirst'), 'err'); return; }
   const p = collectParams();
@@ -3121,7 +3362,8 @@ async function openInViewer() {
   try {
     await saveSettings();
     setStatus(tr('saving'), '');
-    await call('writeFile', { path, content: generatedCode, fs: 'sd' });
+    // Écriture / chargement : timeout long (le G-code peut être volumineux)
+    await call('writeFile', { path, content: generatedCode, fs: 'sd' }, CALL_TIMEOUT_FILE_MS);
     let loaded = false;
     for (const t of [
       { method: 'loadFile', params: { path, fs: 'sd' } },
@@ -3129,7 +3371,11 @@ async function openInViewer() {
       { method: 'loadGcode', params: { path, fs: 'sd' } },
       { method: 'previewFile', params: { path, fs: 'sd' } }
     ]) {
-      try { await call(t.method, t.params); loaded = true; break; } catch (_) {}
+      try {
+        await call(t.method, t.params, CALL_TIMEOUT_FILE_MS);
+        loaded = true;
+        break;
+      } catch (_) {}
     }
     setStatus(loaded ? tr('loadedInViewer') : tr('savedOpenFiles', { path }), 'ok');
     setTimeout(() => { try { call('close'); } catch (_) {} }, 400);
@@ -3236,7 +3482,7 @@ const HELP_CONTENT = {
   <tr><td>Largeur</td><td>Doit être ≥ Ø outil.</td></tr>
   <tr><td>Parcours</td><td>Opposition ou Avalant.</td></tr>
 </table>
-<div class="tip">Pour réaliser une simple coupe (Rayon fraise = largeur rainure), le rayon sera ignoré dans le Gcode.</div>
+<div class="tip">Pour réaliser une simple coupe (Rayon fraise = largeur rainure), le rayon sera ignoré.</div>
 `,
       "6": `
 <h3 id="help-6">Mode 6 — Filetage</h3>
@@ -3378,7 +3624,7 @@ const HELP_CONTENT = {
   <tr><td>Width</td><td>Must be ≥ tool Ø.</td></tr>
   <tr><td>Path</td><td>Conventional or Climb.</td></tr>
 </table>
-<div class="tip">To use as a single cut (bit diameter = slot width), radius will be ignored in Gcode.</div>
+<div class="tip">To use as a single cut (bit diameter = slot width), radius will be ignored.</div>
 `,
       "6": `
 <h3 id="help-6">Mode 6 — Threading</h3>
@@ -3481,6 +3727,107 @@ function closeHelp() {
   if (overlay) overlay.classList.add('hidden');
 }
 
+function gcodeLineIndexFromCaret(ta) {
+  const pos = ta.selectionStart || 0;
+  return ta.value.substring(0, pos).split('\n').length - 1;
+}
+
+/** Sélectionne entièrement la ligne `lineIndex` et la fait défiler dans la vue. */
+function selectGcodeLine(ta, lineIndex) {
+  const text = ta.value || '';
+  const lines = text.split('\n');
+  if (!lines.length) return 0;
+  lineIndex = Math.max(0, Math.min(lineIndex, lines.length - 1));
+
+  let start = 0;
+  for (let i = 0; i < lineIndex; i++) start += lines[i].length + 1;
+  const end = start + lines[lineIndex].length;
+
+  ta.focus();
+  ta.setSelectionRange(start, end);
+
+  // Scroll pour garder la ligne visible (approx. line-height CSS)
+  const cs = getComputedStyle(ta);
+  let lh = parseFloat(cs.lineHeight);
+  if (!Number.isFinite(lh) || lh <= 0) {
+    lh = (parseFloat(cs.fontSize) || 11) * 1.45;
+  }
+  const target = lineIndex * lh - (ta.clientHeight / 2) + lh / 2;
+  ta.scrollTop = Math.max(0, Math.min(ta.scrollHeight - ta.clientHeight, target));
+
+  return lineIndex;
+}
+
+function syncToolCursorFromGcode(optLineIndex) {
+  const ta = document.getElementById('gcode-output');
+  if (!ta || !generatedCode || !lastLinePos) return;
+
+  let li = (typeof optLineIndex === 'number')
+    ? optLineIndex
+    : gcodeLineIndexFromCaret(ta);
+  li = selectGcodeLine(ta, li);
+
+  let pos = null;
+  for (let i = Math.min(li, lastLinePos.length - 1); i >= 0; i--) {
+    if (lastLinePos[i]) { pos = lastLinePos[i]; break; }
+  }
+  toolCursor = pos;
+  drawPreview(generatedCode);
+  if (pos) {
+    const msg = (tr('toolAtLine') || 'Outil ligne {n}').replace('{n}', String(li + 1))
+      + '  X' + fmtL(pos.x) + ' Y' + fmtL(pos.y) + ' Z' + fmtL(pos.z);
+    setStatus(msg, 'ok');
+  }
+}
+
+(function wireGcodeCursor() {
+  const ta = document.getElementById('gcode-output');
+  if (!ta) return;
+
+  ta.addEventListener('click', () => {
+    // Laisse le navigateur placer le caret, puis sélectionne la ligne
+    requestAnimationFrame(() => syncToolCursorFromGcode());
+  });
+
+  ta.addEventListener('keydown', (e) => {
+    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+    e.preventDefault();
+    const lines = (ta.value || '').split('\n');
+    if (!lines.length) return;
+
+    let cur = gcodeLineIndexFromCaret(ta);
+    const dir = e.key === 'ArrowUp' ? -1 : 1;
+    let next = cur + dir;
+
+    // Sauter les lignes de commentaire (commencent par ;)
+    while (next >= 0 && next < lines.length) {
+      const t = lines[next].trim();
+      if (t !== '' && t.charAt(0) !== ';') break;
+      next += dir;
+    }
+
+    // Si on sort des bornes, rester sur la ligne non-commentaire la plus proche
+    if (next < 0 || next >= lines.length) {
+      next = cur;
+      while (next >= 0 && next < lines.length) {
+        const t = lines[next].trim();
+        if (t !== '' && t.charAt(0) !== ';') break;
+        next -= dir; // revenir vers l'intérieur
+      }
+      if (next < 0 || next >= lines.length) return;
+    }
+
+    syncToolCursorFromGcode(next);
+  });
+
+  ta.addEventListener('keyup', (e) => {
+    if (e.key === 'Home' || e.key === 'End'
+        || e.key === 'PageUp' || e.key === 'PageDown') {
+      syncToolCursorFromGcode();
+    }
+  });
+})();
+
 document.getElementById('help-btn')?.addEventListener('click', openHelp);
 document.getElementById('help-close-btn')?.addEventListener('click', closeHelp);
 document.getElementById('help-overlay')?.addEventListener('click', (e) => {
@@ -3490,6 +3837,8 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') closeHelp();
 });
 
+document.getElementById('app-version') && (document.getElementById('app-version').textContent = 'v' + APP_VERSION);
+if (document.title) document.title = 'Utility-G-code Generator v' + APP_VERSION;
 loadSettings().finally(() => { applyLanguage(); generate(); });
 function cssVar(name, fallback) {
   const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
