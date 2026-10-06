@@ -1095,6 +1095,15 @@ function findToolpathProgress(
   return { ...previous, misses: priorMisses + 1 }
 }
 
+/**
+ * Z to compare the live position against. A program that never moves Z (a
+ * laser focused by hand) says nothing about where the machine's Z is, so it
+ * is tracked in XY only.
+ */
+function getTrackingZ(model: GCodeModel, machineZ: number) {
+  return model.bounds.minZ === model.bounds.maxZ ? model.bounds.minZ : machineZ
+}
+
 /** Offset of every line in `text`. */
 function buildLineStarts(text: string) {
   let count = 1
@@ -2664,6 +2673,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
       // Tracking is cheap at any size; only drawing the completed path is
       // limited to smaller jobs. Program Execution follows this position.
       const freshStart = !prevIsRunningRef.current || model !== prevModelRef.current
+      const trackingZ = getTrackingZ(modelRef.current, status.wpos.z)
       if (senderActive) {
         const acceptedSegmentIndex = senderAcceptedLine == null
           ? -1
@@ -2673,7 +2683,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
           ensureCumulativeXYLengths(modelRef.current),
           status.wpos.x,
           status.wpos.y,
-          status.wpos.z,
+          trackingZ,
           progressRef.current,
           getLookaheadDistanceMm(status.feed),
           acceptedSegmentIndex,
@@ -2687,7 +2697,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
           ensureCumulativeXYLengths(modelRef.current),
           status.wpos.x,
           status.wpos.y,
-          status.wpos.z,
+          trackingZ,
           freshStart ? null : progressRef.current,
           getLookaheadDistanceMm(status.feed),
           modelRef.current.segments.length - 1,
