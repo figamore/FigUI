@@ -127,6 +127,8 @@ const LARGE_PROGRESS_OVERLAY_SEGMENT_LIMIT = 100_000
 /** Above this many lines, 2D pan and zoom stretch the cached layer until the view settles. */
 const LARGE_2D_LAYER_LINE_LIMIT = 100_000
 const STATIC_2D_SETTLE_MS = 150
+const FOLLOW_EDGE_MARGIN_PX = 40
+const FOLLOW_EDGE_MARGIN_RATIO = 0.1
 const EMPTY_FLOAT32 = new Float32Array(0)
 const WHEEL_ZOOM_SENSITIVITY = 0.0012
 const ORBIT_ROTATIONS_PER_VIEWPORT = 1
@@ -2491,21 +2493,22 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
   }
   renderRef.current = render
 
+  function centerViewOn(wx: number, wy: number) {
+    const { w, h } = canvasLogicalSize()
+    const t = transformRef.current
+    t.ox = w / 2 - wx * t.scale
+    t.oy = h / 2 + wy * t.scale
+  }
+
   function ensureToolVisible(wx: number, wy: number) {
     const { w, h } = canvasLogicalSize()
     const t = transformRef.current
     const sx = t.ox + wx * t.scale
     const sy = t.oy - wy * t.scale
-    const margin = 40
-    let dx = 0, dy = 0
-    if (sx < margin) dx = margin - sx
-    else if (sx > w - margin) dx = (w - margin) - sx
-    if (sy < margin) dy = margin - sy
-    else if (sy > h - margin) dy = (h - margin) - sy
-    if (dx !== 0 || dy !== 0) {
-      t.ox += dx
-      t.oy += dy
-    }
+    // Once the tool nears an edge, bring it back to the middle so the path
+    // ahead stays in view, instead of keeping it pinned to that edge.
+    const margin = Math.max(FOLLOW_EDGE_MARGIN_PX, Math.min(w, h) * FOLLOW_EDGE_MARGIN_RATIO)
+    if (sx < margin || sx > w - margin || sy < margin || sy > h - margin) centerViewOn(wx, wy)
   }
 
   useEffect(() => {
@@ -3105,8 +3108,15 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
           {!is3D && (
             <button
               className={`${btnCls} ${autoFollow ? 'text-info bg-info/10' : 'text-text-dim bg-elevated hover:text-text-primary'}`}
-              onClick={() => setAutoFollow(v => !v)}
-              title="Pan canvas to keep tool in view while running"
+              onClick={() => {
+                const follow = !autoFollow
+                setAutoFollow(follow)
+                if (follow && isRunning && showTool) {
+                  centerViewOn(status.wpos.x, status.wpos.y)
+                  scheduleRender()
+                }
+              }}
+              title="Keep the tool in view while running; re-centers it when it nears an edge"
             >
               <Navigation size={iconSize} />
               <span>Follow</span>
