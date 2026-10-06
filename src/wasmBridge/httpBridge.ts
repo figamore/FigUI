@@ -181,7 +181,11 @@ export function installXhrInterceptor(): void {
     const real = new Orig()
     let intercept = false
     let interceptRoot: Root = 'native_sd'
-    let storedOnload: ((e: ProgressEvent) => void) | null = null
+    // Event handlers are captured whenever they're assigned, because
+    // uploadFile() assigns them before open() -- i.e. before we know whether
+    // this request is intercepted. They're also passed through to the real
+    // XHR, which only fires them if the request turns out not to be ours.
+    const handlers: Record<string, ((e: ProgressEvent) => void) | null> = {}
     const fakeUpload = { onprogress: null as ((e: ProgressEvent) => void) | null }
 
     return new Proxy(real, {
@@ -215,9 +219,10 @@ export function installXhrInterceptor(): void {
                   }
                 })
               }
-              Promise.all(writes)
-                .catch(() => {})
-                .then(() => storedOnload?.(new ProgressEvent('load', { loaded: 100, total: 100 })))
+              Promise.all(writes).then(
+                () => handlers.onload?.(new ProgressEvent('load', { loaded: 100, total: 100 })),
+                () => handlers.onerror?.(new ProgressEvent('error'))
+              )
             } else {
               real.send.call(real, body as XMLHttpRequestBodyInit | Document | null | undefined)
             }
@@ -235,10 +240,7 @@ export function installXhrInterceptor(): void {
       },
 
       set(target, prop, value) {
-        if (intercept && prop === 'onload') {
-          storedOnload = value
-          return true
-        }
+        if (typeof prop === 'string' && prop.startsWith('on')) handlers[prop] = value
         try {
           Reflect.set(target, prop, value, target)
         } catch {
