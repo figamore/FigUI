@@ -123,6 +123,10 @@ const SEGMENT_LOOKAHEAD = 12
 const LOOKAHEAD_DISTANCE_FLOOR_MM = 1
 const LOOKAHEAD_FEED_MARGIN = 3
 const LOOKAHEAD_MAX_SEGMENTS = 4000
+/** Consecutive missed reports before the tracker searches the whole job again. */
+const PROGRESS_RELOCK_MISSES = 4
+/** Matches this close to the file-progress hint count as equally likely. */
+const PROGRESS_HINT_SLACK_SEGMENTS = 300
 const LARGE_PROGRESS_OVERLAY_SEGMENT_LIMIT = 100_000
 /** Above this many lines, 2D pan and zoom stretch the cached layer until the view settles. */
 const LARGE_2D_LAYER_LINE_LIMIT = 100_000
@@ -839,6 +843,30 @@ function getWheelZoomScale(deltaY: number, deltaMode: number, pageSize: number) 
   return Math.exp(-deltaPixels * WHEEL_ZOOM_SENSITIVITY)
 }
 
+/** Reused result of measureProgressAt; read it before the next call. */
+const lineProgressMeasurement = { fraction: 0, distanceSq: 0 }
+
+/**
+ * Same as measureProgressAlongSegment for one move of the table, without
+ * building the move object for straight lines, so a whole large job can be
+ * searched quickly.
+ */
+function measureProgressAt(segments: SegmentTable, index: number, px: number, py: number, pz: number) {
+  if (segments.isArc(index)) return measureProgressAlongSegment(segments.get(index), px, py, pz)
+  const x0 = segments.px[index], y0 = segments.py[index], z0 = segments.pz[index]
+  const dx = segments.px[index + 1] - x0
+  const dy = segments.py[index + 1] - y0
+  const dz = segments.pz[index + 1] - z0
+  const lenSq = dx * dx + dy * dy
+  const fraction = lenSq < 1e-9 ? 0 : clamp01(((px - x0) * dx + (py - y0) * dy) / lenSq)
+  const ex = px - (x0 + dx * fraction)
+  const ey = py - (y0 + dy * fraction)
+  const ez = pz - (z0 + dz * fraction)
+  lineProgressMeasurement.fraction = fraction
+  lineProgressMeasurement.distanceSq = ex * ex + ey * ey + ez * ez
+  return lineProgressMeasurement
+}
+
 function findNearbyProgress(
   segments: SegmentTable,
   px: number,
@@ -849,11 +877,16 @@ function findNearbyProgress(
   toleranceSq: number,
   previous: ToolpathProgress | null,
   preferLatest: boolean,
+  /** Segment the job is roughly at; matches far from it lose to nearer ones. */
+  hintIndex: number | null = null,
 ): ToolpathProgress | null {
   let best: (ToolpathProgress & { distanceSq: number }) | null = null
+  const hintDistance = (index: number) => hintIndex == null ? 0 : Math.max(0, Math.abs(index - hintIndex) - PROGRESS_HINT_SLACK_SEGMENTS)
 
   for (let i = startIndex; i <= endIndex && i < segments.length; i++) {
-    const measurement = measureProgressAlongSegment(segments.get(i), px, py, pz)
+    const measurement = measureProgressAt(segments, i, px, py, pz)
+    if (measurement.distanceSq > toleranceSq) continue
+
     const candidate: ToolpathProgress & { distanceSq: number } = {
       segmentIndex: i,
       fraction: measurement.fraction,
@@ -864,10 +897,12 @@ function findNearbyProgress(
       candidate.fraction = previous.fraction
     }
 
-    if (candidate.distanceSq > toleranceSq) continue
+    const hintGain = best ? hintDistance(best.segmentIndex) - hintDistance(i) : 0
+    if (hintGain < 0) continue
 
     if (
       !best
+      || hintGain > 0
       || (preferLatest && (
         compareProgress(candidate, best) > 0
         || (compareProgress(candidate, best) === 0 && candidate.distanceSq < best.distanceSq)
@@ -988,22 +1023,31 @@ function findToolpathProgress(
   previous: ToolpathProgress | null,
   lookaheadDistanceMm: number,
   maxSegmentIndex = segments.length - 1,
+  hintIndex: number | null = null,
 ): ToolpathProgress | null {
   const allowedEndIndex = Math.min(maxSegmentIndex, segments.length - 1)
   if (segments.length === 0 || allowedEndIndex < 0) return null
 
-  if (!previous) {
-    return findNearbyProgress(
-      segments,
-      px,
-      py,
-      pz,
-      0,
-      allowedEndIndex,
-      INITIAL_LOCK_TOLERANCE_MM ** 2,
-      null,
-      false,
-    )
+  const lockAnywhere = () => findNearbyProgress(
+    segments,
+    px,
+    py,
+    pz,
+    0,
+    allowedEndIndex,
+    INITIAL_LOCK_TOLERANCE_MM ** 2,
+    null,
+    false,
+    hintIndex,
+  )
+
+  if (!previous) return lockAnywhere()
+
+  // Lost for several reports (for example the preview was opened mid-job):
+  // search the whole job again rather than only just ahead of a stale position.
+  if ((previous.misses ?? 0) >= PROGRESS_RELOCK_MISSES) {
+    const relocked = lockAnywhere()
+    if (relocked) return { ...relocked, misses: 0 }
   }
 
   const startIndex = previous.segmentIndex
@@ -1049,6 +1093,16 @@ function findToolpathProgress(
   }
 
   return { ...previous, misses: priorMisses + 1 }
+}
+
+/** Offset of every line in `text`. */
+function buildLineStarts(text: string) {
+  let count = 1
+  for (let index = text.indexOf('\n'); index >= 0; index = text.indexOf('\n', index + 1)) count++
+  const starts = new Uint32Array(count)
+  let line = 1
+  for (let index = text.indexOf('\n'); index >= 0; index = text.indexOf('\n', index + 1)) starts[line++] = index + 1
+  return starts
 }
 
 function findLastSegmentAtOrBeforeSourceLine(segments: SegmentTable, sourceLine: number) {
@@ -1316,6 +1370,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
   const progress2DPathRef = useRef<Progress2DPath | null>(null)
   const markerGeometryRef = useRef<MarkerGeometry | null>(null)
   const pathXYLengthsRef = useRef<{ model: GCodeModel; cumulative: Float64Array } | null>(null)
+  const sourceLineStartsRef = useRef<{ text: string; starts: Uint32Array } | null>(null)
   const [showTool, setShowTool] = useState(true)
   const [hiddenTools, setHiddenTools] = useState<Set<number>>(() => new Set())
   const [showToolPathMenu, setShowToolPathMenu] = useState(false)
@@ -2520,6 +2575,33 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
   }
   renderRef.current = render
 
+  /**
+   * The segment near FluidNC's file read position (SD: percent of bytes), when
+   * the running file is the loaded one. It tells repeated passes over the same
+   * path apart when the tracker has to search the whole job.
+   */
+  function getFileProgressHint(mdl: GCodeModel): number | null {
+    const { sdFilename, sdPercent } = status
+    if (!sourceText || !sdFilename || sdPercent == null || !(sdPercent > 0)) return null
+    if (sdFilename.slice(sdFilename.lastIndexOf('/') + 1) !== fileName) return null
+
+    let cached = sourceLineStartsRef.current
+    if (!cached || cached.text !== sourceText) {
+      cached = { text: sourceText, starts: buildLineStarts(sourceText) }
+      sourceLineStartsRef.current = cached
+    }
+    const offset = sourceText.length * Math.min(sdPercent, 100) / 100
+    const { starts } = cached
+    let low = 0
+    let high = starts.length - 1
+    while (low < high) {
+      const middle = (low + high + 1) >> 1
+      if (starts[middle] <= offset) low = middle
+      else high = middle - 1
+    }
+    return Math.max(0, findLastSegmentAtOrBeforeSourceLine(mdl.segments, low + 1))
+  }
+
   function centerViewOn(wx: number, wy: number) {
     const { w, h } = canvasLogicalSize()
     const t = transformRef.current
@@ -2579,12 +2661,10 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
     }
 
     if (isRunning && modelRef.current) {
-      const progressOverlayEnabled = modelRef.current.segments.length <= LARGE_PROGRESS_OVERLAY_SEGMENT_LIMIT
-
+      // Tracking is cheap at any size; only drawing the completed path is
+      // limited to smaller jobs. Program Execution follows this position.
       const freshStart = !prevIsRunningRef.current || model !== prevModelRef.current
-      if (!progressOverlayEnabled) {
-        progressRef.current = null
-      } else if (senderActive) {
+      if (senderActive) {
         const acceptedSegmentIndex = senderAcceptedLine == null
           ? -1
           : findLastSegmentAtOrBeforeSourceLine(modelRef.current.segments, senderAcceptedLine)
@@ -2609,6 +2689,8 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
           status.wpos.z,
           progressRef.current,
           getLookaheadDistanceMm(status.feed),
+          modelRef.current.segments.length - 1,
+          getFileProgressHint(modelRef.current),
         )
       }
     } else {
