@@ -37,14 +37,26 @@ function ok(body: string, type = 'text/plain'): Response {
 // fooled by the mis-parsed-host case either.
 const KNOWN_PATH_RE = /\/(command_silent|command|upload|files|localfs\/|sd(?:\/|(?=\?)|$))/
 
-function extractRequestUrl(href: string): { pathname: string; searchParams: URLSearchParams } | null {
-  const m = KNOWN_PATH_RE.exec(href)
-  if (!m) return null
-  const rest = href.slice(m.index)
+// The usual case is that empty-host base itself: "http:///<path>" is
+// unambiguous, and is the only way to see a bare LocalFS file path
+// ("http:///config.yaml" -- see deviceBase below), so it's parsed exactly
+// rather than by searching for a known endpoint name.
+const EMPTY_HOST_BASE = 'http://'
+
+function splitQuery(rest: string): { pathname: string; searchParams: URLSearchParams } {
   const q = rest.indexOf('?')
   const pathname = q >= 0 ? rest.slice(0, q) : rest
   const searchParams = new URLSearchParams(q >= 0 ? rest.slice(q + 1) : '')
   return { pathname, searchParams }
+}
+
+function extractRequestUrl(href: string): { pathname: string; searchParams: URLSearchParams; deviceBase: boolean } | null {
+  if (href.startsWith(`${EMPTY_HOST_BASE}/`)) {
+    return { ...splitQuery(href.slice(EMPTY_HOST_BASE.length)), deviceBase: true }
+  }
+  const m = KNOWN_PATH_RE.exec(href)
+  if (!m) return null
+  return { ...splitQuery(href.slice(m.index)), deviceBase: false }
 }
 
 function errorResponse(message: string, status = 500): Response {
@@ -121,7 +133,8 @@ async function handleUpload(root: Root, params: URLSearchParams, body: FormData)
 async function handleFileDownload(pathname: string): Promise<Response> {
   const isSd = pathname === '/sd' || pathname.startsWith('/sd/')
   const root: Root = isSd ? 'native_sd' : 'native_localfs'
-  const path = isSd ? pathname.slice(3) || '/' : pathname
+  const prefix = isSd ? '/sd' : pathname.startsWith('/localfs/') ? '/localfs' : ''
+  const path = pathname.slice(prefix.length) || '/'
   try {
     const content = await fsRequest('read', { root, path })
     return ok(content as string)
@@ -137,7 +150,7 @@ export function installFetchInterceptor(): void {
     const href = typeof input === 'string' ? input : input instanceof URL ? input.href : (input as Request).url
     const extracted = extractRequestUrl(href)
     if (!extracted) return orig(input, init)
-    const { pathname: p, searchParams } = extracted
+    const { pathname: p, searchParams, deviceBase } = extracted
     const m = (init?.method ?? 'GET').toUpperCase()
 
     if (p === '/command' || p === '/command_silent') {
@@ -162,6 +175,14 @@ export function installFetchInterceptor(): void {
     // the original fetch, which will fail the same way an unhandled path
     // would on real hardware with nothing mounted there.
     if (p === '/sd' || p.startsWith('/sd/') || p.startsWith('/localfs/')) {
+      return handleFileDownload(p)
+    }
+
+    // Any other GET on the device itself is a LocalFS file at its bare
+    // path -- src/lib/http.ts's mountedFilePath() only prefixes SD paths,
+    // matching FluidNC's web server, which serves unmatched paths from
+    // LocalFS. Used by downloadFile() and fetchFileContent() for 'local'.
+    if (deviceBase && m === 'GET') {
       return handleFileDownload(p)
     }
 
