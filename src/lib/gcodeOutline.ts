@@ -1,4 +1,4 @@
-import type { GCodeModel, Segment } from './gcode'
+import { MOVE_FEED, type GCodeModel, type Segment, type SegmentTable } from './gcode'
 import { getArcGeometry } from './gcodeBuild'
 import { linearUnitLabel, mmToDisplay } from './units'
 import type { Units } from '../types'
@@ -89,7 +89,7 @@ export function getFramingRequiredTravelZ(model: GCodeModel, clearanceMm: number
   return envelope ? envelope.topZ + clearanceMm : null
 }
 
-function getCutEnvelope(segments: Segment[]): CutEnvelope | null {
+function getCutEnvelope(segments: SegmentTable): CutEnvelope | null {
   let minX = Infinity
   let minY = Infinity
   let maxX = -Infinity
@@ -132,8 +132,13 @@ function getCutEnvelope(segments: Segment[]): CutEnvelope | null {
     }
   }
 
-  for (const seg of segments) {
-    if (seg.moveType !== 'feed' || !isXYCuttingMove(seg)) {
+  for (let index = 0; index < segments.length; index++) {
+    if (segments.moveCode(index) !== MOVE_FEED) {
+      activeContour = []
+      continue
+    }
+    const seg = segments.get(index)
+    if (!isXYCuttingMove(seg)) {
       activeContour = []
       continue
     }

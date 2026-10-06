@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import {
-  parseGCode,
+  parseGCodeAsync,
+  yieldToEventLoop,
   type GCodeModel,
   type ParseGCodeOptions,
   type WorkCoordinateSystem,
@@ -11,11 +12,12 @@ import { getBase, sendCommand } from '../lib/http'
 import { MM_PER_INCH } from '../lib/units'
 import { sendRaw } from '../lib/ws'
 import {
+  buildRenderLinesAsync,
   buildStatic2DPathsAsync,
-  buildStatic3DGeometryAsync,
-  nextAnimationFrame,
+  buildStatic3DGeometry,
   type Built2DPaths,
   type Built3DGeometry,
+  type RenderLines,
 } from '../lib/gcodeBuild'
 
 export interface Geometry3D extends Built3DGeometry {
@@ -40,6 +42,7 @@ interface GCodeStore {
 
   // Built data (shared across all GCodeViewer instances — one parse, one build)
   model: GCodeModel | null
+  renderLines: RenderLines | null
   paths2D: Built2DPaths | null
   geometry3D: Geometry3D | null
 
@@ -166,6 +169,33 @@ async function getParseOptions(): Promise<ParseGCodeOptions> {
   return { activeWcs, currentWco, workOffsets }
 }
 
+/**
+ * Parses and prepares the 2D preview in short time slices, so multi-million
+ * line laser jobs do not freeze the page. Progress runs from 5 to 100.
+ */
+async function buildPreview(
+  text: string,
+  onProgress: (progress: number) => void,
+  shouldContinue: () => boolean,
+) {
+  const parseOptions = await getParseOptions()
+  if (!shouldContinue()) throw new Error('stale-load')
+
+  let lastProgress = -1
+  const report = (progress: number) => {
+    const rounded = Math.round(progress)
+    if (rounded !== lastProgress) {
+      lastProgress = rounded
+      onProgress(rounded)
+    }
+  }
+
+  const model = await parseGCodeAsync(text, parseOptions, fraction => report(5 + fraction * 55), shouldContinue)
+  const renderLines = await buildRenderLinesAsync(model.segments, progress => report(60 + progress * 0.2), shouldContinue)
+  const paths2D = await buildStatic2DPathsAsync(renderLines, progress => report(80 + progress * 0.2), shouldContinue)
+  return { model, renderLines, paths2D }
+}
+
 export const useGCodeStore = create<GCodeStore>((set, get) => ({
   loadedPath: null,
   fileName: null,
@@ -173,6 +203,7 @@ export const useGCodeStore = create<GCodeStore>((set, get) => ({
   restartSource: null,
   activeSourceLine: null,
   model: null,
+  renderLines: null,
   paths2D: null,
   geometry3D: null,
   showRapids: true,
@@ -257,21 +288,12 @@ export const useGCodeStore = create<GCodeStore>((set, get) => ({
 
       if (requestId !== loadRequestId) return
       set({ downloadProgress: 100, isProcessing2D: true, processing2DProgress: 5 })
-      await nextAnimationFrame()
+      await yieldToEventLoop()
 
-      const parseOptions = await getParseOptions()
-      if (requestId !== loadRequestId) return
-
-      const parsed = parseGCode(text, parseOptions)
-      if (requestId !== loadRequestId) return
-      set({ processing2DProgress: 15 })
-
-      const built2DPaths = await buildStatic2DPathsAsync(
-        parsed.segments,
+      const preview = await buildPreview(
+        text,
         progress => {
-          if (requestId === loadRequestId) {
-            set({ processing2DProgress: Math.max(15, progress) })
-          }
+          if (requestId === loadRequestId) set({ processing2DProgress: progress })
         },
         () => requestId === loadRequestId,
       )
@@ -279,8 +301,9 @@ export const useGCodeStore = create<GCodeStore>((set, get) => ({
 
       const fileName = path.split('/').pop() ?? path
       set({
-        model: parsed,
-        paths2D: built2DPaths,
+        model: preview.model,
+        renderLines: preview.renderLines,
+        paths2D: preview.paths2D,
         fileName,
         loadedPath: path,
         sourceText: text,
@@ -294,18 +317,10 @@ export const useGCodeStore = create<GCodeStore>((set, get) => ({
         processing3DProgress: 0,
       })
 
-      const showRapids = get().showRapids
-      const built3DGeometry = await buildStatic3DGeometryAsync(
-        parsed.segments,
-        showRapids,
-        progress => {
-          if (requestId === loadRequestId) {
-            set({ processing3DProgress: progress })
-          }
-        },
-        () => requestId === loadRequestId,
-      )
+      await yieldToEventLoop()
       if (requestId !== loadRequestId) return
+      const showRapids = get().showRapids
+      const built3DGeometry = buildStatic3DGeometry(preview.renderLines, showRapids)
 
       set({
         geometry3D: { ...built3DGeometry, showRapids },
@@ -358,28 +373,20 @@ export const useGCodeStore = create<GCodeStore>((set, get) => ({
     })
 
     try {
-      await nextAnimationFrame()
-      const parseOptions = await getParseOptions()
-      if (requestId !== loadRequestId) return
-
-      const parsed = parseGCode(text, parseOptions)
-      if (requestId !== loadRequestId) return
-      set({ processing2DProgress: 15 })
-
-      const built2DPaths = await buildStatic2DPathsAsync(
-        parsed.segments,
+      await yieldToEventLoop()
+      const preview = await buildPreview(
+        text,
         progress => {
-          if (requestId === loadRequestId) {
-            set({ processing2DProgress: Math.max(15, progress) })
-          }
+          if (requestId === loadRequestId) set({ processing2DProgress: progress })
         },
         () => requestId === loadRequestId,
       )
       if (requestId !== loadRequestId) return
 
       set({
-        model: parsed,
-        paths2D: built2DPaths,
+        model: preview.model,
+        renderLines: preview.renderLines,
+        paths2D: preview.paths2D,
         fileName: name,
         loadedPath: path,
         sourceText: text,
@@ -392,16 +399,10 @@ export const useGCodeStore = create<GCodeStore>((set, get) => ({
         processing3DProgress: 0,
       })
 
-      const showRapids = get().showRapids
-      const built3DGeometry = await buildStatic3DGeometryAsync(
-        parsed.segments,
-        showRapids,
-        progress => {
-          if (requestId === loadRequestId) set({ processing3DProgress: progress })
-        },
-        () => requestId === loadRequestId,
-      )
+      await yieldToEventLoop()
       if (requestId !== loadRequestId) return
+      const showRapids = get().showRapids
+      const built3DGeometry = buildStatic3DGeometry(preview.renderLines, showRapids)
 
       set({
         geometry3D: { ...built3DGeometry, showRapids },
@@ -446,6 +447,7 @@ export const useGCodeStore = create<GCodeStore>((set, get) => ({
       activeSourceLine: null,
       // Drop any partial built data — they're stale now.
       model: null,
+      renderLines: null,
       paths2D: null,
       geometry3D: null,
       is3DReady: false,
@@ -479,32 +481,16 @@ export const useGCodeStore = create<GCodeStore>((set, get) => ({
     if (get().showRapids === v) return
     set({ showRapids: v })
 
-    const model = get().model
-    if (!model) return
+    const renderLines = get().renderLines
+    if (!get().model || !renderLines) return
 
-    // 2D rendering filters at draw time, so only the 3D geometry needs rebuilding.
-    set({ isProcessing3D: true, processing3DProgress: 0, is3DReady: false })
-    const requestId = ++loadRequestId
-
-    buildStatic3DGeometryAsync(
-      model.segments,
-      v,
-      progress => {
-        if (requestId === loadRequestId) set({ processing3DProgress: progress })
-      },
-      () => requestId === loadRequestId,
-    ).then(geometry => {
-      if (requestId !== loadRequestId) return
-      set({
-        geometry3D: { ...geometry, showRapids: v },
-        processing3DProgress: 100,
-        isProcessing3D: false,
-        is3DReady: true,
-      })
-    }).catch(e => {
-      if (requestId === loadRequestId && (!(e instanceof Error) || e.message !== 'stale-load')) {
-        console.error('Failed to rebuild 3D geometry:', e)
-      }
+    // 2D rendering filters at draw time, so only the 3D geometry needs
+    // rebuilding. The joined render lines make this fast enough to do inline.
+    set({
+      geometry3D: { ...buildStatic3DGeometry(renderLines, v), showRapids: v },
+      processing3DProgress: 100,
+      isProcessing3D: false,
+      is3DReady: true,
     })
   },
 
@@ -532,6 +518,7 @@ export const useGCodeStore = create<GCodeStore>((set, get) => ({
         restartSource: null,
         activeSourceLine: null,
         model: null,
+        renderLines: null,
         paths2D: null,
         geometry3D: null,
         loading: false,
@@ -559,6 +546,7 @@ export const useGCodeStore = create<GCodeStore>((set, get) => ({
       restartSource: null,
       activeSourceLine: null,
       model: null,
+      renderLines: null,
       paths2D: null,
       geometry3D: null,
       loading: false,

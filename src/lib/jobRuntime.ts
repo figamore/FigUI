@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ControllerSettings, MachineStatus } from '../types'
-import type { GCodeModel, Segment } from './gcode'
+import { MOVE_RAPID, type GCodeModel, type Segment } from './gcode'
 
 interface SegmentMotionProfile {
   lengthMm: number
@@ -232,8 +232,8 @@ function segmentTimeWithEndpoints(
 }
 
 function computeJunctionSpeed(
-  exitDirA: { x: number; y: number; z: number },
-  entryDirB: { x: number; y: number; z: number },
+  exitX: number, exitY: number, exitZ: number,
+  entryX: number, entryY: number, entryZ: number,
   accel: number,
   junctionDeviationMm: number,
 ): number {
@@ -243,7 +243,7 @@ function computeJunctionSpeed(
   }
 
   const cosTheta = Math.max(-1, Math.min(1,
-    exitDirA.x * entryDirB.x + exitDirA.y * entryDirB.y + exitDirA.z * entryDirB.z,
+    exitX * entryX + exitY * entryY + exitZ * entryZ,
   ))
 
   if (cosTheta >= 0.999999) return Number.POSITIVE_INFINITY // colinear
@@ -256,14 +256,6 @@ function computeJunctionSpeed(
   if (sinHalf >= 0.999999) return Number.POSITIVE_INFINITY
   const vSquared = (accel * junctionDeviationMm * sinHalf) / (1 - sinHalf)
   return Math.sqrt(Math.max(0, vSquared)) * 60 // convert mm/s back to mm/min
-}
-
-interface PlannedSegment {
-  profile: SegmentMotionProfile
-  vMax: number
-  accel: number
-  vEntry: number
-  vExit: number 
 }
 
 export function distributeFixedDelays(model: GCodeModel, target: Float64Array, settings?: ControllerSettings) {
@@ -282,7 +274,7 @@ export function distributeFixedDelays(model: GCodeModel, target: Float64Array, s
     if (!Number.isFinite(seconds) || seconds <= 0) continue
     if (model.timingEndLine != null && sourceLine > model.timingEndLine) continue
     while (segmentIndex < model.segments.length
-      && model.segments[segmentIndex].sourceLine < sourceLine) segmentIndex++
+      && model.segments.sourceLine(segmentIndex) < sourceLine) segmentIndex++
     if (segmentIndex < model.segments.length) target[segmentIndex] += seconds
     else trailing += seconds
     total += seconds
@@ -305,7 +297,7 @@ function getStopsBeforeSegments(model: GCodeModel, settings: ControllerSettings)
     if (!Number.isFinite(seconds) || seconds <= 0) continue
     if (model.timingEndLine != null && sourceLine > model.timingEndLine) continue
     while (segmentIndex < model.segments.length
-      && model.segments[segmentIndex].sourceLine < sourceLine) segmentIndex++
+      && model.segments.sourceLine(segmentIndex) < sourceLine) segmentIndex++
     if (segmentIndex < stops.length) stops[segmentIndex] = 1
   }
   return stops
@@ -332,133 +324,154 @@ export function buildJobTimingEstimate(
     ? (settings.junctionDeviation as number)
     : 0.01 // GRBL default ($11)
 
-  const planned: (PlannedSegment | null)[] = new Array(model.segments.length)
+  // Planner state lives in typed arrays: one object per move exhausts memory
+  // on multi-million-move laser raster jobs.
+  const segments = model.segments
+  const count = segments.length
+  const planned = new Uint8Array(count)
+  const vMax = new Float64Array(count)
+  const accel = new Float64Array(count)
+  const lengthMm = new Float64Array(count)
+  /** Junction speed cap between a move and the next planned move; NaN for the last one. */
+  const junctionLimit = new Float64Array(count).fill(Number.NaN)
+  const vEntry = new Float64Array(count)
+  const vExit = new Float64Array(count)
   const stopsBefore = getStopsBeforeSegments(model, settings)
-  for (let i = 0; i < model.segments.length; i++) {
-    const seg = model.segments[i]
-    if (model.timingEndLine != null && seg.sourceLine > model.timingEndLine) {
-      planned[i] = null
-      continue
-    }
-    if (seg.timingUnknown) return null
-    const profile = getSegmentMotionProfile(seg)
-    if (!profile) {
-      planned[i] = null
-      continue
+  const lineFractions = { x: 0, y: 0, z: 0 }
+  let previous = -1
+  let previousExitX = 0, previousExitY = 0, previousExitZ = 0
+
+  for (let i = 0; i < count; i++) {
+    if (model.timingEndLine != null && segments.sourceLine(i) > model.timingEndLine) continue
+    if (segments.timingUnknown(i)) return null
+
+    let length: number
+    let axisFractions: SegmentMotionProfile['axisFractions']
+    let centripetalFactors: SegmentMotionProfile['centripetalFactors']
+    let entryX: number, entryY: number, entryZ: number
+    let exitX: number, exitY: number, exitZ: number
+    if (!segments.isArc(i)) {
+      // Straight moves dominate large jobs; profile them without allocating.
+      const dx = segments.px[i + 1] - segments.px[i]
+      const dy = segments.py[i + 1] - segments.py[i]
+      const dz = segments.pz[i + 1] - segments.pz[i]
+      length = Math.hypot(dx, dy, dz)
+      if (length < 1e-9) continue
+      entryX = exitX = dx / length
+      entryY = exitY = dy / length
+      entryZ = exitZ = dz / length
+      lineFractions.x = Math.abs(entryX)
+      lineFractions.y = Math.abs(entryY)
+      lineFractions.z = Math.abs(entryZ)
+      axisFractions = lineFractions
+      centripetalFactors = undefined
+    } else {
+      const profile = getSegmentMotionProfile(segments.get(i))
+      if (!profile) continue
+      length = profile.lengthMm
+      axisFractions = profile.axisFractions
+      centripetalFactors = profile.centripetalFactors
+      entryX = profile.entryDir.x; entryY = profile.entryDir.y; entryZ = profile.entryDir.z
+      exitX = profile.exitDir.x; exitY = profile.exitDir.y; exitZ = profile.exitDir.z
     }
 
     const maxSpeed = getAxisLimitedValue(
-      profile.axisFractions,
+      axisFractions,
       settings.maxRateX,
       settings.maxRateY,
       settings.maxRateZ,
     )
-    const accel = getAxisLimitedValue(
-      profile.axisFractions,
+    const axisAccel = getAxisLimitedValue(
+      axisFractions,
       settings.accelX,
       settings.accelY,
       settings.accelZ,
     )
-    const isRapid = seg.moveType === 'rapid'
+    const isRapid = segments.moveCode(i) === MOVE_RAPID
+    const inverseTimeSeconds = segments.inverseTimeSeconds(i)
     const programmedSpeed = isRapid
       ? maxSpeed * rapidScale
-      : (seg.inverseTimeSeconds != null
-          ? profile.lengthMm * 60 / seg.inverseTimeSeconds
-          : (seg.feedMmPerMin ?? maxSpeed)) * feedScale
-    const curveSpeedMmS = profile.centripetalFactors
+      : (inverseTimeSeconds != null
+          ? length * 60 / inverseTimeSeconds
+          : (segments.feedMmPerMin(i) ?? maxSpeed)) * feedScale
+    const curveSpeedMmS = centripetalFactors
       ? Math.sqrt(getAxisLimitedValue(
-          profile.centripetalFactors,
+          centripetalFactors,
           settings.accelX,
           settings.accelY,
           settings.accelZ,
         ))
       : Number.POSITIVE_INFINITY
-    const vMax = Math.min(programmedSpeed, maxSpeed, curveSpeedMmS * 60)
+    const speed = Math.min(programmedSpeed, maxSpeed, curveSpeedMmS * 60)
 
-    if (!Number.isFinite(vMax) || vMax <= 0) {
-      planned[i] = null
-      continue
-    }
+    if (!Number.isFinite(speed) || speed <= 0) continue
 
-    planned[i] = {
-      profile,
-      vMax,
-      accel: Number.isFinite(accel) && accel > 0 ? accel : 0,
-      vEntry: 0,
-      vExit: 0,
+    planned[i] = 1
+    vMax[i] = speed
+    accel[i] = Number.isFinite(axisAccel) && axisAccel > 0 ? axisAccel : 0
+    lengthMm[i] = length
+    if (previous >= 0) {
+      junctionLimit[previous] = computeJunctionSpeed(
+        previousExitX, previousExitY, previousExitZ,
+        entryX, entryY, entryZ,
+        accel[previous],
+        junctionDeviation,
+      )
     }
+    previous = i
+    previousExitX = exitX; previousExitY = exitY; previousExitZ = exitZ
   }
 
   let nextEntrySpeed = 0
-  let nextEntryDir: { x: number; y: number; z: number } | null = null
-  for (let i = planned.length - 1; i >= 0; i--) {
-    const cur = planned[i]
-    if (!cur) continue
+  for (let i = count - 1; i >= 0; i--) {
+    if (!planned[i]) continue
 
-    let exitCap: number
-    if (nextEntryDir === null) {
-      exitCap = 0
-    } else {
-      const junctionLimit = computeJunctionSpeed(
-        cur.profile.exitDir,
-        nextEntryDir,
-        cur.accel,
-        junctionDeviation,
-      )
-      exitCap = Math.min(cur.vMax, junctionLimit, nextEntrySpeed)
-    }
-    cur.vExit = exitCap
+    const exitCap = Number.isNaN(junctionLimit[i])
+      ? 0
+      : Math.min(vMax[i], junctionLimit[i], nextEntrySpeed)
+    vExit[i] = exitCap
 
-    let vEntryMax = cur.vMax
-    if (cur.accel > 0) {
+    let vEntryMax = vMax[i]
+    if (accel[i] > 0) {
       const vExitMmS = exitCap / 60
-      const vEntryMaxMmS = Math.sqrt(vExitMmS * vExitMmS + 2 * cur.accel * cur.profile.lengthMm)
-      vEntryMax = Math.min(cur.vMax, vEntryMaxMmS * 60)
+      const vEntryMaxMmS = Math.sqrt(vExitMmS * vExitMmS + 2 * accel[i] * lengthMm[i])
+      vEntryMax = Math.min(vMax[i], vEntryMaxMmS * 60)
     }
-    cur.vEntry = stopsBefore[i] ? 0 : vEntryMax
+    vEntry[i] = stopsBefore[i] ? 0 : vEntryMax
 
-    nextEntrySpeed = cur.vEntry
-    nextEntryDir = cur.profile.entryDir
+    nextEntrySpeed = vEntry[i]
   }
 
   let prevExitSpeed = 0 // start from rest
-  for (let i = 0; i < planned.length; i++) {
-    const cur = planned[i]
-    if (!cur) continue
+  for (let i = 0; i < count; i++) {
+    if (!planned[i]) continue
 
-    cur.vEntry = Math.min(cur.vEntry, prevExitSpeed)
+    vEntry[i] = Math.min(vEntry[i], prevExitSpeed)
 
-    if (cur.accel > 0) {
-      const vEntryMmS = cur.vEntry / 60
-      const vExitFwdMmS = Math.sqrt(vEntryMmS * vEntryMmS + 2 * cur.accel * cur.profile.lengthMm)
-      cur.vExit = Math.min(cur.vExit, vExitFwdMmS * 60, cur.vMax)
+    if (accel[i] > 0) {
+      const vEntryMmS = vEntry[i] / 60
+      const vExitFwdMmS = Math.sqrt(vEntryMmS * vEntryMmS + 2 * accel[i] * lengthMm[i])
+      vExit[i] = Math.min(vExit[i], vExitFwdMmS * 60, vMax[i])
     } else {
-      cur.vExit = Math.min(cur.vExit, cur.vMax)
+      vExit[i] = Math.min(vExit[i], vMax[i])
     }
 
-    prevExitSpeed = cur.vExit
+    prevExitSpeed = vExit[i]
   }
 
-  const segmentSeconds = new Float64Array(model.segments.length)
+  const segmentSeconds = new Float64Array(count)
   let totalSeconds = 0
   let hasEstimate = false
 
-  for (let i = 0; i < planned.length; i++) {
-    const cur = planned[i]
-    if (!cur) {
-      segmentSeconds[i] = 0
-      continue
-    }
+  for (let i = 0; i < count; i++) {
+    if (!planned[i]) continue
 
-    const vMaxMmS = cur.vMax / 60
-    const vEntryMmS = cur.vEntry / 60
-    const vExitMmS = cur.vExit / 60
     const seconds = segmentTimeWithEndpoints(
-      cur.profile.lengthMm,
-      vMaxMmS,
-      cur.accel,
-      vEntryMmS,
-      vExitMmS,
+      lengthMm[i],
+      vMax[i] / 60,
+      accel[i],
+      vEntry[i] / 60,
+      vExit[i] / 60,
     )
     segmentSeconds[i] = seconds
     totalSeconds += seconds

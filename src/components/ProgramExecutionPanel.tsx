@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { AlertTriangle, ChevronDown, FileCode2, Info, Navigation, Target, Wrench } from '../icons'
 import { useMachineStore } from '../store'
 import { useGCodeStore } from '../store/gcode'
@@ -53,21 +53,139 @@ function plannerNumber(raw: string) {
   return Number.isFinite(value) ? value : null
 }
 
-function buildProgram(text: string) {
+/** Programs longer than this are shown as a virtual list instead of one textarea. */
+const VIRTUAL_PROGRAM_LINES = 20_000
+/** Browsers cap element heights (about 33M px in Chrome), so very long programs scroll a shorter element. */
+const MAX_SCROLL_HEIGHT_PX = 8_000_000
+const OVERSCAN_LINES = 12
+const CH_UPPER_N = 78
+const CH_LOWER_N = 110
+
+interface Program {
+  text: string
+  totalLines: number
+  /** Offset of each line in `text`. */
+  lineStarts: number[]
+  /** Gutter text for the textarea view; empty for virtual programs. */
+  lineNumbers: string
+  nToPhysicalLine: Map<number, number>
+  virtual: boolean
+}
+
+function lineText(program: Program, index: number) {
+  const start = program.lineStarts[index]
+  let end = index + 1 < program.lineStarts.length ? program.lineStarts[index + 1] - 1 : program.text.length
+  // The last line may still end with the file's trailing newline.
+  if (end > start && program.text.charCodeAt(end - 1) === 10) end--
+  return program.text.slice(start, end)
+}
+
+function buildProgram(text: string): Program {
   const normalized = text.replace(/\r\n?/g, '\n')
-  const lines = normalized.split('\n')
-  if (lines.length > 1 && lines[lines.length - 1] === '') lines.pop()
-  const nToPhysicalLine = new Map<number, number>()
-  lines.forEach((line, index) => {
-    const n = plannerNumber(line)
-    if (n != null && !nToPhysicalLine.has(n)) nToPhysicalLine.set(n, index + 1)
-  })
-  return {
-    text: normalized,
-    totalLines: Math.max(1, lines.length),
-    lineNumbers: Array.from({ length: Math.max(1, lines.length) }, (_, index) => String(index + 1)).join('\n'),
-    nToPhysicalLine,
+  const lineStarts = [0]
+  for (let index = normalized.indexOf('\n'); index >= 0; index = normalized.indexOf('\n', index + 1)) {
+    lineStarts.push(index + 1)
   }
+  // A trailing newline does not start another line.
+  if (lineStarts.length > 1 && lineStarts[lineStarts.length - 1] === normalized.length) lineStarts.pop()
+  const totalLines = Math.max(1, lineStarts.length)
+  const program: Program = {
+    text: normalized,
+    totalLines,
+    lineStarts,
+    lineNumbers: '',
+    nToPhysicalLine: new Map(),
+    virtual: totalLines > VIRTUAL_PROGRAM_LINES,
+  }
+  for (let index = 0; index < lineStarts.length; index++) {
+    // Only lines containing an N can carry a block number; skip the rest
+    // without building strings for millions of lines.
+    const start = lineStarts[index]
+    const end = index + 1 < lineStarts.length ? lineStarts[index + 1] : normalized.length
+    let hasN = false
+    for (let position = start; position < end; position++) {
+      const code = normalized.charCodeAt(position)
+      if (code === CH_UPPER_N || code === CH_LOWER_N) {
+        hasN = true
+        break
+      }
+    }
+    if (!hasN) continue
+    const n = plannerNumber(lineText(program, index))
+    if (n != null && !program.nToPhysicalLine.has(n)) program.nToPhysicalLine.set(n, index + 1)
+  }
+  if (!program.virtual) {
+    program.lineNumbers = Array.from({ length: totalLines }, (_, index) => String(index + 1)).join('\n')
+  }
+  return program
+}
+
+/** Renders only the visible lines so multi-million-line programs stay responsive. */
+function VirtualProgramView({ program, physicalLine, isEstimated, follow }: {
+  program: Program
+  physicalLine: number | null
+  isEstimated: boolean
+  follow: boolean
+}) {
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const [scrollTop, setScrollTop] = useState(0)
+  const [viewportHeight, setViewportHeight] = useState(0)
+  const contentHeight = program.totalLines * LINE_HEIGHT + PADDING_Y * 2
+  const scrollHeight = Math.min(contentHeight, MAX_SCROLL_HEIGHT_PX)
+  const scale = scrollHeight > viewportHeight ? (contentHeight - viewportHeight) / (scrollHeight - viewportHeight) : 1
+  const offset = scrollTop * scale
+
+  useLayoutEffect(() => {
+    const element = scrollRef.current
+    if (!element) return
+    const update = () => setViewportHeight(element.clientHeight)
+    update()
+    const observer = new ResizeObserver(update)
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [])
+
+  useEffect(() => {
+    const element = scrollRef.current
+    if (!element || !follow || physicalLine == null) return
+    const target = Math.max(0, PADDING_Y + (physicalLine - 1) * LINE_HEIGHT - element.clientHeight / 2 + LINE_HEIGHT / 2)
+    element.scrollTop = target / scale
+    // The scroll event only arrives with the next frame; render the new rows now.
+    setScrollTop(element.scrollTop)
+  }, [physicalLine, follow, scale])
+
+  const first = Math.max(0, Math.floor((offset - PADDING_Y) / LINE_HEIGHT) - OVERSCAN_LINES)
+  const last = Math.min(program.totalLines - 1, Math.ceil((offset + viewportHeight) / LINE_HEIGHT) + OVERSCAN_LINES)
+  const rows = []
+  for (let index = first; index <= last; index++) {
+    const highlighted = physicalLine === index + 1
+    rows.push(
+      <div
+        key={index}
+        className={`absolute left-0 flex min-w-full ${highlighted ? (isEstimated ? 'bg-info/15' : 'bg-ok/15') : ''}`}
+        style={{ top: scrollTop + PADDING_Y + index * LINE_HEIGHT - offset, height: LINE_HEIGHT, lineHeight: `${LINE_HEIGHT}px` }}
+      >
+        <span className={`sticky left-0 w-16 shrink-0 pr-3 text-right border-r select-none ${highlighted ? (isEstimated ? 'border-l-2 border-l-info border-r-border bg-info/15 text-info' : 'border-l-2 border-l-ok border-r-border bg-ok/15 text-ok') : 'border-border bg-elevated text-text-dim'}`} aria-hidden="true">
+          {index + 1}
+        </span>
+        <span className="whitespace-pre px-3 text-text-primary" style={{ tabSize: 2 }}>{lineText(program, index)}</span>
+      </div>,
+    )
+  }
+
+  return (
+    <div
+      ref={scrollRef}
+      className="absolute inset-0 overflow-auto z-10 selection:bg-info/25"
+      role="log"
+      aria-label="Running G-code program"
+      onScroll={event => setScrollTop(event.currentTarget.scrollTop)}
+    >
+      <div className="relative" style={{ height: scrollHeight }}>
+        {rows}
+      </div>
+    </div>
+  )
 }
 
 export function ProgramExecutionPanel({ isTablet, initiallyOpen = false, accordionManaged = false }: { isTablet?: boolean; initiallyOpen?: boolean; accordionManaged?: boolean }) {
@@ -231,29 +349,33 @@ export function ProgramExecutionPanel({ isTablet, initiallyOpen = false, accordi
 
       {contentOpen && (sourceMatchesJob ? (
         <div className="relative flex-1 min-h-0 overflow-hidden bg-surface font-mono text-[13px]">
-          <div
-            ref={highlightRef}
-            className={`absolute left-0 right-0 h-5 pointer-events-none z-20 ${isEstimated ? 'bg-info/15 border-l-2 border-info' : 'bg-ok/15 border-l-2 border-ok'}`}
-            style={{ display: physicalLine == null ? 'none' : 'block' }}
-          />
-          <div ref={gutterRef} className="absolute inset-y-0 left-0 w-16 overflow-hidden border-r border-border bg-elevated z-10 select-none" aria-hidden="true">
-            <pre className="m-0 pr-3 text-right text-text-dim" style={{ paddingTop: PADDING_Y, paddingBottom: PADDING_Y, lineHeight: `${LINE_HEIGHT}px` }}>{program.lineNumbers}</pre>
-          </div>
-          <textarea
-            ref={programRef}
-            readOnly
-            wrap="off"
-            spellCheck={false}
-            value={program.text}
-            aria-label="Running G-code program"
-            className="absolute inset-y-0 left-16 right-0 w-auto resize-none overflow-auto border-0 bg-transparent px-3 text-text-primary outline-none z-10 selection:bg-info/25"
-            style={{ paddingTop: PADDING_Y, paddingBottom: PADDING_Y, lineHeight: `${LINE_HEIGHT}px`, tabSize: 2 }}
-            onScroll={event => {
-              const scrollTop = event.currentTarget.scrollTop
-              if (gutterRef.current) gutterRef.current.scrollTop = scrollTop
-              updateHighlight(scrollTop)
-            }}
-          />
+          {program.virtual ? (
+            <VirtualProgramView program={program} physicalLine={physicalLine} isEstimated={isEstimated} follow={follow} />
+          ) : <>
+            <div
+              ref={highlightRef}
+              className={`absolute left-0 right-0 h-5 pointer-events-none z-20 ${isEstimated ? 'bg-info/15 border-l-2 border-info' : 'bg-ok/15 border-l-2 border-ok'}`}
+              style={{ display: physicalLine == null ? 'none' : 'block' }}
+            />
+            <div ref={gutterRef} className="absolute inset-y-0 left-0 w-16 overflow-hidden border-r border-border bg-elevated z-10 select-none" aria-hidden="true">
+              <pre className="m-0 pr-3 text-right text-text-dim" style={{ paddingTop: PADDING_Y, paddingBottom: PADDING_Y, lineHeight: `${LINE_HEIGHT}px` }}>{program.lineNumbers}</pre>
+            </div>
+            <textarea
+              ref={programRef}
+              readOnly
+              wrap="off"
+              spellCheck={false}
+              value={program.text}
+              aria-label="Running G-code program"
+              className="absolute inset-y-0 left-16 right-0 w-auto resize-none overflow-auto border-0 bg-transparent px-3 text-text-primary outline-none z-10 selection:bg-info/25"
+              style={{ paddingTop: PADDING_Y, paddingBottom: PADDING_Y, lineHeight: `${LINE_HEIGHT}px`, tabSize: 2 }}
+              onScroll={event => {
+                const scrollTop = event.currentTarget.scrollTop
+                if (gutterRef.current) gutterRef.current.scrollTop = scrollTop
+                updateHighlight(scrollTop)
+              }}
+            />
+          </>}
           {trackingMessage && (
             <div className="absolute left-20 right-4 bottom-3 z-30 flex items-center gap-2 rounded border border-warn bg-surface px-3 py-2 text-xs text-warn shadow-lg pointer-events-none">
               <AlertTriangle size={13} className="shrink-0" />

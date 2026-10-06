@@ -1,6 +1,6 @@
 import { useRef, useEffect, useLayoutEffect, useState, useCallback } from 'react'
 import { Eye, Axis3D, Maximize2, Crosshair, Navigation, Play, Pause, Square, CloudDrizzle, Waves, PowerOff, Box, Zap, Orbit, Hand, ListStart, RotateCcw, FilePlus, X, AlertTriangle, Maximize, ChevronDown, Wrench } from 'lucide-react'
-import { type GCodeModel, type Segment } from '../lib/gcode'
+import { MOVE_FEED, MOVE_RAPID, type GCodeModel, type Segment, type SegmentTable } from '../lib/gcode'
 import { useMachineStore } from '../store'
 import { useGCodeStore } from '../store/gcode'
 import { sendRaw, sendRealtime, STATUS_POLL_INTERVAL_MS } from '../lib/ws'
@@ -8,7 +8,7 @@ import type { ControllerSettings, MachineStatus, Units } from '../types'
 import { displayToMm, feedUnitLabel, linearUnitLabel, mmToDisplay } from '../lib/units'
 import { buildJobTimingEstimate, formatRuntime, useJobRuntimeEstimate, type JobTimingEstimate } from '../lib/jobRuntime'
 import { createRenderer, renderLines, setStaticLineData, type WebGLRenderer, type Camera, type Vector3 } from '../lib/webgl'
-import { addSegmentToPath, clamp01, getArcGeometry, normalizeAngle } from '../lib/gcodeBuild'
+import { addSegmentToPath, buildRenderLines, buildStatic2DPaths, buildStatic3DGeometry, clamp01, EMPTY_UINT8, getArcGeometry, normalizeAngle, type RenderLines } from '../lib/gcodeBuild'
 import { RestartFromLineDialog } from './RestartFromLineDialog'
 import { useGCodeSenderStore } from '../store/gcodeSender'
 import { GCODE_ACCEPT_ATTRIBUTE, isGCodeFileName } from '../lib/gcodeFiles'
@@ -124,6 +124,9 @@ const LOOKAHEAD_DISTANCE_FLOOR_MM = 1
 const LOOKAHEAD_FEED_MARGIN = 3
 const LOOKAHEAD_MAX_SEGMENTS = 4000
 const LARGE_PROGRESS_OVERLAY_SEGMENT_LIMIT = 100_000
+/** Above this many lines, 2D pan and zoom stretch the cached layer until the view settles. */
+const LARGE_2D_LAYER_LINE_LIMIT = 100_000
+const STATIC_2D_SETTLE_MS = 150
 const EMPTY_FLOAT32 = new Float32Array(0)
 const WHEEL_ZOOM_SENSITIVITY = 0.0012
 const ORBIT_ROTATIONS_PER_VIEWPORT = 1
@@ -182,9 +185,10 @@ function getBedEnvelope(settings: ControllerSettings, status: MachineStatus): Be
 interface StaticPathGeometry {
   model: GCodeModel
   showRapids: boolean
+  /** Tools filtered out of this geometry; null for the full toolpath. */
+  hiddenTools: Set<number> | null
   vertices: Float32Array
-  colors: Float32Array
-  uploadedRenderer: WebGLRenderer | null
+  colors: Uint8Array
 }
 
 interface Static2DPaths {
@@ -198,6 +202,22 @@ interface Static2DPaths {
     traversePath: Path2D
     cutPath: Path2D
   }>
+}
+
+/** The static toolpath stroked once into an offscreen canvas for a given view. */
+interface Static2DLayer {
+  paths: Static2DPaths
+  canvas: HTMLCanvasElement
+  ox: number
+  oy: number
+  scale: number
+  w: number
+  h: number
+  dpr: number
+  showRapids: boolean
+  hiddenTools: Set<number>
+  /** Set once panning or zooming pauses, so the next render strokes it sharply again. */
+  settled: boolean
 }
 
 interface Progress2DPath {
@@ -226,19 +246,23 @@ function getRapidMarkerPoint(seg: Segment) {
     : { x: seg.x1, y: seg.y1, z: seg.z1 }
 }
 
-function findEntryExitMarkerPoints(segments: Segment[]) {
+function segmentAt(segments: SegmentTable, index: number): Segment | undefined {
+  return index >= 0 && index < segments.length ? segments.get(index) : undefined
+}
+
+function findEntryExitMarkerPoints(segments: SegmentTable) {
   let firstCutIndex = -1
   let lastCutIndex = -1
 
   for (let index = 0; index < segments.length; index++) {
-    if (segments[index].moveType === 'feed') {
+    if (segments.moveCode(index) === MOVE_FEED) {
       firstCutIndex = index
       break
     }
   }
 
   for (let index = segments.length - 1; index >= 0; index--) {
-    if (segments[index].moveType === 'feed') {
+    if (segments.moveCode(index) === MOVE_FEED) {
       lastCutIndex = index
       break
     }
@@ -248,11 +272,11 @@ function findEntryExitMarkerPoints(segments: Segment[]) {
     return { entry: null, exit: null }
   }
 
-  const entryRapid = firstCutIndex > 0 && segments[firstCutIndex - 1].moveType === 'rapid'
-    ? segments[firstCutIndex - 1]
+  const entryRapid = firstCutIndex > 0 && segments.moveCode(firstCutIndex - 1) === MOVE_RAPID
+    ? segments.get(firstCutIndex - 1)
     : null
-  const exitRapid = lastCutIndex < segments.length - 1 && segments[lastCutIndex + 1].moveType === 'rapid'
-    ? segments[lastCutIndex + 1]
+  const exitRapid = lastCutIndex < segments.length - 1 && segments.moveCode(lastCutIndex + 1) === MOVE_RAPID
+    ? segments.get(lastCutIndex + 1)
     : null
 
   return {
@@ -313,7 +337,7 @@ function appendConeGeometry(
   }
 }
 
-function buildEntryExitMarkerGeometry(segments: Segment[]) {
+function buildEntryExitMarkerGeometry(segments: SegmentTable) {
   if (segments.length === 0) {
     return {
       vertices: EMPTY_FLOAT32,
@@ -441,6 +465,31 @@ function strokeModelPath(
   ctx.setLineDash(lineDashPx.map(value => value / safeScale))
   ctx.stroke(path)
   ctx.restore()
+}
+
+function strokeStatic2DPaths(
+  ctx: CanvasRenderingContext2D,
+  paths: Static2DPaths,
+  t: Transform,
+  showRapids: boolean,
+  hiddenTools: Set<number>,
+) {
+  if (paths.toolPaths?.length) {
+    for (const toolPaths of paths.toolPaths) {
+      if (toolPaths.tool != null && hiddenTools.has(toolPaths.tool)) continue
+      strokeModelPath(ctx, toolPaths.cutPath, t, toolPathColor(toolPaths.tool), 1)
+      if (showRapids) {
+        strokeModelPath(ctx, toolPaths.traversePath, t, TRAVERSE_COLOR, 0.5, [2, 2])
+        strokeModelPath(ctx, toolPaths.rapidPath, t, RAPID_COLOR, 0.5, [4, 3])
+      }
+    }
+    return
+  }
+  strokeModelPath(ctx, paths.cutPath, t, CUT_COLOR_FG, 1)
+  if (showRapids) {
+    strokeModelPath(ctx, paths.traversePath, t, TRAVERSE_COLOR, 0.5, [2, 2])
+    strokeModelPath(ctx, paths.rapidPath, t, RAPID_COLOR, 0.5, [4, 3])
+  }
 }
 
 function toolPathColor(tool: number | null | undefined) {
@@ -784,7 +833,7 @@ function getWheelZoomScale(deltaY: number, deltaMode: number, pageSize: number) 
 }
 
 function findNearbyProgress(
-  segments: Segment[],
+  segments: SegmentTable,
   px: number,
   py: number,
   pz: number,
@@ -797,7 +846,7 @@ function findNearbyProgress(
   let best: (ToolpathProgress & { distanceSq: number }) | null = null
 
   for (let i = startIndex; i <= endIndex && i < segments.length; i++) {
-    const measurement = measureProgressAlongSegment(segments[i], px, py, pz)
+    const measurement = measureProgressAlongSegment(segments.get(i), px, py, pz)
     const candidate: ToolpathProgress & { distanceSq: number } = {
       segmentIndex: i,
       fraction: measurement.fraction,
@@ -903,10 +952,17 @@ function segmentXYLength(seg: Segment) {
   return Math.hypot(seg.x1 - seg.x0, seg.y1 - seg.y0, seg.z1 - seg.z0)
 }
 
-function buildCumulativeXYLengths(segments: Segment[]) {
+function buildCumulativeXYLengths(segments: SegmentTable) {
   const cumulative = new Float64Array(segments.length + 1)
   for (let i = 0; i < segments.length; i++) {
-    cumulative[i + 1] = cumulative[i] + segmentXYLength(segments[i])
+    const length = segments.isArc(i)
+      ? segmentXYLength(segments.get(i))
+      : Math.hypot(
+          segments.px[i + 1] - segments.px[i],
+          segments.py[i + 1] - segments.py[i],
+          segments.pz[i + 1] - segments.pz[i],
+        )
+    cumulative[i + 1] = cumulative[i] + length
   }
   return cumulative
 }
@@ -917,7 +973,7 @@ function getLookaheadDistanceMm(feedMmPerMin: number) {
 }
 
 function findToolpathProgress(
-  segments: Segment[],
+  segments: SegmentTable,
   cumulativeXYLengths: Float64Array,
   px: number,
   py: number,
@@ -980,7 +1036,7 @@ function findToolpathProgress(
     if (far) return { ...far, misses: 0 }
   }
 
-  const current = segments[startIndex]
+  const current = segments.get(startIndex)
   if (pointDistanceSq(px, py, pz, current.x1, current.y1, current.z1) <= ENDPOINT_TOLERANCE_MM ** 2) {
     return { segmentIndex: startIndex, fraction: 1, misses: 0 }
   }
@@ -988,13 +1044,13 @@ function findToolpathProgress(
   return { ...previous, misses: priorMisses + 1 }
 }
 
-function findLastSegmentAtOrBeforeSourceLine(segments: Segment[], sourceLine: number) {
+function findLastSegmentAtOrBeforeSourceLine(segments: SegmentTable, sourceLine: number) {
   let low = 0
   let high = segments.length - 1
   let result = -1
   while (low <= high) {
     const middle = Math.floor((low + high) / 2)
-    if (segments[middle].sourceLine <= sourceLine) {
+    if (segments.sourceLine(middle) <= sourceLine) {
       result = middle
       low = middle + 1
     } else {
@@ -1227,11 +1283,17 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
   const setShowRapids = useGCodeStore(s => s.setShowRapids)
   const storePaths2D = useGCodeStore(s => s.paths2D)
   const storeGeometry3D = useGCodeStore(s => s.geometry3D)
+  const storeRenderLines = useGCodeStore(s => s.renderLines)
   const loadFile = useGCodeStore(s => s.loadFile)
   const setActiveSourceLine = useGCodeStore(s => s.setActiveSourceLine)
   const modelRef = useRef<GCodeModel | null>(null)
   const staticPathGeometryRef = useRef<StaticPathGeometry | null>(null)
+  const filteredPathGeometryRef = useRef<StaticPathGeometry | null>(null)
+  const uploadedPathGeometryRef = useRef<{ geometry: StaticPathGeometry; renderer: WebGLRenderer } | null>(null)
+  const renderLinesRef = useRef<RenderLines | null>(null)
   const static2DPathsRef = useRef<Static2DPaths | null>(null)
+  const static2DLayerRef = useRef<Static2DLayer | null>(null)
+  const static2DSettleTimerRef = useRef(0)
   const progress2DPathRef = useRef<Progress2DPath | null>(null)
   const markerGeometryRef = useRef<MarkerGeometry | null>(null)
   const pathXYLengthsRef = useRef<{ model: GCodeModel; cumulative: Float64Array } | null>(null)
@@ -1583,7 +1645,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
   }
 
   function createVertexData(
-    segments: Segment[],
+    segments: SegmentTable | null,
     progress: ToolpathProgress | null,
     toolWpos: { x: number; y: number; z: number } | null,
   ) {
@@ -1600,8 +1662,9 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
     const TOOL_CAP_C  = [1.0,  0.35, 0.35, 0.38] as const
     const TOOL_TIP_C  = [1.0,  0.96, 0.96, 1.0] as const
 
-    for (let segIdx = 0; segIdx < segments.length; segIdx++) {
-      const seg = segments[segIdx]
+    const segmentCount = segments?.length ?? 0
+    for (let segIdx = 0; segIdx < segmentCount; segIdx++) {
+      const seg = segments!.get(segIdx)
       if (seg.moveType !== 'feed' && !showRapidsRef.current) continue
       if (seg.tool != null && hiddenToolsRef.current.has(seg.tool)) continue
 
@@ -1707,24 +1770,43 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
   }
 
   function ensureStaticPathGeometry(mdl: GCodeModel) {
-    const cached = staticPathGeometryRef.current
-    if (!cached || cached.model !== mdl || cached.showRapids !== showRapidsRef.current) return null
+    let geometry = staticPathGeometryRef.current
+    if (!geometry || geometry.model !== mdl || geometry.showRapids !== showRapidsRef.current) return null
 
-    if (rendererRef.current && cached.uploadedRenderer !== rendererRef.current) {
-      setStaticLineData(rendererRef.current, cached.vertices, cached.colors)
-      cached.uploadedRenderer = rendererRef.current
+    // Filter hidden tools once per change instead of rebuilding every frame.
+    const hiddenTools = hiddenToolsRef.current
+    if (hiddenTools.size > 0) {
+      const filtered = filteredPathGeometryRef.current
+      if (filtered && filtered.model === mdl && filtered.showRapids === geometry.showRapids && filtered.hiddenTools === hiddenTools) {
+        geometry = filtered
+      } else {
+        const lines = renderLinesRef.current
+        if (!lines) return null
+        geometry = {
+          model: mdl,
+          showRapids: geometry.showRapids,
+          hiddenTools,
+          ...buildStatic3DGeometry(lines, geometry.showRapids, hiddenTools),
+        }
+        filteredPathGeometryRef.current = geometry
+      }
     }
 
-    return cached
+    const renderer = rendererRef.current
+    const uploaded = uploadedPathGeometryRef.current
+    if (renderer && (uploaded?.geometry !== geometry || uploaded.renderer !== renderer)) {
+      setStaticLineData(renderer, geometry.vertices, geometry.colors)
+      uploadedPathGeometryRef.current = { geometry, renderer }
+    }
+
+    return geometry
   }
 
   function clearStaticPathGeometryUpload() {
-    if (rendererRef.current) {
-      setStaticLineData(rendererRef.current, EMPTY_FLOAT32, EMPTY_FLOAT32)
+    if (rendererRef.current && uploadedPathGeometryRef.current) {
+      setStaticLineData(rendererRef.current, EMPTY_FLOAT32, EMPTY_UINT8)
     }
-    if (staticPathGeometryRef.current) {
-      staticPathGeometryRef.current.uploadedRenderer = null
-    }
+    uploadedPathGeometryRef.current = null
   }
 
   function ensureCumulativeXYLengths(mdl: GCodeModel) {
@@ -1750,40 +1832,54 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
     const cached = static2DPathsRef.current
     if (cached && cached.model === mdl) return cached
 
-    const rapidPath = new Path2D()
-    const traversePath = new Path2D()
-    const cutPath = new Path2D()
-    const hasTools = mdl.segments.some(seg => seg.tool != null)
-    const byTool = hasTools
-      ? new Map<number | null, { tool: number | null; rapidPath: Path2D; traversePath: Path2D; cutPath: Path2D }>()
-      : null
-    const pathsForTool = (tool: number | null) => {
-      let paths = byTool?.get(tool)
-      if (!paths && byTool) {
-        paths = { tool, rapidPath: new Path2D(), traversePath: new Path2D(), cutPath: new Path2D() }
-        byTool.set(tool, paths)
-      }
-      return paths
-    }
-    for (const seg of mdl.segments) {
-      const path = seg.moveType === 'rapid' ? rapidPath : seg.moveType === 'traverse' ? traversePath : cutPath
-      addSegmentToPath(path, seg)
-      const toolPaths = pathsForTool(seg.tool ?? null)
-      if (toolPaths) {
-        const toolPath = seg.moveType === 'rapid' ? toolPaths.rapidPath : seg.moveType === 'traverse' ? toolPaths.traversePath : toolPaths.cutPath
-        addSegmentToPath(toolPath, seg)
-      }
-    }
-
-    const paths = {
-      model: mdl,
-      rapidPath,
-      traversePath,
-      cutPath,
-      toolPaths: byTool ? Array.from(byTool.values()).sort((a, b) => (a.tool ?? -1) - (b.tool ?? -1)) : undefined,
-    }
+    // The store builds these paths in time slices. Building them here blocks
+    // the page, so skip it for large jobs (for example while the next file loads).
+    if (mdl.segments.length > LARGE_PROGRESS_OVERLAY_SEGMENT_LIMIT) return null
+    const paths = { model: mdl, ...buildStatic2DPaths(buildRenderLines(mdl.segments)) }
     static2DPathsRef.current = paths
     return paths
+  }
+
+  /**
+   * Draws the toolpath from a cached layer. Status reports redraw the tool
+   * marker several times a second, and re-stroking millions of lines each
+   * time would starve the page. While a large layer is panned or zoomed, the
+   * cached image is stretched into place and stroked again once the view settles.
+   */
+  function drawStatic2DLayer(ctx: CanvasRenderingContext2D, paths: Static2DPaths, t: Transform, w: number, h: number, lineCount: number) {
+    const dpr = window.devicePixelRatio || 1
+    const showRapids = showRapidsRef.current
+    const hiddenTools = hiddenToolsRef.current
+    const layer = static2DLayerRef.current
+    const sameContent = !!layer && layer.paths === paths && layer.w === w && layer.h === h && layer.dpr === dpr
+      && layer.showRapids === showRapids && layer.hiddenTools === hiddenTools
+    const sameView = sameContent && layer.ox === t.ox && layer.oy === t.oy && layer.scale === t.scale
+
+    if (layer && sameContent && !sameView && !layer.settled && lineCount > LARGE_2D_LAYER_LINE_LIMIT) {
+      const k = t.scale / layer.scale
+      ctx.drawImage(layer.canvas, t.ox - layer.ox * k, t.oy - layer.oy * k, w * k, h * k)
+      window.clearTimeout(static2DSettleTimerRef.current)
+      static2DSettleTimerRef.current = window.setTimeout(() => {
+        layer.settled = true
+        scheduleRender()
+      }, STATIC_2D_SETTLE_MS)
+      return
+    }
+
+    if (!layer || !sameView) {
+      const canvas = layer?.canvas ?? document.createElement('canvas')
+      canvas.width = Math.round(w * dpr)
+      canvas.height = Math.round(h * dpr)
+      const layerCtx = canvas.getContext('2d')
+      if (!layerCtx) return
+      layerCtx.setTransform(dpr, 0, 0, dpr, 0, 0)
+      strokeStatic2DPaths(layerCtx, paths, t, showRapids, hiddenTools)
+      static2DLayerRef.current = { paths, canvas, ox: t.ox, oy: t.oy, scale: t.scale, w, h, dpr, showRapids, hiddenTools, settled: false }
+      ctx.drawImage(canvas, 0, 0, w, h)
+      return
+    }
+
+    ctx.drawImage(layer.canvas, 0, 0, w, h)
   }
 
   function ensureProgress2DPath(mdl: GCodeModel, progress: ToolpathProgress) {
@@ -1800,8 +1896,9 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
     }
 
     for (let i = cached.lastCompletedSegment + 1; i <= lastCompletedSegment; i++) {
-      const seg = mdl.segments[i]
-      if (seg.moveType === 'feed' && (seg.tool == null || !hiddenToolsRef.current.has(seg.tool))) addSegmentToPath(cached.path, seg)
+      if (mdl.segments.moveCode(i) !== MOVE_FEED) continue
+      const tool = mdl.segments.tool(i)
+      if (tool == null || !hiddenToolsRef.current.has(tool)) addSegmentToPath(cached.path, mdl.segments.get(i))
     }
     cached.lastCompletedSegment = lastCompletedSegment
     return cached.path
@@ -1913,11 +2010,14 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
       ? {
           model,
           showRapids: storeGeometry3D.showRapids,
+          hiddenTools: null,
           vertices: storeGeometry3D.vertices,
           colors: storeGeometry3D.colors,
-          uploadedRenderer: null,
         }
       : null
+    filteredPathGeometryRef.current = null
+    static2DLayerRef.current = null
+    renderLinesRef.current = model ? storeRenderLines : null
     markerGeometryRef.current = null
     pathXYLengthsRef.current = null
     if (modelChanged) {
@@ -1933,7 +2033,9 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
       }
     }
     scheduleRender()
-  }, [model, storePaths2D, storeGeometry3D, is3D])
+  }, [model, storePaths2D, storeGeometry3D, storeRenderLines, is3D])
+
+  useEffect(() => () => window.clearTimeout(static2DSettleTimerRef.current), [])
 
   function canvasLogicalSize() {
     const container = containerRef.current
@@ -2060,11 +2162,12 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
     const clampedElapsed = Math.max(0, Math.min(elapsedSeconds, timing.totalSeconds))
     progressRef.current = progress
     simulationElapsedAtPauseRef.current = clampedElapsed
-    simulationToolPosRef.current = mdl && progress
-      ? getSegmentPoint(mdl.segments[progress.segmentIndex], progress.fraction)
+    const progressSegment = mdl && progress ? segmentAt(mdl.segments, progress.segmentIndex) : undefined
+    simulationToolPosRef.current = progressSegment && progress
+      ? getSegmentPoint(progressSegment, progress.fraction)
       : null
 
-    const sourceLine = mdl && progress ? mdl.segments[progress.segmentIndex]?.sourceLine ?? null : null
+    const sourceLine = progressSegment?.sourceLine ?? null
     const wallElapsed = phase === 'paused'
       ? simulationWallElapsedAtPauseRef.current
       : getCurrentSimulationWallElapsed()
@@ -2260,7 +2363,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
         }
         clearStaticPathGeometryUpload()
         const toolGeometry = wpos3d
-          ? createVertexData([], null, wpos3d)
+          ? createVertexData(null, null, wpos3d)
           : { vertices: EMPTY_FLOAT32, colors: EMPTY_FLOAT32, triangleVertices: EMPTY_FLOAT32, triangleColors: EMPTY_FLOAT32, toolVertexStart: 0 }
         const mergedVertices = mergeFloat32Arrays(bedGeometry?.vertices ?? EMPTY_FLOAT32, toolGeometry.vertices)
         const mergedColors = mergeFloat32Arrays(bedGeometry?.colors ?? EMPTY_FLOAT32, toolGeometry.colors)
@@ -2270,13 +2373,11 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
         return
       }
 
-      const hasHiddenTools3d = hiddenToolsRef.current.size > 0
-
-      if (!use3DProgressOverlay && !hasHiddenTools3d) {
+      if (!use3DProgressOverlay) {
         const staticGeometry = ensureStaticPathGeometry(mdl)
         if (!staticGeometry) return
         const toolGeometry = wpos3d
-          ? createVertexData([], null, wpos3d)
+          ? createVertexData(null, null, wpos3d)
           : { vertices: EMPTY_FLOAT32, colors: EMPTY_FLOAT32, triangleVertices: EMPTY_FLOAT32, triangleColors: EMPTY_FLOAT32, toolVertexStart: 0 }
         const mergedVertices = mergeFloat32Arrays(bedGeometry?.vertices ?? EMPTY_FLOAT32, markerGeometry.vertices, toolGeometry.vertices)
         const mergedColors = mergeFloat32Arrays(bedGeometry?.colors ?? EMPTY_FLOAT32, markerGeometry.colors, toolGeometry.colors)
@@ -2361,24 +2462,9 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
       const { segments } = mdl
       const progress = running ? progressRef.current : null
 
+      // Null while a large job's paths are still being prepared.
       const staticPaths = ensureStatic2DPaths(mdl)
-
-      if (staticPaths.toolPaths?.length) {
-        for (const toolPaths of staticPaths.toolPaths) {
-          if (toolPaths.tool != null && hiddenToolsRef.current.has(toolPaths.tool)) continue
-          strokeModelPath(ctx, toolPaths.cutPath, t, toolPathColor(toolPaths.tool), 1)
-          if (showRapidsRef.current) {
-            strokeModelPath(ctx, toolPaths.traversePath, t, TRAVERSE_COLOR, 0.5, [2, 2])
-            strokeModelPath(ctx, toolPaths.rapidPath, t, RAPID_COLOR, 0.5, [4, 3])
-          }
-        }
-      } else {
-        strokeModelPath(ctx, staticPaths.cutPath, t, CUT_COLOR_FG, 1)
-        if (showRapidsRef.current) {
-          strokeModelPath(ctx, staticPaths.traversePath, t, TRAVERSE_COLOR, 0.5, [2, 2])
-          strokeModelPath(ctx, staticPaths.rapidPath, t, RAPID_COLOR, 0.5, [4, 3])
-        }
-      }
+      if (staticPaths) drawStatic2DLayer(ctx, staticPaths, t, w, h, renderLinesRef.current?.count ?? mdl.segments.length)
 
       const use2DProgressOverlay = progress !== null && mdl.segments.length <= LARGE_PROGRESS_OVERLAY_SEGMENT_LIMIT
 
@@ -2386,7 +2472,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
         const completedPath = ensureProgress2DPath(mdl, progress)
         strokeModelPath(ctx, completedPath, t, CUT_DONE, 1.5)
 
-        const currentSegment = segments[progress.segmentIndex]
+        const currentSegment = segmentAt(segments, progress.segmentIndex)
         if (currentSegment?.moveType === 'feed' && (currentSegment.tool == null || !hiddenToolsRef.current.has(currentSegment.tool))) {
           ctx.strokeStyle = CUT_DONE
           ctx.lineWidth = 1.5
@@ -2490,7 +2576,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
       if (trackedProgress && trackedModel) {
         const cumulative = ensureCumulativeXYLengths(trackedModel)
         const totalLength = cumulative[cumulative.length - 1]
-        const segment = trackedModel.segments[trackedProgress.segmentIndex]
+        const segment = segmentAt(trackedModel.segments, trackedProgress.segmentIndex)
         const completedLength = cumulative[trackedProgress.segmentIndex]
           + (segment ? segmentXYLength(segment) * trackedProgress.fraction : 0)
         setSenderExecutionProgressPercent(totalLength > 0 ? clamp01(completedLength / totalLength) * 100 : 0)
@@ -2502,7 +2588,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
     }
     setActiveSourceLine(
       trackedProgress && trackedModel
-        ? trackedModel.segments[trackedProgress.segmentIndex]?.sourceLine ?? null
+        ? segmentAt(trackedModel.segments, trackedProgress.segmentIndex)?.sourceLine ?? null
         : null,
     )
     prevIsRunningRef.current = isRunning
