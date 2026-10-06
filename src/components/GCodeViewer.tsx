@@ -2678,20 +2678,22 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
           getLookaheadDistanceMm(status.feed),
           acceptedSegmentIndex,
         )
-      } else if (freshStart) {
-        progressRef.current = { segmentIndex: 0, fraction: 0 }
       } else {
-        progressRef.current = findToolpathProgress(
+        // On a fresh start the job may already be under way (the page was
+        // opened mid-job), so look for the tool anywhere first; fall back to
+        // the first move while it is still travelling to the toolpath.
+        const progress = findToolpathProgress(
           modelRef.current.segments,
           ensureCumulativeXYLengths(modelRef.current),
           status.wpos.x,
           status.wpos.y,
           status.wpos.z,
-          progressRef.current,
+          freshStart ? null : progressRef.current,
           getLookaheadDistanceMm(status.feed),
           modelRef.current.segments.length - 1,
           getFileProgressHint(modelRef.current),
         )
+        progressRef.current = progress ?? (freshStart ? { segmentIndex: 0, fraction: 0 } : null)
       }
     } else {
       progressRef.current = null
