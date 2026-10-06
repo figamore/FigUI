@@ -127,8 +127,11 @@ const LARGE_PROGRESS_OVERLAY_SEGMENT_LIMIT = 100_000
 /** Above this many lines, 2D pan and zoom stretch the cached layer until the view settles. */
 const LARGE_2D_LAYER_LINE_LIMIT = 100_000
 const STATIC_2D_SETTLE_MS = 150
+/** Share of the view size drawn beyond each edge of the cached 2D layer. */
+const STATIC_2D_LAYER_PAD_RATIO = 0.25
 const FOLLOW_EDGE_MARGIN_PX = 40
 const FOLLOW_EDGE_MARGIN_RATIO = 0.1
+const FOLLOW_MODE_KEY = 'gcode.followMode'
 const EMPTY_FLOAT32 = new Float32Array(0)
 const WHEEL_ZOOM_SENSITIVITY = 0.0012
 const ORBIT_ROTATIONS_PER_VIEWPORT = 1
@@ -216,6 +219,8 @@ interface Static2DLayer {
   w: number
   h: number
   dpr: number
+  /** Margin drawn beyond each side of the view, in CSS pixels. */
+  pad: number
   showRapids: boolean
   hiddenTools: Set<number>
   /** Set once panning or zooming pauses, so the next render strokes it sharply again. */
@@ -1121,6 +1126,18 @@ function getStoredFramingMode(): FramingMode {
   return value === 'contour' || value === 'rectangle' ? value : 'rectangle'
 }
 
+/** 'edge': re-center the tool once it nears an edge. 'center': keep it centered. */
+type FollowMode = 'edge' | 'center'
+
+function getStoredFollowMode(): FollowMode {
+  return localStorage.getItem(FOLLOW_MODE_KEY) === 'center' ? 'center' : 'edge'
+}
+
+const FOLLOW_MODE_OPTIONS: Array<{ mode: FollowMode; label: string; detail: string }> = [
+  { mode: 'edge', label: 'Re-center at edge', detail: 'The view moves only when the tool nears an edge.' },
+  { mode: 'center', label: 'Keep centered', detail: 'The tool stays in the middle; the toolpath moves under it.' },
+]
+
 function getStoredPositiveNumber(key: string, fallback: number) {
   const parsed = Number.parseFloat(localStorage.getItem(key) ?? '')
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback
@@ -1845,43 +1862,51 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
   /**
    * Draws the toolpath from a cached layer. Status reports redraw the tool
    * marker several times a second, and re-stroking millions of lines each
-   * time would starve the page. While a large layer is panned or zoomed, the
-   * cached image is stretched into place and stroked again once the view settles.
+   * time would starve the page. The layer extends past the view, so panning
+   * within that margin (dragging, Follow) reuses it at full sharpness. While a
+   * large layer is zoomed or panned further, the cached image is stretched
+   * into place and stroked again once the view settles.
    */
   function drawStatic2DLayer(ctx: CanvasRenderingContext2D, paths: Static2DPaths, t: Transform, w: number, h: number, lineCount: number) {
     const dpr = window.devicePixelRatio || 1
     const showRapids = showRapidsRef.current
     const hiddenTools = hiddenToolsRef.current
     const layer = static2DLayerRef.current
-    const sameContent = !!layer && layer.paths === paths && layer.w === w && layer.h === h && layer.dpr === dpr
-      && layer.showRapids === showRapids && layer.hiddenTools === hiddenTools
-    const sameView = sameContent && layer.ox === t.ox && layer.oy === t.oy && layer.scale === t.scale
 
-    if (layer && sameContent && !sameView && !layer.settled && lineCount > LARGE_2D_LAYER_LINE_LIMIT) {
-      const k = t.scale / layer.scale
-      ctx.drawImage(layer.canvas, t.ox - layer.ox * k, t.oy - layer.oy * k, w * k, h * k)
-      window.clearTimeout(static2DSettleTimerRef.current)
-      static2DSettleTimerRef.current = window.setTimeout(() => {
-        layer.settled = true
-        scheduleRender()
-      }, STATIC_2D_SETTLE_MS)
-      return
+    if (layer && layer.paths === paths && layer.w === w && layer.h === h && layer.dpr === dpr
+      && layer.showRapids === showRapids && layer.hiddenTools === hiddenTools) {
+      const { pad } = layer
+      if (layer.scale === t.scale) {
+        // Whole device pixels keep the reused image sharp.
+        const dx = Math.round((t.ox - layer.ox) * dpr) / dpr
+        const dy = Math.round((t.oy - layer.oy) * dpr) / dpr
+        if (Math.abs(dx) <= pad && Math.abs(dy) <= pad) {
+          ctx.drawImage(layer.canvas, dx - pad, dy - pad, w + 2 * pad, h + 2 * pad)
+          return
+        }
+      }
+      if (!layer.settled && lineCount > LARGE_2D_LAYER_LINE_LIMIT) {
+        const k = t.scale / layer.scale
+        ctx.drawImage(layer.canvas, t.ox - (layer.ox + pad) * k, t.oy - (layer.oy + pad) * k, (w + 2 * pad) * k, (h + 2 * pad) * k)
+        window.clearTimeout(static2DSettleTimerRef.current)
+        static2DSettleTimerRef.current = window.setTimeout(() => {
+          layer.settled = true
+          scheduleRender()
+        }, STATIC_2D_SETTLE_MS)
+        return
+      }
     }
 
-    if (!layer || !sameView) {
-      const canvas = layer?.canvas ?? document.createElement('canvas')
-      canvas.width = Math.round(w * dpr)
-      canvas.height = Math.round(h * dpr)
-      const layerCtx = canvas.getContext('2d')
-      if (!layerCtx) return
-      layerCtx.setTransform(dpr, 0, 0, dpr, 0, 0)
-      strokeStatic2DPaths(layerCtx, paths, t, showRapids, hiddenTools)
-      static2DLayerRef.current = { paths, canvas, ox: t.ox, oy: t.oy, scale: t.scale, w, h, dpr, showRapids, hiddenTools, settled: false }
-      ctx.drawImage(canvas, 0, 0, w, h)
-      return
-    }
-
-    ctx.drawImage(layer.canvas, 0, 0, w, h)
+    const pad = Math.round(Math.max(w, h) * STATIC_2D_LAYER_PAD_RATIO)
+    const canvas = layer?.canvas ?? document.createElement('canvas')
+    canvas.width = Math.round((w + 2 * pad) * dpr)
+    canvas.height = Math.round((h + 2 * pad) * dpr)
+    const layerCtx = canvas.getContext('2d')
+    if (!layerCtx) return
+    layerCtx.setTransform(dpr, 0, 0, dpr, pad * dpr, pad * dpr)
+    strokeStatic2DPaths(layerCtx, paths, t, showRapids, hiddenTools)
+    static2DLayerRef.current = { paths, canvas, ox: t.ox, oy: t.oy, scale: t.scale, w, h, dpr, pad, showRapids, hiddenTools, settled: false }
+    ctx.drawImage(canvas, -pad, -pad, w + 2 * pad, h + 2 * pad)
   }
 
   function ensureProgress2DPath(mdl: GCodeModel, progress: ToolpathProgress) {
@@ -1963,6 +1988,8 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
   const isViewerStartBlocked = loading || isProcessing2D || pendingPath !== null || !!sdUploadPath || controllerResetPending
   const is3DToggleDisabled = pendingPath !== null || isProcessing2D || (!!model && !is3DReady)
   const [autoFollow, setAutoFollow] = useState(true)
+  const [followMode, setFollowMode] = useState<FollowMode>(() => getStoredFollowMode())
+  const [showFollowMenu, setShowFollowMenu] = useState(false)
   const [coolantState, setCoolantState] = useState<'off' | 'mist' | 'flood'>('off')
   const [showRestartFromLine, setShowRestartFromLine] = useState(false)
   const [showLocalSenderWarning, setShowLocalSenderWarning] = useState(false)
@@ -2500,6 +2527,20 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
     t.oy = h / 2 + wy * t.scale
   }
 
+  function centerOnRunningTool() {
+    if (!isRunning || !showTool) return
+    centerViewOn(status.wpos.x, status.wpos.y)
+    scheduleRender()
+  }
+
+  function chooseFollowMode(mode: FollowMode) {
+    setFollowMode(mode)
+    localStorage.setItem(FOLLOW_MODE_KEY, mode)
+    setShowFollowMenu(false)
+    setAutoFollow(true)
+    centerOnRunningTool()
+  }
+
   function ensureToolVisible(wx: number, wy: number) {
     const { w, h } = canvasLogicalSize()
     const t = transformRef.current
@@ -2598,7 +2639,8 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
     prevModelRef.current = model
 
     if (isRunning && autoFollow && showTool) {
-      ensureToolVisible(status.wpos.x, status.wpos.y)
+      if (followMode === 'center') centerViewOn(status.wpos.x, status.wpos.y)
+      else ensureToolVisible(status.wpos.x, status.wpos.y)
     }
     scheduleRender()
   }, [
@@ -2611,6 +2653,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
     senderActive,
     senderAcceptedLine,
     autoFollow,
+    followMode,
     status.wpos.x,
     status.wpos.y,
     status.wpos.z,
@@ -3106,21 +3149,47 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
             <span>Tool</span>
           </button>
           {!is3D && (
-            <button
-              className={`${btnCls} ${autoFollow ? 'text-info bg-info/10' : 'text-text-dim bg-elevated hover:text-text-primary'}`}
-              onClick={() => {
-                const follow = !autoFollow
-                setAutoFollow(follow)
-                if (follow && isRunning && showTool) {
-                  centerViewOn(status.wpos.x, status.wpos.y)
-                  scheduleRender()
-                }
-              }}
-              title="Keep the tool in view while running; re-centers it when it nears an edge"
-            >
-              <Navigation size={iconSize} />
-              <span>Follow</span>
-            </button>
+            <div className="relative flex items-center">
+              <button
+                className={`${btnCls} rounded-r-none ${isTablet ? 'pr-1' : 'pr-0.5'} ${autoFollow ? 'text-info bg-info/10' : 'text-text-dim bg-elevated hover:text-text-primary'}`}
+                onClick={() => {
+                  const follow = !autoFollow
+                  setAutoFollow(follow)
+                  if (follow) centerOnRunningTool()
+                }}
+                title={`Keep the tool in view while running (${FOLLOW_MODE_OPTIONS.find(option => option.mode === followMode)?.label})`}
+              >
+                <Navigation size={iconSize} />
+                <span>Follow</span>
+              </button>
+              <button
+                className={`flex items-center self-stretch rounded rounded-l-none transition-colors ${isTablet ? 'px-1' : 'px-0.5'} ${autoFollow ? 'text-info bg-info/10' : 'text-text-dim bg-elevated hover:text-text-primary'}`}
+                onClick={() => setShowFollowMenu(open => !open)}
+                title="Choose how Follow moves the view"
+                aria-expanded={showFollowMenu}
+              >
+                <ChevronDown size={isTablet ? 12 : 10} className={`transition-transform ${showFollowMenu ? 'rotate-180' : ''}`} />
+              </button>
+              {showFollowMenu && (
+                <div className="absolute right-0 top-full z-30 mt-1 flex w-56 flex-col gap-1 rounded border border-border bg-surface p-1 shadow-lg">
+                  {FOLLOW_MODE_OPTIONS.map(option => (
+                    <button
+                      key={option.mode}
+                      type="button"
+                      className={`w-full rounded border px-2 py-1.5 text-left text-xs transition-colors ${
+                        followMode === option.mode
+                          ? 'border-info/60 bg-info/10 text-info'
+                          : 'border-border/80 bg-surface text-text-primary hover:border-info/60'
+                      }`}
+                      onClick={() => chooseFollowMode(option.mode)}
+                    >
+                      <span className="block font-semibold">{option.label}</span>
+                      <span className="block text-text-muted">{option.detail}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           )}
           <button
             className={`${btnCls} text-text-muted hover:text-text-primary hover:bg-elevated`}
