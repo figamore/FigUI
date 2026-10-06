@@ -59,6 +59,12 @@ export function parseStatusReport(raw: string, options: ParseStatusOptions = {})
   if (!hasSd) {
     status.sdPercent = undefined
     status.sdFilename = undefined
+  } else if (status.state === 'Idle') {
+    // FluidNC reports Idle in the middle of a file job whenever its motion
+    // queue drains, for example at every laser M5/M3 pair. The file progress
+    // field stays in every report until the file has finished, so the job is
+    // still running; reporting Idle would end it in the UI.
+    status.state = 'Run'
   }
   if (!hasPlannerLine) status.plannerLineNumber = undefined
 
