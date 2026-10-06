@@ -5,7 +5,7 @@
 // with the real wasm filesystem via shimTransport's fsRequest() instead of
 // an in-memory JS simulation, and commands via commandBridge.ts instead of
 // canned responses.
-import { fsRequest } from './shimTransport'
+import { fsRequest, WASM_BRIDGE_BASE } from './shimTransport'
 import { sendBridgeCommand } from './commandBridge'
 
 type Root = 'native_sd' | 'native_localfs'
@@ -24,24 +24,13 @@ function ok(body: string, type = 'text/plain'): Response {
 
 // Manual parsing instead of `new URL(href, location.href)`: resolving a
 // relative reference against a blob: base throws ("Failed to construct
-// 'URL': Invalid URL") -- the same relative-resolution quirk that broke
-// Router.tsx's `location.href = ...` navigation elsewhere in this project,
-// now also hitting URL construction. It's compounded by a real FigUI bug:
-// src/App.tsx's attemptConnect() calls `setBase(\`http://${window.location
-// .host}\`)`, and window.location.host is empty inside this blob: iframe,
-// so requests end up as "http:///command?..." -- which the URL parser
-// reads as host="command", path="/", not what was intended. Since every
-// request we care about targets one of a small set of known endpoints,
-// recovering the real path+query by finding that endpoint name in the raw
-// string sidesteps both problems: it needs no base at all, and it isn't
-// fooled by the mis-parsed-host case either.
+// 'URL': Invalid URL"). Device requests normally start with
+// WASM_BRIDGE_BASE (see shimTransport.ts for why src/App.tsx uses it), and
+// those are parsed exactly -- that's the only way to see a bare LocalFS
+// file path like "/config.yaml" (see deviceBase below). Anything sent
+// before attemptConnect() sets the base is a relative "/command?..."-style
+// string, recovered by finding a known endpoint name in it.
 const KNOWN_PATH_RE = /\/(command_silent|command|upload|files|localfs\/|sd(?:\/|(?=\?)|$))/
-
-// The usual case is that empty-host base itself: "http:///<path>" is
-// unambiguous, and is the only way to see a bare LocalFS file path
-// ("http:///config.yaml" -- see deviceBase below), so it's parsed exactly
-// rather than by searching for a known endpoint name.
-const EMPTY_HOST_BASE = 'http://'
 
 function splitQuery(rest: string): { pathname: string; searchParams: URLSearchParams } {
   const q = rest.indexOf('?')
@@ -51,8 +40,8 @@ function splitQuery(rest: string): { pathname: string; searchParams: URLSearchPa
 }
 
 function extractRequestUrl(href: string): { pathname: string; searchParams: URLSearchParams; deviceBase: boolean } | null {
-  if (href.startsWith(`${EMPTY_HOST_BASE}/`)) {
-    return { ...splitQuery(href.slice(EMPTY_HOST_BASE.length)), deviceBase: true }
+  if (href.startsWith(`${WASM_BRIDGE_BASE}/`)) {
+    return { ...splitQuery(href.slice(WASM_BRIDGE_BASE.length)), deviceBase: true }
   }
   const m = KNOWN_PATH_RE.exec(href)
   if (!m) return null
@@ -217,8 +206,7 @@ export function installXhrInterceptor(): void {
 
         if (prop === 'open')
           return (method: string, url: string | URL, ...rest: unknown[]) => {
-            // See extractRequestUrl()'s comment above -- same blob:-base
-            // and empty-window.location.host issues apply here.
+            // Same URL parsing as fetch -- see extractRequestUrl() above.
             const path = extractRequestUrl(String(url))?.pathname ?? ''
             intercept = path === '/upload' || path === '/files'
             interceptRoot = path === '/upload' ? 'native_sd' : 'native_localfs'

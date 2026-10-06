@@ -59,6 +59,15 @@ export function isWasmBridgeActive(): boolean {
   return typeof window !== 'undefined' && (window as unknown as Record<string, unknown>).__FLUIDNC_WASM_BRIDGE__ === true
 }
 
+// The HTTP base src/App.tsx sets while the bridge is active, in place of
+// `http://${window.location.host}`: location.host is empty inside the
+// demo's blob: iframe, and setBase() strips a trailing slash, so the
+// normal base degenerates to "http:/" and a LocalFS file request becomes
+// "http://config.yaml" -- indistinguishable from a real host named
+// config.yaml. A fixed, never-resolvable (.invalid, RFC 2606) host makes
+// every device request unambiguous for httpBridge.ts to recognize.
+export const WASM_BRIDGE_BASE = 'http://fluidnc-wasm.invalid'
+
 if (typeof window !== 'undefined') {
   window.addEventListener('message', (event: MessageEvent) => {
     // The demo page is the only legitimate sender -- postMessage's

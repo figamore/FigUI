@@ -5,6 +5,7 @@ import { useGCodeSenderStore } from './store/gcodeSender'
 import { useTerminalStore } from './store/terminal'
 import { connect, isSocketOpen, onLine, sendStartupQueries } from './lib/ws'
 import { setBase, getDeviceInfo, getDeviceInfoFast, loadMacroCfg } from './lib/http'
+import { isWasmBridgeActive, WASM_BRIDGE_BASE } from './wasmBridge/shimTransport'
 import { parseESP800 } from './lib/parser'
 import { prefetchControllerConfigSettings } from './lib/controllerConfig'
 import { CURRENT_VERSION, GITHUB_REPO, DISMISSED_VERSION_KEY, semverGt } from './lib/updateCheck'
@@ -270,7 +271,7 @@ function AppContent() {
     const p = (async () => {
       try {
         const httpHost = window.location.host
-        setBase(`http://${httpHost}`)
+        setBase(isWasmBridgeActive() ? WASM_BRIDGE_BASE : `http://${httpHost}`)
         const { wsHost } = await resolveWsHost(httpHost)
         await connect(wsHost)
         cachedHostFailures.current = 0
