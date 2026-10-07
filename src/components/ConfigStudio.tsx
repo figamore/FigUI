@@ -18,11 +18,11 @@ import {
   Zap,
 } from "lucide-react";
 import {
-  loadFluidConfig,
   MOTOR_DRIVER_PREFIX,
   type ConfigItem,
   type FluidConfig,
 } from "../lib/fluidSchema";
+import type { ConfigStudioProps } from "../lib/configStudioContract";
 
 type NodeKind =
   | "machine"
@@ -1829,13 +1829,8 @@ export function ConfigStudio({
   onChange,
   isActive = true,
   firmwareVersion,
-}: {
-  content: string;
-  onChange: (yaml: string) => void;
-  isActive?: boolean;
-  /** Connected firmware's espInfo.version; selects config_items.json's ref. */
-  firmwareVersion?: string | null;
-}) {
+  loadConfig,
+}: ConfigStudioProps) {
   const [nodes, setNodes] = useState<NodeData[]>(() => nodesFromYaml(content));
   const [selected, setSelected] = useState("machine");
   const [zoom, setZoom] = useState(1);
@@ -1932,13 +1927,13 @@ export function ConfigStudio({
     // retry when the version changes or the studio is reopened.
     if (!isActive) return;
     let cancelled = false;
-    loadFluidConfig(firmwareVersion).then((config) => {
+    loadConfig(firmwareVersion).then((config) => {
       if (!cancelled) setFluidConfig(config);
     });
     return () => {
       cancelled = true;
     };
-  }, [isActive, firmwareVersion]);
+  }, [isActive, firmwareVersion, loadConfig]);
   useEffect(() => {
     if (!palette) return;
     const close = (e: PointerEvent) => {

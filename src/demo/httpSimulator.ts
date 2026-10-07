@@ -126,6 +126,9 @@ export function installFetchInterceptor(): void {
     if (p.startsWith('/sd/') || p.startsWith('/localfs/') || p.startsWith('/ext/'))
       return handleFileDownload(p)
 
+    const localFile = url.origin === window.location.origin ? getFile('/localfs' + p) : null
+    if (m === 'GET' && localFile !== null) return ok(localFile)
+
     return orig(input, init)
   }
 }

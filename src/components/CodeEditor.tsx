@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { sendCommand } from "../lib/http";
 import { useMachineStore } from "../store";
-import { ConfigStudio } from "./ConfigStudio";
+import { RemoteConfigStudio } from "./RemoteConfigStudio";
 import {
   validateFluidConfigForSave,
   type ConfigIssue,
@@ -325,7 +325,6 @@ export function CodeEditor({
   const [searchTerm, setSearchTerm] = useState("");
   const [matchIndex, setMatchIndex] = useState(0);
   const [matchCount, setMatchCount] = useState(0);
-  const firmwareVersion = useMachineStore((s) => s.espInfo?.version);
   const [view, setView] = useState<"studio" | "code">(
     isYamlFile ? initialView : "code",
   );
@@ -845,12 +844,11 @@ export function CodeEditor({
           <div
             className={`${view === "studio" ? "flex" : "hidden"} min-h-0 flex-1`}
           >
-            <ConfigStudio
+            <RemoteConfigStudio
               key={studioKey}
               content={studioSource}
               onChange={handleStudioChange}
               isActive={view === "studio"}
-              firmwareVersion={firmwareVersion}
             />
           </div>
         )}

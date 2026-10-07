@@ -35,10 +35,19 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
+
+      - name: Test config compatibility and Studio loading
+        run: npm run test:config && npm run test:studio
 
       - name: Build demo
         run: npm run build:demo
+
+      - name: Build online Config Studio
+        run: npm run build:studio
+
+      - name: Preserve previous Config Studio builds
+        run: node scripts/prepare-config-studio-pages.mjs
 
       - name: Preserve firmware from latest release
         run: |

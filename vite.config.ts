@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react'
 import { viteSingleFile } from 'vite-plugin-singlefile'
 import tailwindMangle from 'unplugin-tailwindcss-mangle/vite'
 import { fileURLToPath } from 'url'
+import { configStudioBuildId } from './scripts/config-studio-build-id.mjs'
 
 const mangleReservedPrefixes = [
   'btn-',
@@ -24,6 +25,7 @@ const shouldMangleClass = (className: string) =>
   !mangleReservedPrefixes.some((prefix) => className.startsWith(prefix))
 
 export default defineConfig(({ mode }) => ({
+  define: { __CONFIG_STUDIO_BUILD__: JSON.stringify(configStudioBuildId()) },
   resolve: {
     alias: {
       'react':             'preact/compat',

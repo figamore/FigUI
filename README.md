@@ -105,6 +105,8 @@ The file manager gives access to both the SD card and the ESP32 internal filesys
 
 Text files stored on the controller can be opened and edited directly in the browser. The editor includes syntax highlighting and saves changes back to the controller filesystem.
 
+Config Studio, the visual YAML editor, downloads from GitHub Pages when first opened. After a successful download, the browser caches that Studio build for offline use on the same controller address. Clearing browser storage, changing browsers or controller addresses, or installing firmware that needs a different Studio build requires another download. Code view and config validation remain part of the controller UI.
+
 ---
 
 ### Macros
@@ -184,6 +186,10 @@ npm run build:esp32
 ```
 
 The `dist/` directory contains the static index.html.gz file you can upload to the internal filesystem of the ESP32. Simply refresh the page to show changes.
+
+Config Studio is built separately with `npm run build:studio`. Production UI builds reference an exact Studio build under `config-studio/<build-id>/` on GitHub Pages; deploy those assets before distributing a custom firmware build. Both Pages workflows build Studio and restore previously published versions through `scripts/prepare-config-studio-pages.mjs`, so older controllers continue to work. The archive is retained as `config-studio/archive.json.gz`; restoration failures stop deployment instead of silently deleting old builds. Keep the build input list in `scripts/config-studio-build-id.mjs` current when adding Studio dependencies.
+
+For local development, `npm run dev` loads Studio from the local source when opened. Run `npm run test:config` and `npm run test:studio` to check config compatibility, remote loading, offline caching, retries, and asset preservation.
 
 ---
 

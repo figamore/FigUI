@@ -41,7 +41,10 @@ jobs:
           sed -i "s/const CURRENT_VERSION = '[^']*'/const CURRENT_VERSION = '${{ github.event.inputs.version }}'/" src/lib/updateCheck.ts
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
+
+      - name: Test config compatibility and Studio loading
+        run: npm run test:config && npm run test:studio
 
       - name: Build ESP32 firmware
         run: npm run build:esp32
@@ -51,6 +54,12 @@ jobs:
 
       - name: Build demo
         run: npm run build:demo
+
+      - name: Build online Config Studio
+        run: npm run build:studio
+
+      - name: Preserve previous Config Studio builds
+        run: node scripts/prepare-config-studio-pages.mjs
 
       - name: Add firmware to Pages output
         run: mkdir -p dist/firmware && cp /tmp/index.html.gz dist/firmware/index.html.gz
@@ -62,15 +71,6 @@ jobs:
           git tag "v${{ github.event.inputs.version }}"
           git push origin "v${{ github.event.inputs.version }}"
 
-      - name: Create release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: "v${{ github.event.inputs.version }}"
-          name: "v${{ github.event.inputs.version }}"
-          files: /tmp/index.html.gz
-          body: ${{ toJSON(github.event.inputs.notes) }}
-          generate_release_notes: true
-
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
@@ -79,3 +79,12 @@ jobs:
       - name: Deploy Pages
         id: deploy-pages
         uses: actions/deploy-pages@v4
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "v${{ github.event.inputs.version }}"
+          name: "v${{ github.event.inputs.version }}"
+          files: /tmp/index.html.gz
+          body: ${{ toJSON(github.event.inputs.notes) }}
+          generate_release_notes: true
