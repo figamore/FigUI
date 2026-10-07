@@ -1927,12 +1927,12 @@ export function ConfigStudio({
     if (!content.trim()) onChange(contentFromNodes(nodes, content));
   }, []);
   useEffect(() => {
-    // Loads are memoized per firmware ref, so re-running when the version
-    // arrives (or changes on reconnect) only fetches when the ref differs.
+    // Successful loads are memoized per firmware ref; offline results can
+    // retry when the version changes or the studio is reopened.
     if (!isActive) return;
     let cancelled = false;
     loadFluidConfig(firmwareVersion).then((config) => {
-      if (!cancelled && config) setFluidConfig(config);
+      if (!cancelled) setFluidConfig(config);
     });
     return () => {
       cancelled = true;

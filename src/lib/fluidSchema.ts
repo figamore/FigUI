@@ -286,7 +286,24 @@ function parseConfig(text: string | null): FluidConfig | null {
   if (!text || text.length > MAX_CONFIG_ITEMS_BYTES) return null;
   try {
     const items = JSON.parse(text) as ConfigItems;
-    if (!items?.["axes.<letter>.motorN"] || !items.section_meta) return null;
+    const isObject = (value: unknown): value is Record<string, unknown> =>
+      value !== null && typeof value === "object" && !Array.isArray(value);
+    if (
+      !isObject(items) ||
+      !items["axes.<letter>.motorN"] ||
+      !isObject(items.section_meta)
+    )
+      return null;
+    for (const [key, section] of Object.entries(items))
+      if (!META_KEYS.has(key) && !isObject(section)) return null;
+    if (
+      items.pin_namespaces !== undefined &&
+      (!isObject(items.pin_namespaces) ||
+        Object.values(items.pin_namespaces).some(
+          (entry) => !isObject(entry) || typeof entry.pattern !== "string",
+        ))
+    )
+      return null;
     return { items, schema: buildFluidSchema(items) };
   } catch {
     return null;
@@ -363,7 +380,10 @@ export function loadFluidConfigStatus(
   const ref = configItemsRef(firmwareVersion);
   let request = pending.get(ref);
   if (!request) {
-    request = fetchConfig(ref);
+    request = fetchConfig(ref).then((result) => {
+      if (!result.online) pending.delete(ref);
+      return result;
+    });
     pending.set(ref, request);
   }
   return request;
