@@ -325,6 +325,7 @@ export function CodeEditor({
   const [searchTerm, setSearchTerm] = useState("");
   const [matchIndex, setMatchIndex] = useState(0);
   const [matchCount, setMatchCount] = useState(0);
+  const firmwareVersion = useMachineStore((s) => s.espInfo?.version);
   const [view, setView] = useState<"studio" | "code">(
     isYamlFile ? initialView : "code",
   );
@@ -849,6 +850,7 @@ export function CodeEditor({
               content={studioSource}
               onChange={handleStudioChange}
               isActive={view === "studio"}
+              firmwareVersion={firmwareVersion}
             />
           </div>
         )}

@@ -187,10 +187,23 @@ try {
   assert.equal(await fluidSchema.loadFluidConfig(ref), result.config);
   assert.equal(fetchCount, 1);
 
+  {
+    // Field-less sections (null_motor, NoSpindle, ...) are null in the real
+    // config_items.json and must not cause the whole file to be rejected.
+    const ref = nextRef();
+    fetchedText = JSON.stringify({ ...configItems, NoSpindle: null });
+    const withNull = await fluidSchema.loadFluidConfigStatus(ref);
+    assert.equal(withNull.online, true);
+    assert.ok(withNull.config.schema.properties.NoSpindle);
+  }
+
   const invalidItems = [null, [], {}, { ...configItems, section_meta: null }];
   for (const invalid of [null, [], "invalid", 1, true]) {
     for (const section of ["section_meta", "axes", "axes.<letter>.motorN"])
-      invalidItems.push({ ...configItems, [section]: invalid });
+      // A null section is valid (field-less types such as NoSpindle load
+      // that way); only the required metadata/motor blocks must be objects.
+      if (invalid !== null || section !== "axes")
+        invalidItems.push({ ...configItems, [section]: invalid });
     invalidItems.push({ ...configItems, pin_namespaces: invalid });
   }
   for (const entry of [

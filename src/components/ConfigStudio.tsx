@@ -23,7 +23,6 @@ import {
   type ConfigItem,
   type FluidConfig,
 } from "../lib/fluidSchema";
-import { useMachineStore } from "../store";
 
 type NodeKind =
   | "machine"
@@ -1829,10 +1828,13 @@ export function ConfigStudio({
   content,
   onChange,
   isActive = true,
+  firmwareVersion,
 }: {
   content: string;
   onChange: (yaml: string) => void;
   isActive?: boolean;
+  /** Connected firmware's espInfo.version; selects config_items.json's ref. */
+  firmwareVersion?: string | null;
 }) {
   const [nodes, setNodes] = useState<NodeData[]>(() => nodesFromYaml(content));
   const [selected, setSelected] = useState("machine");
@@ -1859,7 +1861,6 @@ export function ConfigStudio({
   const [propertyQuery, setPropertyQuery] = useState("");
   const [mutationError, setMutationError] = useState("");
   const [fluidConfig, setFluidConfig] = useState<FluidConfig | null>(null);
-  const firmwareVersion = useMachineStore((s) => s.espInfo?.version);
 
   useEffect(() => {
     setPropertyQuery("");
