@@ -2687,6 +2687,9 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
           progressRef.current,
           getLookaheadDistanceMm(status.feed),
           acceptedSegmentIndex,
+          // The controller executes just behind the last accepted line, so a
+          // relock prefers that pass of a repeated cell over an earlier one.
+          acceptedSegmentIndex >= 0 ? acceptedSegmentIndex : null,
         )
       } else {
         // On a fresh start the job may already be under way (the page was
