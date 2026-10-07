@@ -1028,7 +1028,7 @@ function findToolpathProgress(
   const allowedEndIndex = Math.min(maxSegmentIndex, segments.length - 1)
   if (segments.length === 0 || allowedEndIndex < 0) return null
 
-  const lockAnywhere = () => findNearbyProgress(
+  const lockAnywhere = (hint: number | null) => findNearbyProgress(
     segments,
     px,
     py,
@@ -1038,15 +1038,17 @@ function findToolpathProgress(
     INITIAL_LOCK_TOLERANCE_MM ** 2,
     null,
     false,
-    hintIndex,
+    hint,
   )
 
-  if (!previous) return lockAnywhere()
+  if (!previous) return lockAnywhere(hintIndex)
 
   // Lost for several reports (for example the preview was opened mid-job):
   // search the whole job again rather than only just ahead of a stale position.
+  // Without a job position hint, prefer matches near where the tool was last
+  // seen, so a repeated pass does not fall back to an earlier one.
   if ((previous.misses ?? 0) >= PROGRESS_RELOCK_MISSES) {
-    const relocked = lockAnywhere()
+    const relocked = lockAnywhere(hintIndex ?? previous.segmentIndex)
     if (relocked) return { ...relocked, misses: 0 }
   }
 
