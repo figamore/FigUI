@@ -501,7 +501,10 @@ export function CodeEditor({
   const handleSave = useCallback(
     async (force = false) => {
       if (isYamlFile && !force) {
-        const issues = await validateFluidConfigForSave(currentContent.current);
+        const issues = await validateFluidConfigForSave(
+          currentContent.current,
+          useMachineStore.getState().espInfo?.version,
+        );
         if (issues.length) {
           setValidationIssues(issues);
           return false;
