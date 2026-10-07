@@ -294,8 +294,7 @@ function parseConfig(text: string | null): FluidConfig | null {
       !isObject(items.section_meta)
     )
       return null;
-    // A section may be null: field-less types (null_motor, NoSpindle, some
-    // kinematics) load that way.
+    // Upstream represents sections without fields (e.g. null_motor) as null.
     for (const [key, section] of Object.entries(items))
       if (!META_KEYS.has(key) && section !== null && !isObject(section))
         return null;

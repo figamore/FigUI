@@ -16,6 +16,48 @@ async function loadModule(entryPoint) {
   return import(`data:text/javascript;base64,${source}`);
 }
 
+const configItems = {
+  "axes.<letter>.motorN": {},
+  "axes.<letter>.motorN.null_motor": null,
+  "kinematics.Cartesian": null,
+  NoSpindle: null,
+  section_meta: {
+    "axes.<letter>": { key_pattern: "[xyzabcuvw]" },
+    "axes.<letter>.motorN": { key_pattern: "motor[01]" },
+  },
+  axes: { idle_ms: { type: "integer", min: 0 } },
+  pin_namespaces: { pinext: { pattern: "pinext[0-9]\\.[0-9]+" } },
+};
+const cachePrefix = "fluidui.fluidnc-config-items.v2:";
+const cache = new Map();
+const browserGlobals = {
+  navigator: { onLine: true },
+  window: { setTimeout, clearTimeout },
+  document: {
+    documentElement: { classList: { add() {}, remove() {} } },
+  },
+  localStorage: {
+    getItem: (key) => cache.get(key) ?? null,
+    setItem: (key, value) => cache.set(key, value),
+    removeItem: (key) => cache.delete(key),
+  },
+  fetch: async () => {
+    fetchCount++;
+    if (fetchFails) throw new Error("Network unavailable");
+    return { ok: true, status: 200, text: async () => fetchedText };
+  },
+};
+let fetchedText = JSON.stringify(configItems);
+let fetchCount = 0;
+let fetchFails = false;
+let refIndex = 0;
+const nextRef = () => `v9.0.${++refIndex}`;
+const originalGlobals = new Map();
+for (const [key, value] of Object.entries(browserGlobals)) {
+  originalGlobals.set(key, Object.getOwnPropertyDescriptor(globalThis, key));
+  Object.defineProperty(globalThis, key, { configurable: true, value });
+}
+
 const validation = await loadModule("src/lib/configValidation.ts");
 const studio = await loadModule("src/components/ConfigStudio.tsx");
 
@@ -138,38 +180,6 @@ assert.ok(patchedCrlf?.includes("    STEPS_PER_MM: 81\r\n"));
 assert.equal(/(^|[^\r])\n/.test(patchedCrlf ?? ""), false);
 
 const fluidSchema = await loadModule("src/lib/fluidSchema.ts");
-const configItems = {
-  "axes.<letter>.motorN": {},
-  section_meta: {},
-  axes: { idle_ms: { type: "integer", min: 0 } },
-  pin_namespaces: { pinext: { pattern: "pinext[0-9]\\.[0-9]+" } },
-};
-const cachePrefix = "fluidui.fluidnc-config-items.v2:";
-const cache = new Map();
-const browserGlobals = {
-  navigator: { onLine: true },
-  window: { setTimeout, clearTimeout },
-  localStorage: {
-    getItem: (key) => cache.get(key) ?? null,
-    setItem: (key, value) => cache.set(key, value),
-    removeItem: (key) => cache.delete(key),
-  },
-  fetch: async () => {
-    fetchCount++;
-    if (fetchFails) throw new Error("Network unavailable");
-    return { ok: true, status: 200, text: async () => fetchedText };
-  },
-};
-let fetchedText = JSON.stringify(configItems);
-let fetchCount = 0;
-let fetchFails = false;
-let refIndex = 0;
-const nextRef = () => `v9.0.${++refIndex}`;
-const originalGlobals = new Map();
-for (const [key, value] of Object.entries(browserGlobals)) {
-  originalGlobals.set(key, Object.getOwnPropertyDescriptor(globalThis, key));
-  Object.defineProperty(globalThis, key, { configurable: true, value });
-}
 try {
   const ref = nextRef();
   const request = fluidSchema.loadFluidConfigStatus(ref);
@@ -186,6 +196,16 @@ try {
   assert.equal(await fluidSchema.loadFluidConfigStatus(ref), result);
   assert.equal(await fluidSchema.loadFluidConfig(ref), result.config);
   assert.equal(fetchCount, 1);
+  assert.deepEqual(
+    result.config.schema.properties.axes.patternProperties["^[xyzabcuvw]$"]
+      .patternProperties["^motor[01]$"].properties.null_motor.properties,
+    {},
+  );
+  assert.deepEqual(result.config.schema.properties.NoSpindle.properties, {});
+  assert.deepEqual(
+    result.config.schema.properties.kinematics.properties.Cartesian.properties,
+    {},
+  );
 
   {
     // Field-less sections (null_motor, NoSpindle, ...) are null in the real
@@ -199,11 +219,10 @@ try {
 
   const invalidItems = [null, [], {}, { ...configItems, section_meta: null }];
   for (const invalid of [null, [], "invalid", 1, true]) {
-    for (const section of ["section_meta", "axes", "axes.<letter>.motorN"])
-      // A null section is valid (field-less types such as NoSpindle load
-      // that way); only the required metadata/motor blocks must be objects.
-      if (invalid !== null || section !== "axes")
-        invalidItems.push({ ...configItems, [section]: invalid });
+    const sections = ["section_meta", "axes.<letter>.motorN"];
+    if (invalid !== null) sections.push("axes", "NoSpindle");
+    for (const section of sections)
+      invalidItems.push({ ...configItems, [section]: invalid });
     invalidItems.push({ ...configItems, pin_namespaces: invalid });
   }
   for (const entry of [
@@ -257,6 +276,94 @@ try {
     assert.equal(fetchCount, countBeforeRetry + 1);
     assert.equal(fluidSchema.loadFluidConfigStatus(ref), retry);
   }
+
+  fetchedText = JSON.stringify({
+    ...configItems,
+    "(top-level machine items)": {
+      name: { type: "string" },
+      meta: { type: "string" },
+    },
+    "axes.<letter>": { steps_per_mm: { type: "float" } },
+    "axes.<letter>.motorN.tmc_2209": {
+      shared_address_write_only: { type: "boolean" },
+    },
+    "axes.<letter>.motorN.tmc_2130": {
+      stallguard_seek: { type: "integer", min: 0, max: 255 },
+    },
+    "axes.<letter>.motorN.unipolar": { half_step: { type: "boolean" } },
+    section_meta: {
+      "axes.<letter>": { key_pattern: "[xyzabcuvw]" },
+      "axes.<letter>.motorN": { key_pattern: "motor[01]" },
+    },
+  });
+  const validationRef = nextRef();
+  for (const [driver, key, value, type] of [
+    ["tmc_2209", "shared_address_write_only", "true", "boolean"],
+    ["tmc_2209", "shared_address_write_only", "false", "boolean"],
+    ["unipolar", "half_step", "true", "boolean"],
+    ["tmc_2130", "stallguard_seek", "10", "number"],
+  ]) {
+    const source = `name: Repro
+axes:
+  x:
+    steps_per_mm: 80
+    motor0:
+      ${driver}:
+        step_pin: gpio.1
+        direction_pin: gpio.2
+`;
+    const path = `axes.x.motor0.${driver}.${key}`;
+    const patched = studio.patchYamlValue(source, path, value, type);
+    assert.ok(patched);
+    assert.equal(
+      studio.yamlEntries(patched).find((entry) => entry.path === path)?.value,
+      value,
+    );
+    assert.deepEqual(
+      await validation.validateFluidConfigForSave(patched, validationRef),
+      [],
+    );
+    const previouslyQuoted = patched.replace(
+      `${key}: ${value}`,
+      `${key}: "${value}"`,
+    );
+    assert.equal(
+      studio.patchYamlValue(previouslyQuoted, path, value, type),
+      patched,
+    );
+  }
+  assert.equal(
+    studio.formatYamlScalar(
+      "001",
+      "1",
+      "axes.x.motor0.tmc_2130.custom",
+      "text",
+    ),
+    '"001"',
+  );
+  assert.equal(
+    studio.formatYamlScalar(
+      "true",
+      "false",
+      "axes.x.motor0.tmc_2209.custom",
+      "text",
+    ),
+    '"true"',
+  );
+  assert.ok(
+    (await validation.validateFluidConfigForSave(
+      "meta:\n  nested: value\naxes:\n  x:\n    steps_per_mm: 80\n",
+      validationRef,
+    )).some((issue) => issue.path === "meta" && /must be/.test(issue.message)),
+  );
+  for (const value of ["2022-03-15", "hello", "123", "true", "null"])
+    assert.deepEqual(
+      await validation.validateFluidConfigForSave(
+        `meta: ${value}\naxes:\n  x:\n    steps_per_mm: 80\n`,
+        validationRef,
+      ),
+      [],
+    );
 } finally {
   for (const [key, descriptor] of originalGlobals) {
     if (descriptor) Object.defineProperty(globalThis, key, descriptor);
