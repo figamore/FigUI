@@ -137,6 +137,120 @@ const patchedCrlf = studio.patchYamlValue(crlf, "axes.x.steps_per_mm", "81");
 assert.ok(patchedCrlf?.includes("    STEPS_PER_MM: 81\r\n"));
 assert.equal(/(^|[^\r])\n/.test(patchedCrlf ?? ""), false);
 
+const fluidSchema = await loadModule("src/lib/fluidSchema.ts");
+const configItems = {
+  "axes.<letter>.motorN": {},
+  section_meta: {},
+  axes: { idle_ms: { type: "integer", min: 0 } },
+  pin_namespaces: { pinext: { pattern: "pinext[0-9]\\.[0-9]+" } },
+};
+const cachePrefix = "fluidui.fluidnc-config-items.v2:";
+const cache = new Map();
+const browserGlobals = {
+  navigator: { onLine: true },
+  window: { setTimeout, clearTimeout },
+  localStorage: {
+    getItem: (key) => cache.get(key) ?? null,
+    setItem: (key, value) => cache.set(key, value),
+    removeItem: (key) => cache.delete(key),
+  },
+  fetch: async () => {
+    fetchCount++;
+    if (fetchFails) throw new Error("Network unavailable");
+    return { ok: true, status: 200, text: async () => fetchedText };
+  },
+};
+let fetchedText = JSON.stringify(configItems);
+let fetchCount = 0;
+let fetchFails = false;
+let refIndex = 0;
+const nextRef = () => `v9.0.${++refIndex}`;
+const originalGlobals = new Map();
+for (const [key, value] of Object.entries(browserGlobals)) {
+  originalGlobals.set(key, Object.getOwnPropertyDescriptor(globalThis, key));
+  Object.defineProperty(globalThis, key, { configurable: true, value });
+}
+try {
+  const ref = nextRef();
+  const request = fluidSchema.loadFluidConfigStatus(ref);
+  assert.equal(fluidSchema.loadFluidConfigStatus(ref), request);
+  const result = await request;
+  assert.equal(result.online, true);
+  assert.deepEqual(result.config.items, configItems);
+  assert.equal(
+    result.config.schema.properties.axes.properties.idle_ms.minimum,
+    0,
+  );
+  assert.ok(result.config.schema.$defs.pinAny.pattern.includes("pinext[0-9]"));
+  assert.equal(fluidSchema.loadFluidConfigStatus(ref), request);
+  assert.equal(await fluidSchema.loadFluidConfigStatus(ref), result);
+  assert.equal(await fluidSchema.loadFluidConfig(ref), result.config);
+  assert.equal(fetchCount, 1);
+
+  const invalidItems = [null, [], {}, { ...configItems, section_meta: null }];
+  for (const invalid of [null, [], "invalid", 1, true]) {
+    for (const section of ["section_meta", "axes", "axes.<letter>.motorN"])
+      invalidItems.push({ ...configItems, [section]: invalid });
+    invalidItems.push({ ...configItems, pin_namespaces: invalid });
+  }
+  for (const entry of [
+    null,
+    [],
+    "invalid",
+    {},
+    { pattern: null },
+    { pattern: 1 },
+  ])
+    invalidItems.push({ ...configItems, pin_namespaces: { pinext: entry } });
+  for (const invalid of invalidItems) {
+    const ref = nextRef();
+    fetchedText = JSON.stringify(invalid);
+    assert.deepEqual(await fluidSchema.loadFluidConfigStatus(ref), {
+      config: null,
+      online: false,
+    });
+    assert.equal(cache.has(cachePrefix + ref), false);
+    cache.set(cachePrefix + ref, fetchedText);
+    browserGlobals.navigator.onLine = false;
+    assert.deepEqual(await fluidSchema.loadFluidConfigStatus(ref), {
+      config: null,
+      online: false,
+    });
+    browserGlobals.navigator.onLine = true;
+  }
+
+  fetchedText = JSON.stringify(configItems);
+  for (const mode of ["offline", "cached offline", "network failure"]) {
+    const ref = nextRef();
+    if (mode !== "offline") cache.set(cachePrefix + ref, fetchedText);
+    browserGlobals.navigator.onLine = mode === "network failure";
+    fetchFails = mode === "network failure";
+    const request = fluidSchema.loadFluidConfigStatus(ref);
+    assert.equal(fluidSchema.loadFluidConfigStatus(ref), request);
+    const fallback = await request;
+    assert.equal(fallback.online, false);
+    assert.deepEqual(
+      fallback.config?.items ?? null,
+      mode === "offline" ? null : configItems,
+    );
+    browserGlobals.navigator.onLine = true;
+    fetchFails = false;
+    const countBeforeRetry = fetchCount;
+    const retry = fluidSchema.loadFluidConfigStatus(ref);
+    assert.notEqual(retry, request);
+    const result = await retry;
+    assert.equal(result.online, true);
+    assert.deepEqual(result.config.items, configItems);
+    assert.equal(fetchCount, countBeforeRetry + 1);
+    assert.equal(fluidSchema.loadFluidConfigStatus(ref), retry);
+  }
+} finally {
+  for (const [key, descriptor] of originalGlobals) {
+    if (descriptor) Object.defineProperty(globalThis, key, descriptor);
+    else delete globalThis[key];
+  }
+}
+
 console.log("Config compatibility tests passed.");
 
 for (const filename of process.argv.slice(2)) {

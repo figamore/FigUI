@@ -1,4 +1,4 @@
-import { loadFluidSchemaStatus, type FluidSchema } from "./fluidSchema";
+import { loadFluidConfigStatus, type FluidSchema } from "./fluidSchema";
 
 export type ConfigIssue = {
   severity: "error" | "warning";
@@ -475,13 +475,15 @@ function validateAgainstSchema(
 /** Uses the downloaded upstream schema when online, with local checks offline. */
 export async function validateFluidConfigForSave(
   source: string,
+  firmwareVersion?: string | null,
 ): Promise<ConfigIssue[]> {
   const localIssues = validateFluidConfig(source);
   if (localIssues.some((issue) => issue.severity === "error"))
     return localIssues;
 
-  const { schema, online } = await loadFluidSchemaStatus();
-  if (!online || !schema) return localIssues;
+  const { config, online } = await loadFluidConfigStatus(firmwareVersion);
+  if (!online || !config) return localIssues;
+  const { schema } = config;
 
   const scalarTokens = new Map<string, string>();
   const parsed = parseBlockYaml(source, scalarTokens);

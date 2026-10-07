@@ -18,10 +18,12 @@ import {
   Zap,
 } from "lucide-react";
 import {
-  loadFluidSchema,
-  type FluidSchema,
-  type SchemaNode,
+  loadFluidConfig,
+  MOTOR_DRIVER_PREFIX,
+  type ConfigItem,
+  type FluidConfig,
 } from "../lib/fluidSchema";
+import { useMachineStore } from "../store";
 
 type NodeKind =
   | "machine"
@@ -737,43 +739,40 @@ const DRIVER_FIELDS_BY_TYPE: Partial<Record<string, readonly string[]>> = {
   null_motor: ["type"],
 };
 
-function schemaRef(node: SchemaNode): string {
-  return node.$ref ?? node.allOf?.find((entry) => entry.$ref)?.$ref ?? "";
-}
+const AXIS_OPTIONS = ["x", "y", "z", "a", "b", "c", "u", "v", "w"];
 
-function driverFieldsFromSchema(
-  schema: FluidSchema | null,
+function driverFieldsFromConfig(
+  config: FluidConfig | null,
   driverType: string,
 ): FieldDef[] | null {
-  const defs = schema?.$defs;
-  const motorProperties = defs?.motorBlock?.properties;
-  if (!defs || !motorProperties) return null;
-  const driverKey = Object.keys(motorProperties).find(
+  if (!config) return null;
+  const driverOptions = Object.keys(config.items)
+    .filter((key) => key.startsWith(MOTOR_DRIVER_PREFIX))
+    .map((key) => key.slice(MOTOR_DRIVER_PREFIX.length));
+  const driverKey = driverOptions.find(
     (key) => key.toLowerCase() === driverType.toLowerCase(),
   );
   if (!driverKey) return null;
-  const definitionName = schemaRef(motorProperties[driverKey]).split("/").pop();
-  const properties = definitionName ? defs[definitionName]?.properties : null;
-  if (!properties) return null;
+  const items = config.items[MOTOR_DRIVER_PREFIX + driverKey] as Record<
+    string,
+    ConfigItem
+  > | null;
 
-  const driverOptions = Object.entries(motorProperties)
-    .filter(([, node]) => schemaRef(node).includes("/$defs/motor_"))
-    .map(([key]) => key);
   const typeField = FIELDS.driver.find((field) => field.key === "type")!;
   return [
     { ...typeField, options: driverOptions },
-    ...Object.entries(properties).map(([key, property]) => {
+    ...Object.entries(items ?? {}).map(([key, item]) => {
       const known = FIELDS.driver.find((field) => field.key === key);
-      const ref = schemaRef(property);
-      const type: FieldDef["type"] = ref.endsWith("/pinAny")
-        ? "pin"
-        : ref.endsWith("/boolean")
-          ? "boolean"
-          : property.enum
-            ? "select"
-            : property.type === "number" || property.type === "integer"
-              ? "number"
-              : "text";
+      const type: FieldDef["type"] =
+        item.type === "pin"
+          ? "pin"
+          : item.type === "boolean"
+            ? "boolean"
+            : item.type === "enum" || item.type === "axis"
+              ? "select"
+              : item.type === "integer" || item.type === "float"
+                ? "number"
+                : "text";
       return {
         ...known,
         key,
@@ -784,10 +783,14 @@ function driverFieldsFromSchema(
             .replace(/_/g, " ")
             .replace(/^./, (letter) => letter.toUpperCase()),
         type,
-        options: property.enum?.map(String) ?? known?.options,
-        min: property.minimum,
-        max: property.maximum,
-        description: property.description,
+        options:
+          item.type === "axis"
+            ? AXIS_OPTIONS
+            : (item.values?.map(String) ?? known?.options),
+        unit: known?.unit ?? item.unit,
+        min: item.min,
+        max: item.max,
+        description: item.description?.trim(),
       };
     }),
   ];
@@ -1855,7 +1858,8 @@ export function ConfigStudio({
   const redoRef = useRef<{ nodes: NodeData[]; source: string }[]>([]);
   const [propertyQuery, setPropertyQuery] = useState("");
   const [mutationError, setMutationError] = useState("");
-  const [fluidSchema, setFluidSchema] = useState<FluidSchema | null>(null);
+  const [fluidConfig, setFluidConfig] = useState<FluidConfig | null>(null);
+  const firmwareVersion = useMachineStore((s) => s.espInfo?.version);
 
   useEffect(() => {
     setPropertyQuery("");
@@ -1864,7 +1868,7 @@ export function ConfigStudio({
   const active = nodes.find((n) => n.id === selected);
   const knownPropertyFields = active
     ? active.kind === "driver"
-      ? (driverFieldsFromSchema(fluidSchema, active.fields.type) ??
+      ? (driverFieldsFromConfig(fluidConfig, active.fields.type) ??
         (DRIVER_FIELDS_BY_TYPE[active.fields.type.toLowerCase()]
           ? FIELDS.driver.filter((field) =>
               DRIVER_FIELDS_BY_TYPE[active.fields.type.toLowerCase()]?.includes(
@@ -1923,15 +1927,17 @@ export function ConfigStudio({
     if (!content.trim()) onChange(contentFromNodes(nodes, content));
   }, []);
   useEffect(() => {
-    if (!isActive || fluidSchema) return;
+    // Successful loads are memoized per firmware ref; offline results can
+    // retry when the version changes or the studio is reopened.
+    if (!isActive) return;
     let cancelled = false;
-    loadFluidSchema().then((schema) => {
-      if (!cancelled && schema) setFluidSchema(schema);
+    loadFluidConfig(firmwareVersion).then((config) => {
+      if (!cancelled) setFluidConfig(config);
     });
     return () => {
       cancelled = true;
     };
-  }, [isActive, fluidSchema]);
+  }, [isActive, firmwareVersion]);
   useEffect(() => {
     if (!palette) return;
     const close = (e: PointerEvent) => {
