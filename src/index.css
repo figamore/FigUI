@@ -763,6 +763,130 @@ textarea {
     color: var(--accent);
   }
 
+  /* Tablet jog pad: size cluster to the largest 4:3 rect that fits the area */
+  .jog-controls-area {
+    container-type: size;
+  }
+
+  .jog-cluster {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    aspect-ratio: 4 / 3;
+    width: auto;
+    max-width: 100%;
+    flex-shrink: 0;
+    height: 100%;
+    max-height: 100%;
+    user-select: none;
+    -webkit-touch-callout: none;
+    touch-action: none;
+  }
+
+  @supports (height: 1cqh) {
+    .jog-cluster {
+      height: min(100cqh, 75cqw);
+      max-height: 100cqh;
+    }
+  }
+
+  .jog-cluster--default {
+    gap: 0.375rem;
+  }
+
+  @media (orientation: portrait) {
+    .jog-cluster--default {
+      gap: 0.625rem;
+    }
+  }
+
+  @media (min-width: 640px) and (orientation: landscape) {
+    .jog-cluster--default {
+      gap: 0.75rem;
+    }
+  }
+
+  .jog-cluster--top-band {
+    gap: 0.25rem;
+  }
+
+  .jog-cluster-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    background: var(--elevated);
+    border: 1px solid var(--border);
+    border-radius: 0.75rem;
+    font-weight: 700;
+    font-size: 1.125rem;
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    transition: transform 100ms;
+    touch-action: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  @supports (width: 1cqmin) {
+    .jog-cluster-btn {
+      font-size: clamp(0.75rem, 11cqmin, 1.875rem);
+    }
+  }
+
+  .jog-cluster-btn:active {
+    transform: scale(0.95);
+    box-shadow: inset 0 2px 4px 0 rgb(0 0 0 / 0.05);
+  }
+
+  .jog-cluster--top-band .jog-cluster-btn {
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+  }
+
+  @supports (width: 1cqmin) {
+    .jog-cluster--top-band .jog-cluster-btn {
+      font-size: clamp(0.6875rem, 10cqmin, 1rem);
+    }
+  }
+
+  .jog-cluster-stop {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 0.75rem;
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    transition: transform 100ms;
+    touch-action: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .jog-cluster-stop:active {
+    transform: scale(0.95);
+  }
+
+  .jog-cluster--top-band .jog-cluster-stop {
+    border-radius: 0.5rem;
+  }
+
+  .jog-cluster-stop-icon {
+    width: 1.75rem;
+    height: 1.75rem;
+    color: var(--danger);
+    fill: currentColor;
+  }
+
+  @supports (width: 1cqmin) {
+    .jog-cluster-stop-icon {
+      width: clamp(1.25rem, 14cqmin, 2.5rem);
+      height: clamp(1.25rem, 14cqmin, 2.5rem);
+    }
+  }
+
   .step-btn {
     padding: 3px 10px;
     font-size: 12px;

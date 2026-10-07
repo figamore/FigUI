@@ -237,11 +237,12 @@ export function DRO({
   }
 
   return (
-    <div className={`panel flex flex-col ${topBandLayout ? 'h-full min-h-0 overflow-hidden' : ''}`}>
+    <div className={`panel flex flex-col ${topBandLayout ? 'h-full' : ''}`}>
       <div className={`panel-header justify-between shrink-0 ${tightLayout ? 'flex-wrap gap-y-1 py-1.5' : ''}`}>
         <span className={`font-bold ${tightLayout ? 'text-base' : 'text-lg'}`}>Position</span>
-        <div className={`flex items-center gap-1 ${tightLayout ? 'flex-wrap justify-end' : 'gap-1.5'}`}>
-          <div className="flex items-center gap-0.5 bg-elevated rounded-sm border border-border p-0.5">
+        <div className={`flex items-center ${tightLayout ? 'flex-wrap justify-end' : ''}`}>
+          <div className={`grid grid-cols-2 items-stretch shrink-0 ${tightLayout ? 'gap-1 w-[13.5rem]' : 'gap-1.5 w-[14.5rem]'}`}>
+          <div className="flex min-w-0 overflow-hidden items-stretch gap-0.5 bg-elevated rounded-sm border border-border p-0.5">
             {(['WPos', 'MPos'] as const).map(m => {
               const active = positionMode === m || positionMode === 'Both'
               return (
@@ -256,8 +257,8 @@ export function DRO({
                       setPositionMode(positionMode === 'Both' ? 'WPos' : 'Both')
                     }
                   }}
-                  className={`${tightLayout ? 'px-1.5 py-0.5 text-sm' : 'px-2.5 py-0.5 text-base'} rounded-sm transition-colors ${active
-                    ? 'bg-surface border border-border text-text-primary shadow-sm'
+                  className={`min-w-0 flex-1 text-center whitespace-nowrap rounded-sm transition-colors ${tightLayout ? 'px-1 py-0.5 text-sm' : 'px-2 py-0.5 text-base'} ${active
+                    ? 'bg-surface text-text-primary'
                     : 'text-text-muted hover:text-text-primary'
                   }`}
                 >
@@ -269,7 +270,7 @@ export function DRO({
           <div ref={workOriginRef} className="relative">
             <button
               onClick={() => setWorkOriginOpen(open => !open)}
-              className={`flex items-center gap-1 ${tightLayout ? 'px-1.5 py-0.5 text-sm' : 'px-2.5 py-1 text-base'} rounded-sm border transition-colors ${
+              className={`flex h-full w-full items-center justify-center gap-1 whitespace-nowrap ${tightLayout ? 'px-1.5 py-0.5 text-sm' : 'px-2.5 py-0.5 text-base'} rounded-sm border transition-colors ${
                 workOriginOpen
                   ? 'bg-accent/10 border-accent/50 text-accent'
                   : 'bg-elevated border-border text-text-primary hover:border-border-strong'
@@ -307,6 +308,7 @@ export function DRO({
                 })}
               </div>
             )}
+          </div>
           </div>
         </div>
       </div>
@@ -479,26 +481,34 @@ export function DRO({
       </div>
 
       {status.state === 'Alarm' && (
-        <div className='flex flex-col border-t-2 border-danger bg-danger/10 px-3 py-3 gap-3'>
-          <div className="flex items-center gap-3">
-            <TriangleAlert className="text-danger w-12 h-12" />
-            <div className="flex flex-col gap-2 flex-1 min-w-0">
-              <div className="flex flex-col gap-1 min-w-0">
-                <span className="text-2xl font-black text-danger uppercase tracking-widest leading-none">
-                  Alarm
-                </span>
-
-                <span className="text-2xl font-semibold text-text-primary leading-snug">
-                  {status.alarmName
-                    ?? (status.alarmCode != null
-                      ? (ALARM_MESSAGES[status.alarmCode] ?? `Unknown alarm code ${status.alarmCode}`)
-                      : 'Machine is in alarm state')}
-                </span>
-              </div>
+        <div className={`flex flex-col border-t border-danger bg-danger/10 px-3 shrink-0 ${
+          topBandLayout ? 'py-1.5 gap-1.5' : 'py-2 gap-2'
+        }`}>
+          <div className={`flex items-start ${topBandLayout ? 'gap-2' : 'gap-2.5'}`}>
+            <TriangleAlert
+              className="text-danger shrink-0"
+              size={topBandLayout ? 16 : isTablet ? 20 : 18}
+            />
+            <div className="flex flex-col gap-0.5 flex-1 min-w-0">
+              <span className={`font-bold text-danger uppercase tracking-wide leading-none ${
+                topBandLayout ? 'text-xs' : isTablet ? 'text-sm' : 'text-sm'
+              }`}>
+                Alarm
+              </span>
+              <span className={`text-text-primary leading-snug ${
+                topBandLayout ? 'text-xs' : isTablet ? 'text-sm' : 'text-sm'
+              }`}>
+                {status.alarmName
+                  ?? (status.alarmCode != null
+                    ? (ALARM_MESSAGES[status.alarmCode] ?? `Unknown alarm code ${status.alarmCode}`)
+                    : 'Machine is in alarm state')}
+              </span>
             </div>
           </div>
           <button
-            className="btn btn-danger w-full h-8 text-2xl font-bold"
+            className={`btn btn-danger w-full font-bold ${
+              topBandLayout ? 'h-7 text-xs' : isTablet ? 'h-8 text-sm' : 'h-7 text-sm'
+            }`}
             onClick={() => clearMachineAlarm(status.alarmCode)}
           >
             Clear Alarm
