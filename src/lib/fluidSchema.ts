@@ -222,7 +222,7 @@ export function buildFluidSchema(items: ConfigItems): FluidSchema {
     // `meta` is loose on purpose: real configs put a bare date there.
     props[name] =
       name === "meta"
-        ? { not: { type: ["object", "array"] } }
+        ? { type: ["string", "number", "boolean", "null"] }
         : fieldSchema(field);
 
   const nested: Record<string, SchemaNode> = { axes, kinematics, extenders };
