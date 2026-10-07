@@ -12,6 +12,20 @@ const height = Number(heightArg)
 const interval = Number(intervalArg)
 const run = Number(runArg)
 
+// Check before opening (and truncating) the output file: a zero interval or
+// run would never finish and fill the disk.
+for (const [name, value, raw] of [
+  ['widthMm', width, widthArg],
+  ['heightMm', height, heightArg],
+  ['lineIntervalMm', interval, intervalArg],
+  ['runMm', run, runArg],
+]) {
+  if (!Number.isFinite(value) || value <= 0) {
+    console.error(`${name} must be a positive number, got "${raw}".`)
+    process.exit(1)
+  }
+}
+
 const stream = createWriteStream(out)
 let buffered = []
 let lines = 0
