@@ -89,6 +89,8 @@ let finishing = false
 let wakeLock: { release: () => Promise<void> } | null = null
 
 function stripComments(raw: string) {
+  // Most lines of large generated files carry no comment at all.
+  if (raw.indexOf('(') < 0 && raw.indexOf(';') < 0) return raw.trim()
   let result = ''
   let depth = 0
   for (const char of raw) {
@@ -102,8 +104,10 @@ function stripComments(raw: string) {
 
 function classifyBlock(executable: string): { barrier: StreamBarrier; hasMotion: boolean } {
   const codes = new Set<number>()
-  const mWords = executable.matchAll(/M\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+))/gi)
-  for (const match of mWords) codes.add(Number(match[1]))
+  if (/m/i.test(executable)) {
+    const mWords = executable.matchAll(/M\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+))/gi)
+    for (const match of mWords) codes.add(Number(match[1]))
+  }
   const barrier: StreamBarrier = codes.has(2) || codes.has(30)
     ? 'end'
     : codes.has(0)
@@ -115,6 +119,27 @@ function classifyBlock(executable: string): { barrier: StreamBarrier; hasMotion:
   const hasMotion = /G\s*0*[0123](?:\.0*)?(?=[A-Z\s]|$)/i.test(executable)
     || /[XYZABC]\s*[+-]?(?:\d|\.)/i.test(executable)
   return { barrier, hasMotion }
+}
+
+/** UTF-8 byte length, without allocating an encoded copy of every line. */
+function utf8ByteLength(text: string) {
+  let bytes = text.length
+  for (let index = 0; index < text.length; index++) {
+    const code = text.charCodeAt(index)
+    if (code < 0x80) continue
+    if (code < 0x800) {
+      bytes += 1
+      continue
+    }
+    bytes += 2
+    // A surrogate pair is two UTF-16 units and four UTF-8 bytes; a lone
+    // surrogate is encoded as the three-byte replacement character.
+    if (code >= 0xd800 && code <= 0xdbff) {
+      const next = text.charCodeAt(index + 1)
+      if (next >= 0xdc00 && next <= 0xdfff) index++
+    }
+  }
+  return bytes
 }
 
 export function buildStreamBlocks(text: string): {
@@ -136,14 +161,15 @@ export function buildStreamBlocks(text: string): {
       return
     }
     const command = raw.trim()
-    const classification = classifyBlock(executable)
+    const { barrier, hasMotion } = classifyBlock(executable)
     streamBlocks.push({
       command,
       sourceLine: index + 1,
-      wireBytes: new TextEncoder().encode(command).byteLength + 1,
-      ...classification,
+      wireBytes: utf8ByteLength(command) + 1,
+      barrier,
+      hasMotion,
     })
-    if (classification.barrier === 'end') endSeen = true
+    if (barrier === 'end') endSeen = true
   })
   return { blocks: streamBlocks, totalSourceLines: Math.max(1, lines.length), ignoredAfterEnd }
 }

@@ -229,6 +229,7 @@ function bindLineBuffers(
   renderer: WebGLRenderer,
   positionBuffer: WebGLBuffer,
   colorBuffer: WebGLBuffer,
+  byteColors = false,
 ) {
   const { gl } = renderer
 
@@ -238,13 +239,15 @@ function bindLineBuffers(
 
   gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer)
   gl.enableVertexAttribArray(renderer.colorLocation)
-  gl.vertexAttribPointer(renderer.colorLocation, 4, gl.FLOAT, false, 0, 0)
+  if (byteColors) gl.vertexAttribPointer(renderer.colorLocation, 4, gl.UNSIGNED_BYTE, true, 0, 0)
+  else gl.vertexAttribPointer(renderer.colorLocation, 4, gl.FLOAT, false, 0, 0)
 }
 
+/** Uploads the toolpath once; `colors` holds four normalized bytes (RGBA) per vertex. */
 export function setStaticLineData(
   renderer: WebGLRenderer,
   vertices: Float32Array,
-  colors: Float32Array,
+  colors: Uint8Array,
 ) {
   const { gl } = renderer
 
@@ -281,7 +284,7 @@ export function renderLines(
   gl.uniformMatrix4fv(renderer.viewMatrixLocation, false, viewMatrix.elements)
 
   if (renderer.staticVertexCount > 0) {
-    bindLineBuffers(renderer, renderer.staticPositionBuffer, renderer.staticColorBuffer)
+    bindLineBuffers(renderer, renderer.staticPositionBuffer, renderer.staticColorBuffer, true)
     gl.lineWidth(1)
     gl.drawArrays(gl.LINES, 0, renderer.staticVertexCount)
   }

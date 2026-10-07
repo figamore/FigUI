@@ -228,7 +228,8 @@ const TIPS: Tip[] = [
         On jobs over 100,000 segments, the toolpath completion overlay (green
         "done" trail) is automatically disabled while running. This avoids
         flooding FluidNC with position queries — the toolhead marker still
-        tracks position normally.
+        tracks position normally, and Program Execution still follows the
+        executing line.
       </>
     ),
   },

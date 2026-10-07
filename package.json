@@ -9,7 +9,8 @@
     "build:esp32": "node scripts/generate-icons.mjs && tsc && node scripts/build-esp32.mjs",
     "build:demo": "node scripts/generate-icons.mjs && tsc && vite build --mode demo",
     "test:config": "node scripts/test-config-compatibility.mjs",
-    "test:stream": "esbuild scripts/test-gcode-stream.ts --bundle --platform=node --format=esm --outfile=/tmp/fluidui-test-gcode-stream.mjs && node /tmp/fluidui-test-gcode-stream.mjs",
+    "test:gcode": "esbuild scripts/test-gcode-preview.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/figui-test-gcode-preview.mjs && node node_modules/.cache/figui-test-gcode-preview.mjs",
+    "test:stream":"esbuild scripts/test-gcode-stream.ts --bundle --platform=node --format=esm --outfile=/tmp/fluidui-test-gcode-stream.mjs && node /tmp/fluidui-test-gcode-stream.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

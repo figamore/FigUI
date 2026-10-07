@@ -1,5 +1,7 @@
 /** Lightweight G-code parser – extracts toolpath segments for 2D visualisation. */
 
+export type MoveType = 'rapid' | 'feed' | 'traverse'
+
 export interface Segment {
   x0: number; y0: number; z0: number
   x1: number; y1: number; z1: number
@@ -10,7 +12,7 @@ export interface Segment {
    * G1/G2/G3 while spindle is on (or no spindle machine) = 'feed'
    * G1/G2/G3 while spindle is off on a spindle machine = 'traverse'
    */
-  moveType: 'rapid' | 'feed' | 'traverse'
+  moveType: MoveType
   feedMmPerMin?: number
   /** G93 inverse-time duration for this move, before the feed override. */
   inverseTimeSeconds?: number
@@ -32,7 +34,7 @@ export interface GCodeTool {
 }
 
 export interface GCodeModel {
-  segments: Segment[]
+  segments: SegmentTable
   tools?: GCodeTool[]
   bounds: { minX: number; minY: number; minZ: number; maxX: number; maxY: number; maxZ: number }
   totalLines: number
@@ -56,6 +58,127 @@ export interface ParseGCodeOptions {
   activeWcs?: WorkCoordinateSystem
   currentWco?: WorkOffset
   workOffsets?: Partial<Record<WorkCoordinateSystem, WorkOffset>>
+}
+
+export const MOVE_FEED = 0
+export const MOVE_RAPID = 1
+export const MOVE_TRAVERSE = 2
+const MOVE_TYPES: readonly MoveType[] = ['feed', 'rapid', 'traverse']
+
+const FLAG_MOVE_MASK = 0b11
+const FLAG_ARC = 1 << 2
+const FLAG_CW = 1 << 3
+const FLAG_PLANE_SHIFT = 4
+const FLAG_PLANE_MASK = 0b11 << FLAG_PLANE_SHIFT
+const FLAG_TIMING_UNKNOWN = 1 << 6
+const FLAG_INVERSE_TIME = 1 << 7
+const ARC_PLANES = [17, 18, 19] as const
+
+/** Stored in `SegmentTable.tools` for moves made before any tool was selected. */
+export const NO_TOOL = -0x80000000
+
+/**
+ * Parsed motion stored as typed arrays. Laser raster jobs routinely contain
+ * millions of moves, and one JS object per move exhausts the browser's memory.
+ *
+ * Every move starts where the previous one ended, so the moves form a single
+ * chain of points: move `i` runs from point `i` to point `i + 1`.
+ */
+export class SegmentTable {
+  constructor(
+    readonly length: number,
+    readonly px: Float64Array,
+    readonly py: Float64Array,
+    readonly pz: Float64Array,
+    readonly sourceLines: Uint32Array,
+    readonly flags: Uint8Array,
+    /** mm/min, or G93 seconds when the inverse-time flag is set; 0 when unknown. */
+    readonly feeds: Float32Array,
+    readonly tools: Int32Array,
+    /** Index into `arcOffsets` (three values per arc), or -1 for straight moves. */
+    readonly arcIndex: Int32Array,
+    readonly arcOffsets: Float64Array,
+    readonly hasTools: boolean,
+  ) {}
+
+  moveCode(index: number) {
+    return this.flags[index] & FLAG_MOVE_MASK
+  }
+
+  moveType(index: number): MoveType {
+    return MOVE_TYPES[this.flags[index] & FLAG_MOVE_MASK]
+  }
+
+  isArc(index: number) {
+    return (this.flags[index] & FLAG_ARC) !== 0
+  }
+
+  tool(index: number): number | undefined {
+    const tool = this.tools[index]
+    return tool === NO_TOOL ? undefined : tool
+  }
+
+  sourceLine(index: number) {
+    return this.sourceLines[index]
+  }
+
+  /** Same as `get(index).timingUnknown` without building the object. */
+  timingUnknown(index: number) {
+    return (this.flags[index] & FLAG_TIMING_UNKNOWN) !== 0
+  }
+
+  /** Same as `get(index).inverseTimeSeconds` without building the object. */
+  inverseTimeSeconds(index: number): number | undefined {
+    const flags = this.flags[index]
+    return (flags & FLAG_MOVE_MASK) !== MOVE_RAPID && (flags & (FLAG_INVERSE_TIME | FLAG_TIMING_UNKNOWN)) === FLAG_INVERSE_TIME
+      ? this.feeds[index]
+      : undefined
+  }
+
+  /** Same as `get(index).feedMmPerMin` without building the object. */
+  feedMmPerMin(index: number): number | undefined {
+    const flags = this.flags[index]
+    return (flags & FLAG_MOVE_MASK) !== MOVE_RAPID && (flags & (FLAG_INVERSE_TIME | FLAG_TIMING_UNKNOWN)) === 0 && this.feeds[index] > 0
+      ? this.feeds[index]
+      : undefined
+  }
+
+  /** Builds one move as a plain object. Avoid calling it for every move of a large job. */
+  get(index: number): Segment {
+    const flags = this.flags[index]
+    const moveCode = flags & FLAG_MOVE_MASK
+    const seg: Segment = {
+      x0: this.px[index], y0: this.py[index], z0: this.pz[index],
+      x1: this.px[index + 1], y1: this.py[index + 1], z1: this.pz[index + 1],
+      moveType: MOVE_TYPES[moveCode],
+      sourceLine: this.sourceLines[index],
+    }
+    if (flags & FLAG_ARC) {
+      const arc = this.arcIndex[index] * 3
+      seg.i = this.arcOffsets[arc]
+      seg.j = this.arcOffsets[arc + 1]
+      seg.k = this.arcOffsets[arc + 2]
+      seg.cw = (flags & FLAG_CW) !== 0
+      const plane = ARC_PLANES[(flags & FLAG_PLANE_MASK) >> FLAG_PLANE_SHIFT]
+      if (plane !== 17) seg.arcPlane = plane
+    }
+    if (moveCode !== MOVE_RAPID) {
+      if (flags & FLAG_TIMING_UNKNOWN) seg.timingUnknown = true
+      else if (flags & FLAG_INVERSE_TIME) seg.inverseTimeSeconds = this.feeds[index]
+      else if (this.feeds[index] > 0) seg.feedMmPerMin = this.feeds[index]
+    }
+    const tool = this.tools[index]
+    if (tool !== NO_TOOL) seg.tool = tool
+    return seg
+  }
+
+  static readonly EMPTY = new SegmentTable(
+    0,
+    new Float64Array(1), new Float64Array(1), new Float64Array(1),
+    new Uint32Array(0), new Uint8Array(0), new Float32Array(0), new Int32Array(0), new Int32Array(0),
+    new Float64Array(0),
+    false,
+  )
 }
 
 /** Map segment index → approximate source-line fraction (0..1) */
@@ -130,41 +253,208 @@ function toolLabel(tool: number, name: string | null) {
   return name ? `T${tool} ${name}` : `T${tool}`
 }
 
-export function parseGCode(text: string, options: ParseGCodeOptions = {}): GCodeModel {
-  const segments: Segment[] = []
-  let x = 0, y = 0, z = 0
-  let offX = 0, offY = 0, offZ = 0        // G92 coordinate offsets
-  let activeWcs = normalizeWcs(options.activeWcs) ?? 'G54'
-  const currentWco = options.currentWco ?? { x: 0, y: 0, z: 0 }
-  const workOffsets = options.workOffsets ?? {}
-  let wcsShift = getShift(activeWcs, activeWcs, currentWco, workOffsets)
-  let rapid = true
-  let arcMode: 0 | 2 | 3 = 0   // 0 = linear, 2 = CW arc, 3 = CCW arc
-  let plane = 17               // G17=XY, G18=ZX, G19=YZ
-  let incremental = false
-  let inchMode = false         // G20=inches, G21=mm
-  let spindleOn = false        // Track spindle state
-  let spindleEverOn = false    // Whether spindle was ever activated (false = no spindle machine e.g. pen plotter)
-  let feedMmPerMin = 0
-  let feedMmPerRev = 0
-  let spindleRpm: number | null = null
-  let feedRateMode: 93 | 94 | 95 = 94
-  let pendingTool: number | null = null
-  let activeTool: number | null = null
-  let sawToolChange = false
-  const tools = new Map<number, GCodeTool>()
-  const fixedDelays: Array<[number, number]> = []
-  const spindleTransitions: Array<[number, 'on' | 'off']> = []
-  let timingEndLine: number | undefined
-  const bounds = { minX: Infinity, minY: Infinity, minZ: Infinity, maxX: -Infinity, maxY: -Infinity, maxZ: -Infinity }
+// Word letters are indexed A=0 … Z=25.
+const W_F = 5, W_I = 8, W_J = 9, W_K = 10, W_P = 15, W_R = 17, W_S = 18, W_T = 19, W_X = 23, W_Y = 24, W_Z = 25
+const HAS_F = 1 << W_F
+const HAS_I = 1 << W_I
+const HAS_J = 1 << W_J
+const HAS_K = 1 << W_K
+const HAS_P = 1 << W_P
+const HAS_R = 1 << W_R
+const HAS_S = 1 << W_S
+const HAS_T = 1 << W_T
+const HAS_X = 1 << W_X
+const HAS_Y = 1 << W_Y
+const HAS_Z = 1 << W_Z
+const INCH_SCALED_WORDS = [W_X, W_Y, W_Z, W_I, W_J, W_K, W_R]
 
-  function getMoveType(): 'rapid' | 'feed' | 'traverse' {
-    if (rapid) return 'rapid'
-    if (spindleEverOn && !spindleOn) return 'traverse'
-    return 'feed'
+const POW10 = Array.from({ length: 23 }, (_, power) => 10 ** power)
+const CH_LPAREN = 40
+const CH_MINUS = 45
+const CH_DOT = 46
+const CH_0 = 48
+const CH_9 = 57
+const CH_SEMICOLON = 59
+const CH_A = 65
+const CH_G = 71
+const CH_M = 77
+const CH_Z = 90
+const CH_LOWER_A = 97
+const CH_LOWER_Z = 122
+/** Lines between deadline checks while parsing in time slices. */
+const DEADLINE_CHECK_LINES = 512
+
+/**
+ * Incremental parser. `parseUntil` can be called repeatedly with a time budget
+ * so multi-million-line files never block the page for long.
+ */
+export class GCodeParser {
+  private pos = 0
+  private lineIndex = 0
+  private done = false
+
+  // Machine state
+  private x = 0; private y = 0; private z = 0
+  private offX = 0; private offY = 0; private offZ = 0   // G92 coordinate offsets
+  private readonly optionActiveWcs: WorkCoordinateSystem | undefined
+  private readonly currentWco: WorkOffset
+  private readonly workOffsets: Partial<Record<WorkCoordinateSystem, WorkOffset>>
+  private wcsShift: WorkOffset
+  private rapid = true
+  private arcMode: 0 | 2 | 3 = 0   // 0 = linear, 2 = CW arc, 3 = CCW arc
+  private plane: 17 | 18 | 19 = 17 // G17=XY, G18=ZX, G19=YZ
+  private incremental = false
+  private inchMode = false         // G20=inches, G21=mm
+  private spindleOn = false
+  private spindleEverOn = false    // false = no spindle machine e.g. pen plotter
+  private feedMmPerMin = 0
+  private feedMmPerRev = 0
+  private spindleRpm: number | null = null
+  private feedRateMode: 93 | 94 | 95 = 94
+  private pendingTool: number | null = null
+  private activeTool: number | null = null
+  private sawToolChange = false
+  private readonly toolMap = new Map<number, GCodeTool>()
+  private readonly fixedDelays: Array<[number, number]> = []
+  private readonly spindleTransitions: Array<[number, 'on' | 'off']> = []
+  private timingEndLine: number | undefined
+  private readonly bounds = { minX: Infinity, minY: Infinity, minZ: Infinity, maxX: -Infinity, maxY: -Infinity, maxZ: -Infinity }
+
+  // Per-line scratch
+  private wordMask = 0
+  private readonly words = new Float64Array(26)
+  private readonly gCodes: number[] = []
+  private readonly mCodes: number[] = []
+  private numberEnd = 0
+
+  // Output, sized once the lines have been counted
+  private countPos = 0
+  private lineCount = 1
+  private allocated = false
+  private count = 0
+  private capacity = 0
+  private px = new Float64Array(1)
+  private py = new Float64Array(1)
+  private pz = new Float64Array(1)
+  private sourceLines = new Uint32Array(0)
+  private flags = new Uint8Array(0)
+  private feeds = new Float32Array(0)
+  private tools = new Int32Array(0)
+  private arcIndex = new Int32Array(0)
+  private arcOffsets = new Float64Array(3 * 256)
+  private arcCount = 0
+  private hasTools = false
+
+  constructor(private readonly text: string, options: ParseGCodeOptions = {}) {
+    const activeWcs = normalizeWcs(options.activeWcs) ?? 'G54'
+    this.optionActiveWcs = normalizeWcs(options.activeWcs)
+    this.currentWco = options.currentWco ?? { x: 0, y: 0, z: 0 }
+    this.workOffsets = options.workOffsets ?? {}
+    this.wcsShift = getShift(activeWcs, activeWcs, this.currentWco, this.workOffsets)
   }
 
-  function expandBounds(px: number, py: number, pz: number) {
+  /** Fraction of the source text consumed so far (0..1). */
+  get progress() {
+    return this.text.length > 0 ? this.pos / this.text.length : 1
+  }
+
+  /**
+   * Each line produces at most one move, so counting lines first sizes the
+   * output exactly instead of growing (and briefly doubling) huge arrays.
+   */
+  private countLines(deadline: number) {
+    const text = this.text
+    let pos = this.countPos
+    let sinceCheck = 0
+    for (let next = text.indexOf('\n', pos); next >= 0; next = text.indexOf('\n', pos)) {
+      this.lineCount++
+      pos = next + 1
+      if (++sinceCheck >= DEADLINE_CHECK_LINES * 8) {
+        sinceCheck = 0
+        if (performance.now() >= deadline) {
+          this.countPos = pos
+          return false
+        }
+      }
+    }
+    const capacity = this.lineCount
+    this.capacity = capacity
+    this.px = new Float64Array(capacity + 1)
+    this.py = new Float64Array(capacity + 1)
+    this.pz = new Float64Array(capacity + 1)
+    this.sourceLines = new Uint32Array(capacity)
+    this.flags = new Uint8Array(capacity)
+    this.feeds = new Float32Array(capacity)
+    this.tools = new Int32Array(capacity)
+    this.arcIndex = new Int32Array(capacity)
+    this.allocated = true
+    return true
+  }
+
+  /** Parses lines until `deadline` (a `performance.now()` value). Returns true when finished. */
+  parseUntil(deadline = Infinity) {
+    if (!this.allocated && !this.countLines(deadline)) return false
+    const text = this.text
+    const length = text.length
+    let sinceCheck = 0
+    while (!this.done) {
+      let end = text.indexOf('\n', this.pos)
+      if (end < 0) end = length
+      this.parseLine(this.pos, end, this.lineIndex + 1)
+      this.lineIndex++
+      if (end >= length) {
+        this.done = true
+        this.pos = length
+        break
+      }
+      this.pos = end + 1
+      if (++sinceCheck >= DEADLINE_CHECK_LINES) {
+        sinceCheck = 0
+        if (performance.now() >= deadline) break
+      }
+    }
+    return this.done
+  }
+
+  finish(): GCodeModel {
+    this.parseUntil()
+    const n = this.count
+    // Release over-allocated capacity when it is a significant share of memory.
+    const trim = n < this.capacity * 0.75
+    const cut = <T extends Float64Array | Float32Array | Uint32Array | Uint8Array | Int32Array>(array: T, size: number): T =>
+      (trim ? array.slice(0, size) : array.subarray(0, size)) as T
+    const segments = new SegmentTable(
+      n,
+      cut(this.px, n + 1), cut(this.py, n + 1), cut(this.pz, n + 1),
+      cut(this.sourceLines, n),
+      cut(this.flags, n),
+      cut(this.feeds, n),
+      cut(this.tools, n),
+      cut(this.arcIndex, n),
+      this.arcOffsets.slice(0, this.arcCount * 3),
+      this.hasTools,
+    )
+
+    const bounds = this.bounds
+    // Handle degenerate case
+    if (!isFinite(bounds.minX)) {
+      bounds.minX = bounds.minY = bounds.minZ = 0
+      bounds.maxX = bounds.maxY = bounds.maxZ = 1
+    }
+
+    return {
+      segments,
+      tools: this.toolMap.size > 0 ? Array.from(this.toolMap.values()).sort((a, b) => a.number - b.number) : undefined,
+      bounds,
+      totalLines: this.lineIndex,
+      fixedDelays: this.fixedDelays,
+      spindleTransitions: this.spindleTransitions,
+      timingEndLine: this.timingEndLine,
+    }
+  }
+
+  private expandBounds(px: number, py: number, pz: number) {
+    const bounds = this.bounds
     if (px < bounds.minX) bounds.minX = px
     if (px > bounds.maxX) bounds.maxX = px
     if (py < bounds.minY) bounds.minY = py
@@ -173,38 +463,150 @@ export function parseGCode(text: string, options: ParseGCodeOptions = {}): GCode
     if (pz > bounds.maxZ) bounds.maxZ = pz
   }
 
-  const lines = text.split('\n')
-  for (let sourceIndex = 0; sourceIndex < lines.length; sourceIndex++) {
-    const raw = lines[sourceIndex]
-    const sourceLine = sourceIndex + 1
-    const stripped = stripComments(raw)
-    const line = stripped.code.trim().toUpperCase()
-    if (!line) continue
-
-    // Parse words
-    const words: Record<string, number> = {}
-    let gCodes: number[] = []
-    let mCodes: number[] = []
-    const re = /([A-Z])(-?(?:\d+\.?\d*|\.\d+))/g
-    let m: RegExpExecArray | null
-    while ((m = re.exec(line)) !== null) {
-      const letter = m[1]
-      const val = parseFloat(m[2])
-      if (letter === 'G') {
-        gCodes.push(val)
-      } else if (letter === 'M') {
-        mCodes.push(val)
-      } else {
-        words[letter] = val
-      }
+  /**
+   * Reads `-?(?:\d+\.?\d*|\.\d+)` starting at `start`. Returns NaN when no
+   * number is present; otherwise stores the index after it in `numberEnd`.
+   */
+  private scanNumber(start: number, end: number) {
+    const text = this.text
+    let index = start
+    let negative = false
+    if (index < end && text.charCodeAt(index) === CH_MINUS) {
+      negative = true
+      index++
     }
+    let mantissa = 0
+    let digits = 0
+    let fractionDigits = 0
+    let code = index < end ? text.charCodeAt(index) : 0
+    while (code >= CH_0 && code <= CH_9) {
+      mantissa = mantissa * 10 + (code - CH_0)
+      digits++
+      index++
+      code = index < end ? text.charCodeAt(index) : 0
+    }
+    if (code === CH_DOT) {
+      const next = index + 1 < end ? text.charCodeAt(index + 1) : 0
+      if (digits === 0 && !(next >= CH_0 && next <= CH_9)) return NaN
+      index++
+      code = next
+      while (code >= CH_0 && code <= CH_9) {
+        mantissa = mantissa * 10 + (code - CH_0)
+        digits++
+        fractionDigits++
+        index++
+        code = index < end ? text.charCodeAt(index) : 0
+      }
+    } else if (digits === 0) {
+      return NaN
+    }
+    this.numberEnd = index
+    // Integer ÷ power of ten is correctly rounded, matching parseFloat, while
+    // both stay exactly representable.
+    const value = digits <= 15
+      ? mantissa / POW10[fractionDigits]
+      : parseFloat(text.slice(negative ? start + 1 : start, index))
+    return negative ? -value : value
+  }
 
-    if (Number.isFinite(words.T)) {
-      pendingTool = Math.trunc(words.T)
-      if (!sawToolChange) {
-        activeTool = pendingTool
-        if (!tools.has(activeTool)) {
-          tools.set(activeTool, { number: activeTool, label: toolLabel(activeTool, cleanToolName(stripped.comments[0])), sourceLine })
+  /** Splits a line into words with the same rules as the original regex-based parser. */
+  private scanWords(start: number, end: number) {
+    const text = this.text
+    const words = this.words
+    const gCodes = this.gCodes
+    const mCodes = this.mCodes
+    gCodes.length = 0
+    mCodes.length = 0
+    let mask = 0
+    let index = start
+    while (index < end) {
+      let code = text.charCodeAt(index)
+      if (code === CH_LPAREN) {
+        const close = text.indexOf(')', index + 1)
+        if (close >= 0 && close < end) {
+          index = close + 1
+          continue
+        }
+      } else if (code === CH_SEMICOLON) {
+        break
+      } else {
+        if (code >= CH_LOWER_A && code <= CH_LOWER_Z) code -= 32
+        if (code >= CH_A && code <= CH_Z) {
+          const value = this.scanNumber(index + 1, end)
+          if (value === value) {
+            if (code === CH_G) gCodes.push(value)
+            else if (code === CH_M) mCodes.push(value)
+            else {
+              const letter = code - CH_A
+              words[letter] = value
+              mask |= 1 << letter
+            }
+            index = this.numberEnd
+            continue
+          }
+        }
+      }
+      index++
+    }
+    this.wordMask = mask
+  }
+
+  private pushSegment(
+    x: number, y: number, z: number,
+    sourceLine: number,
+    flags: number,
+    feed: number,
+    arcI?: number, arcJ?: number, arcK?: number,
+  ) {
+    const index = this.count++
+    this.px[index + 1] = x
+    this.py[index + 1] = y
+    this.pz[index + 1] = z
+    this.sourceLines[index] = sourceLine
+    this.flags[index] = flags
+    this.feeds[index] = feed
+    const tool = this.activeTool
+    if (tool == null) {
+      this.tools[index] = NO_TOOL
+    } else {
+      this.tools[index] = tool
+      this.hasTools = true
+    }
+    if (arcI === undefined) {
+      this.arcIndex[index] = -1
+      return
+    }
+    if ((this.arcCount + 1) * 3 > this.arcOffsets.length) {
+      const grown = new Float64Array(this.arcOffsets.length * 2)
+      grown.set(this.arcOffsets)
+      this.arcOffsets = grown
+    }
+    const arc = this.arcCount++
+    this.arcIndex[index] = arc
+    this.arcOffsets[arc * 3] = arcI
+    this.arcOffsets[arc * 3 + 1] = arcJ ?? 0
+    this.arcOffsets[arc * 3 + 2] = arcK ?? 0
+  }
+
+  private parseLine(start: number, end: number, sourceLine: number) {
+    this.scanWords(start, end)
+    const mask = this.wordMask
+    const words = this.words
+    const gCodes = this.gCodes
+    const mCodes = this.mCodes
+    if (mask === 0 && gCodes.length === 0 && mCodes.length === 0) return
+
+    // Tool naming needs the comment text; such lines are rare.
+    let stripped: ReturnType<typeof stripComments> | null = null
+    const getStripped = () => stripped ??= stripComments(this.text.slice(start, end))
+
+    if (mask & HAS_T) {
+      this.pendingTool = Math.trunc(words[W_T])
+      if (!this.sawToolChange) {
+        const activeTool = this.pendingTool
+        this.activeTool = activeTool
+        if (!this.toolMap.has(activeTool)) {
+          this.toolMap.set(activeTool, { number: activeTool, label: toolLabel(activeTool, cleanToolName(getStripped().comments[0])), sourceLine })
         }
       }
     }
@@ -212,222 +614,261 @@ export function parseGCode(text: string, options: ParseGCodeOptions = {}): GCode
     // Process M codes (spindle control)
     for (const mc of mCodes) {
       if (mc === 3 || mc === 4) {
-        if (!spindleOn) spindleTransitions.push([sourceLine, 'on'])
-        spindleOn = true; spindleEverOn = true
+        if (!this.spindleOn) this.spindleTransitions.push([sourceLine, 'on'])
+        this.spindleOn = true; this.spindleEverOn = true
       }  // M3/M4 = spindle on
       else if (mc === 5) {
-        if (spindleOn) spindleTransitions.push([sourceLine, 'off'])
-        spindleOn = false
+        if (this.spindleOn) this.spindleTransitions.push([sourceLine, 'off'])
+        this.spindleOn = false
       }        // M5 = spindle off
-      else if (mc === 6 && pendingTool != null) {
-        activeTool = pendingTool
-        sawToolChange = true
-        const name = cleanToolName(stripped.comments[0]) ?? cleanToolName(stripped.code)
-        const existing = tools.get(activeTool)
+      else if (mc === 6 && this.pendingTool != null) {
+        const activeTool = this.pendingTool
+        this.activeTool = activeTool
+        this.sawToolChange = true
+        const comments = getStripped()
+        const name = cleanToolName(comments.comments[0]) ?? cleanToolName(comments.code)
+        const existing = this.toolMap.get(activeTool)
         if (!existing || existing.label === `T${activeTool}`) {
-          tools.set(activeTool, { number: activeTool, label: toolLabel(activeTool, name), sourceLine })
+          this.toolMap.set(activeTool, { number: activeTool, label: toolLabel(activeTool, name), sourceLine })
         }
       }
     }
 
     // Process G codes
+    let hasG2 = false, hasG3 = false, hasG4 = false, hasG28 = false, hasG92 = false
     for (const g of gCodes) {
-      if (g === 90) { incremental = false; continue }
-      if (g === 91) { incremental = true; continue }
-      if (g === 20) { inchMode = true; continue }
-      if (g === 21) { inchMode = false; continue }
+      if (g === 90) { this.incremental = false; continue }
+      if (g === 91) { this.incremental = true; continue }
+      if (g === 20) { this.inchMode = true; continue }
+      if (g === 21) { this.inchMode = false; continue }
       if (g === 93 || g === 94 || g === 95) {
-        feedRateMode = g
+        this.feedRateMode = g
         continue
       }
-      if (g === 17 || g === 18 || g === 19) { plane = g; continue }
+      if (g === 17 || g === 18 || g === 19) { this.plane = g; continue }
+      if (g === 4) { hasG4 = true; continue }
+      if (g === 28) { hasG28 = true; continue }
+      if (g === 92) { hasG92 = true; continue }
       const nextWcs = wcsFromGValue(g)
       if (nextWcs) {
-        activeWcs = nextWcs
-        wcsShift = getShift(activeWcs, normalizeWcs(options.activeWcs), currentWco, workOffsets)
+        this.wcsShift = getShift(nextWcs, this.optionActiveWcs, this.currentWco, this.workOffsets)
         continue
       }
-      if (g === 0) { rapid = true; arcMode = 0 }
-      else if (g === 1) { rapid = false; arcMode = 0 }
-      else if (g === 2) { rapid = false; arcMode = 2 }
-      else if (g === 3) { rapid = false; arcMode = 3 }
+      if (g === 0) { this.rapid = true; this.arcMode = 0 }
+      else if (g === 1) { this.rapid = false; this.arcMode = 0 }
+      else if (g === 2) { this.rapid = false; this.arcMode = 2; hasG2 = true }
+      else if (g === 3) { this.rapid = false; this.arcMode = 3; hasG3 = true }
     }
 
-    if (inchMode) {
-      for (const key of ['X', 'Y', 'Z', 'I', 'J', 'K', 'R'] as const) {
-        if (key in words) words[key] *= 25.4
+    if (this.inchMode) {
+      for (const letter of INCH_SCALED_WORDS) {
+        if (mask & (1 << letter)) words[letter] *= 25.4
       }
-      if (feedRateMode !== 93 && Number.isFinite(words.F)) words.F *= 25.4
+      if (this.feedRateMode !== 93 && (mask & HAS_F)) words[W_F] *= 25.4
     }
 
-    if (Number.isFinite(words.F) && words.F > 0) {
-      if (feedRateMode === 95) feedMmPerRev = words.F
-      else if (feedRateMode !== 93) feedMmPerMin = words.F
+    if ((mask & HAS_F) && words[W_F] > 0) {
+      if (this.feedRateMode === 95) this.feedMmPerRev = words[W_F]
+      else if (this.feedRateMode !== 93) this.feedMmPerMin = words[W_F]
     }
-    if (Number.isFinite(words.S) && words.S >= 0) spindleRpm = words.S
+    if ((mask & HAS_S) && words[W_S] >= 0) this.spindleRpm = words[W_S]
 
-    if (gCodes.includes(4)) {
-      if (Number.isFinite(words.P) && words.P >= 0) {
-        fixedDelays.push([sourceLine, words.P])
-      }
+    if (hasG4 && (mask & HAS_P) && words[W_P] >= 0) {
+      this.fixedDelays.push([sourceLine, words[W_P]])
     }
 
-    if (mCodes.some(code => code === 2 || code === 30) && timingEndLine == null) {
-      timingEndLine = sourceLine
+    if (this.timingEndLine == null && mCodes.some(code => code === 2 || code === 30)) {
+      this.timingEndLine = sourceLine
     }
+
+    const shift = this.wcsShift
 
     // G92 – set coordinate offset
-    if (gCodes.includes(92)) {
-      offX = x - wcsShift.x - (words.X ?? (x - wcsShift.x))
-      offY = y - wcsShift.y - (words.Y ?? (y - wcsShift.y))
-      offZ = z - wcsShift.z - (words.Z ?? (z - wcsShift.z))
-      continue
+    if (hasG92) {
+      this.offX = this.x - shift.x - ((mask & HAS_X) ? words[W_X] : (this.x - shift.x))
+      this.offY = this.y - shift.y - ((mask & HAS_Y) ? words[W_Y] : (this.y - shift.y))
+      this.offZ = this.z - shift.z - ((mask & HAS_Z) ? words[W_Z] : (this.z - shift.z))
+      return
     }
 
-    if (gCodes.includes(28)) {
+    if (hasG28) {
       // Reference-return distance depends on the current machine position and
       // configured G28 point. It is omitted from the best-effort estimate.
-      continue
+      return
     }
 
-    const hasMove = 'X' in words || 'Y' in words || 'Z' in words
+    const plane = this.plane
+    const hasMove = (mask & (HAS_X | HAS_Y | HAS_Z)) !== 0
     const hasArcCenter = plane === 17
-      ? ('I' in words || 'J' in words || 'R' in words)
+      ? (mask & (HAS_I | HAS_J | HAS_R)) !== 0
       : plane === 18
-        ? ('I' in words || 'K' in words || 'R' in words)
-        : ('J' in words || 'K' in words || 'R' in words)
-    const isArc = gCodes.includes(2) || gCodes.includes(3) || (arcMode > 0 && hasMove && hasArcCenter)
+        ? (mask & (HAS_I | HAS_K | HAS_R)) !== 0
+        : (mask & (HAS_J | HAS_K | HAS_R)) !== 0
+    const isArc = hasG2 || hasG3 || (this.arcMode > 0 && hasMove && hasArcCenter)
+    if (!hasMove && !isArc) return
 
-    if (hasMove || isArc) {
-      const x0 = x, y0 = y, z0 = z
+    const x0 = this.x, y0 = this.y, z0 = this.z
+    let x: number, y: number, z: number
+    if (this.incremental) {
+      x = x0 + ((mask & HAS_X) ? words[W_X] : 0)
+      y = y0 + ((mask & HAS_Y) ? words[W_Y] : 0)
+      z = z0 + ((mask & HAS_Z) ? words[W_Z] : 0)
+    } else {
+      x = ((mask & HAS_X) ? words[W_X] : (x0 - shift.x - this.offX)) + this.offX + shift.x
+      y = ((mask & HAS_Y) ? words[W_Y] : (y0 - shift.y - this.offY)) + this.offY + shift.y
+      z = ((mask & HAS_Z) ? words[W_Z] : (z0 - shift.z - this.offZ)) + this.offZ + shift.z
+    }
+    this.x = x; this.y = y; this.z = z
 
-      if (incremental) {
-        x += words.X ?? 0
-        y += words.Y ?? 0
-        z += words.Z ?? 0
-      } else {
-        x = (words.X ?? (x - wcsShift.x - offX)) + offX + wcsShift.x
-        y = (words.Y ?? (y - wcsShift.y - offY)) + offY + wcsShift.y
-        z = (words.Z ?? (z - wcsShift.z - offZ)) + offZ + wcsShift.z
-      }
+    this.expandBounds(x0, y0, z0)
+    this.expandBounds(x, y, z)
 
-      expandBounds(x0, y0, z0)
-      expandBounds(x, y, z)
-
-      const moveType = getMoveType()
-      const feedData = moveType === 'rapid'
-        ? {}
-        : feedRateMode === 93
-          ? Number.isFinite(words.F) && words.F > 0
-            ? { inverseTimeSeconds: 60 / words.F }
-            : { timingUnknown: true }
-          : feedRateMode === 95
-            ? feedMmPerRev > 0 && spindleRpm != null && spindleRpm > 0
-              ? { feedMmPerMin: feedMmPerRev * spindleRpm }
-              : { timingUnknown: true }
-          : feedMmPerMin > 0 ? { feedMmPerMin } : {}
-      const toolData = activeTool == null ? {} : { tool: activeTool }
-
-      if (isArc) {
-        const cw = gCodes.includes(2) || (!gCodes.includes(3) && arcMode === 2)
-        let i: number, j: number, k: number = 0
-        if ('R' in words) {
-          // R-format arc: compute offsets in the active plane.
-          const R = words.R
-          const [u0, v0, u1, v1] = plane === 17
-            ? [x0, y0, x, y]
-            : plane === 18 ? [x0, z0, x, z] : [y0, z0, y, z]
-          const du = u1 - u0, dv = v1 - v0
-          const d = Math.hypot(du, dv)
-          if (d > 0) {
-            const h = Math.sqrt(Math.max(0, R * R - (d * d) / 4))
-            const sign = ((R > 0) !== cw) ? 1 : -1
-            const offsetU = du / 2 + sign * h * (-dv / d)
-            const offsetV = dv / 2 + sign * h * (du / d)
-            if (plane === 17) { i = offsetU; j = offsetV; k = 0 }
-            else if (plane === 18) { i = offsetU; j = 0; k = offsetV }
-            else { i = 0; j = offsetU; k = offsetV }
-          } else {
-            i = 0; j = 0; k = 0
-          }
+    const moveCode = this.rapid ? MOVE_RAPID : this.spindleEverOn && !this.spindleOn ? MOVE_TRAVERSE : MOVE_FEED
+    let flags = moveCode
+    let feed = 0
+    if (moveCode !== MOVE_RAPID) {
+      if (this.feedRateMode === 93) {
+        if ((mask & HAS_F) && words[W_F] > 0) {
+          flags |= FLAG_INVERSE_TIME
+          feed = 60 / words[W_F]
         } else {
-          i = words.I ?? 0
-          j = words.J ?? 0
-          k = words.K ?? 0
+          flags |= FLAG_TIMING_UNKNOWN
         }
-
-        // Skip arcs with zero radius (degenerate)
-        const r = Math.sqrt(i * i + j * j + k * k)
-        if (r > 1e-6) {
-          const isFullCircle = plane === 17
-            ? Math.abs(x0 - x) < 1e-4 && Math.abs(y0 - y) < 1e-4
-            : plane === 18
-              ? Math.abs(x0 - x) < 1e-4 && Math.abs(z0 - z) < 1e-4
-              : Math.abs(y0 - y) < 1e-4 && Math.abs(z0 - z) < 1e-4
-          if (isFullCircle) {
-            if (plane === 17) {
-              const cx = x0 + i, cy = y0 + j
-              expandBounds(cx + r, cy, z0)
-              expandBounds(cx - r, cy, z0)
-              expandBounds(cx, cy + r, z0)
-              expandBounds(cx, cy - r, z0)
-            } else if (plane === 18) {
-              const cx = x0 + i, cz = z0 + k
-              expandBounds(cx + r, y0, cz)
-              expandBounds(cx - r, y0, cz)
-              expandBounds(cx, y0, cz + r)
-              expandBounds(cx, y0, cz - r)
-            } else {
-              const cy = y0 + j, cz = z0 + k
-              expandBounds(x0, cy + r, cz)
-              expandBounds(x0, cy - r, cz)
-              expandBounds(x0, cy, cz + r)
-              expandBounds(x0, cy, cz - r)
-            }
-          } else if (plane === 17) {
-            // Expand G17 bounds to include cardinal extrema that fall within
-            // the arc's sweep. Other planes retain endpoint bounds here.
-            const cx = x0 + i, cy = y0 + j
-            const sa = Math.atan2(y0 - cy, x0 - cx)
-            const ea = Math.atan2(y - cy, x - cx)
-            const TAU = Math.PI * 2
-            const sweep = cw
-              ? ((sa - ea) % TAU + TAU) % TAU
-              : ((ea - sa) % TAU + TAU) % TAU
-            for (let n = 0; n < 4; n++) {
-              const angle = n * Math.PI / 2
-              const delta = cw
-                ? ((sa - angle) % TAU + TAU) % TAU
-                : ((angle - sa) % TAU + TAU) % TAU
-              if (delta <= sweep + 1e-9) {
-                expandBounds(cx + Math.cos(angle) * r, cy + Math.sin(angle) * r, z0)
-              }
-            }
-          }
-          segments.push({ x0, y0, z0, x1: x, y1: y, z1: z, moveType, i, j, k, cw, sourceLine, ...(plane === 17 ? {} : { arcPlane: plane as 18 | 19 }), ...feedData, ...toolData })
+      } else if (this.feedRateMode === 95) {
+        if (this.feedMmPerRev > 0 && this.spindleRpm != null && this.spindleRpm > 0) {
+          feed = this.feedMmPerRev * this.spindleRpm
         } else {
-          // Treat degenerate arc as a line
-          segments.push({ x0, y0, z0, x1: x, y1: y, z1: z, moveType, sourceLine, ...feedData, ...toolData })
+          flags |= FLAG_TIMING_UNKNOWN
         }
-      } else {
-        segments.push({ x0, y0, z0, x1: x, y1: y, z1: z, moveType, sourceLine, ...feedData, ...toolData })
+      } else if (this.feedMmPerMin > 0) {
+        feed = this.feedMmPerMin
       }
     }
-  }
 
-  // Handle degenerate case
-  if (!isFinite(bounds.minX)) {
-    bounds.minX = bounds.minY = bounds.minZ = 0
-    bounds.maxX = bounds.maxY = bounds.maxZ = 1
-  }
+    if (!isArc) {
+      this.pushSegment(x, y, z, sourceLine, flags, feed)
+      return
+    }
 
-  return {
-    segments,
-    tools: tools.size > 0 ? Array.from(tools.values()).sort((a, b) => a.number - b.number) : undefined,
-    bounds,
-    totalLines: lines.length,
-    fixedDelays,
-    spindleTransitions,
-    timingEndLine,
+    const cw = hasG2 || (!hasG3 && this.arcMode === 2)
+    let i: number, j: number, k = 0
+    if (mask & HAS_R) {
+      // R-format arc: compute offsets in the active plane.
+      const R = words[W_R]
+      const [u0, v0, u1, v1] = plane === 17
+        ? [x0, y0, x, y]
+        : plane === 18 ? [x0, z0, x, z] : [y0, z0, y, z]
+      const du = u1 - u0, dv = v1 - v0
+      const d = Math.hypot(du, dv)
+      if (d > 0) {
+        const h = Math.sqrt(Math.max(0, R * R - (d * d) / 4))
+        const sign = ((R > 0) !== cw) ? 1 : -1
+        const offsetU = du / 2 + sign * h * (-dv / d)
+        const offsetV = dv / 2 + sign * h * (du / d)
+        if (plane === 17) { i = offsetU; j = offsetV; k = 0 }
+        else if (plane === 18) { i = offsetU; j = 0; k = offsetV }
+        else { i = 0; j = offsetU; k = offsetV }
+      } else {
+        i = 0; j = 0; k = 0
+      }
+    } else {
+      i = (mask & HAS_I) ? words[W_I] : 0
+      j = (mask & HAS_J) ? words[W_J] : 0
+      k = (mask & HAS_K) ? words[W_K] : 0
+    }
+
+    // Skip arcs with zero radius (degenerate)
+    const r = Math.sqrt(i * i + j * j + k * k)
+    if (r <= 1e-6) {
+      // Treat degenerate arc as a line
+      this.pushSegment(x, y, z, sourceLine, flags, feed)
+      return
+    }
+
+    const isFullCircle = plane === 17
+      ? Math.abs(x0 - x) < 1e-4 && Math.abs(y0 - y) < 1e-4
+      : plane === 18
+        ? Math.abs(x0 - x) < 1e-4 && Math.abs(z0 - z) < 1e-4
+        : Math.abs(y0 - y) < 1e-4 && Math.abs(z0 - z) < 1e-4
+    if (isFullCircle) {
+      if (plane === 17) {
+        const cx = x0 + i, cy = y0 + j
+        this.expandBounds(cx + r, cy, z0)
+        this.expandBounds(cx - r, cy, z0)
+        this.expandBounds(cx, cy + r, z0)
+        this.expandBounds(cx, cy - r, z0)
+      } else if (plane === 18) {
+        const cx = x0 + i, cz = z0 + k
+        this.expandBounds(cx + r, y0, cz)
+        this.expandBounds(cx - r, y0, cz)
+        this.expandBounds(cx, y0, cz + r)
+        this.expandBounds(cx, y0, cz - r)
+      } else {
+        const cy = y0 + j, cz = z0 + k
+        this.expandBounds(x0, cy + r, cz)
+        this.expandBounds(x0, cy - r, cz)
+        this.expandBounds(x0, cy, cz + r)
+        this.expandBounds(x0, cy, cz - r)
+      }
+    } else if (plane === 17) {
+      // Expand G17 bounds to include cardinal extrema that fall within
+      // the arc's sweep. Other planes retain endpoint bounds here.
+      const cx = x0 + i, cy = y0 + j
+      const sa = Math.atan2(y0 - cy, x0 - cx)
+      const ea = Math.atan2(y - cy, x - cx)
+      const TAU = Math.PI * 2
+      const sweep = cw
+        ? ((sa - ea) % TAU + TAU) % TAU
+        : ((ea - sa) % TAU + TAU) % TAU
+      for (let n = 0; n < 4; n++) {
+        const angle = n * Math.PI / 2
+        const delta = cw
+          ? ((sa - angle) % TAU + TAU) % TAU
+          : ((angle - sa) % TAU + TAU) % TAU
+        if (delta <= sweep + 1e-9) {
+          this.expandBounds(cx + Math.cos(angle) * r, cy + Math.sin(angle) * r, z0)
+        }
+      }
+    }
+
+    flags |= FLAG_ARC | (cw ? FLAG_CW : 0) | ((plane - 17) << FLAG_PLANE_SHIFT)
+    this.pushSegment(x, y, z, sourceLine, flags, feed, i, j, k)
   }
+}
+
+export function parseGCode(text: string, options: ParseGCodeOptions = {}): GCodeModel {
+  return new GCodeParser(text, options).finish()
+}
+
+/** Gives the browser a chance to paint and handle input between work slices. */
+export function yieldToEventLoop() {
+  return new Promise<void>(resolve => {
+    const channel = new MessageChannel()
+    channel.port1.onmessage = () => {
+      channel.port1.close()
+      resolve()
+    }
+    channel.port2.postMessage(null)
+  })
+}
+
+/**
+ * Parses in short time slices so the page stays responsive. Throws
+ * `Error('stale-load')` when `shouldContinue` turns false.
+ */
+export async function parseGCodeAsync(
+  text: string,
+  options: ParseGCodeOptions,
+  onProgress: (fraction: number) => void,
+  shouldContinue: () => boolean,
+  sliceMs = 12,
+): Promise<GCodeModel> {
+  const parser = new GCodeParser(text, options)
+  while (!parser.parseUntil(performance.now() + sliceMs)) {
+    onProgress(parser.progress)
+    await yieldToEventLoop()
+    if (!shouldContinue()) throw new Error('stale-load')
+  }
+  onProgress(1)
+  return parser.finish()
 }
