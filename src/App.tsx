@@ -5,6 +5,7 @@ import { useGCodeSenderStore } from './store/gcodeSender'
 import { useTerminalStore } from './store/terminal'
 import { connect, isSocketOpen, onLine, sendStartupQueries } from './lib/ws'
 import { setBase, getDeviceInfo, getDeviceInfoFast, loadMacroCfg } from './lib/http'
+import { isWasmBridgeActive, WASM_BRIDGE_BASE } from './wasmBridge/shimTransport'
 import { parseESP800 } from './lib/parser'
 import { prefetchControllerConfigSettings } from './lib/controllerConfig'
 import { CURRENT_VERSION, GITHUB_REPO, DISMISSED_VERSION_KEY, semverGt } from './lib/updateCheck'
@@ -238,28 +239,29 @@ function AppContent() {
       ? await getDeviceInfoFast()
       : await getDeviceInfo()
     const info = parseESP800(raw)
-    const wsComm = info['webcommunication']?.trim() ?? ''
-    const parts  = wsComm.split(':')
-    const asyncMode = parts[0]?.trim() === 'Async'
-    const wsPort = parts[1]?.trim() ?? '80'
-    const wsIp   = parts[2]?.trim() ?? httpHost.split(':')[0]
+    const asyncMode = info['WebCommunication']?.trim() === 'Asynchronous'
+    const wsPort = info['WebSocketPort']?.trim() || '80'
+    const wsIp   = info['WebSocketIP']?.trim() || httpHost.split(':')[0]
     const wsHost = asyncMode
       ? `${httpHost}/ws`
       : wsPort === '80' ? wsIp : `${wsIp}:${wsPort}`
     cachedWsHost.current = wsHost
     cachedHostFailures.current = 0
     // Only refresh ESP info on a fresh probe.
-    const axes = parseInt(info['axis'] ?? '3', 10)
+    const axes = (info['Axisletters'] ?? '').length
     setEspInfo({
-      version:        info['FW version']?.trim()     ?? '',
-      hostname:       info['hostname']?.trim()        ?? httpHost,
-      authentication: info['authentication']?.trim()  === 'yes',
+      version:        info['FWVersion']?.trim()       ?? '',
+      hostname:       info['HostName']?.trim()         ?? httpHost,
+      authentication: info['Authentication']?.trim()   === 'Enabled',
       asyncMode,
       wsPort:         parseInt(wsPort, 10),
       wsIp,
-      axes:           isNaN(axes) ? 3 : axes,
-      primarySd:      info['primary sd']?.trim()     ?? '/sd/',
-      secondarySd:    info['secondary sd']?.trim()   ?? '/ext/',
+      axes:           axes || 3,
+      // No JSON equivalent for these (the legacy plain-text response's
+      // "primary sd"/"secondary sd" fields) -- same defaults the old
+      // parse already fell back to whenever they were absent/unparseable.
+      primarySd:      '/sd/',
+      secondarySd:    '/ext/',
     })
     return { wsHost, info }
   }
@@ -269,7 +271,7 @@ function AppContent() {
     const p = (async () => {
       try {
         const httpHost = window.location.host
-        setBase(`http://${httpHost}`)
+        setBase(isWasmBridgeActive() ? WASM_BRIDGE_BASE : `http://${httpHost}`)
         const { wsHost } = await resolveWsHost(httpHost)
         await connect(wsHost)
         cachedHostFailures.current = 0
