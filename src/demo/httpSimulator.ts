@@ -1,4 +1,5 @@
 import { listDir, diskStats, getFile, setFile, deleteEntry, renameEntry } from './fileSystem'
+import { parseESP800 } from '../lib/parser'
 
 const ESP800 = [
   'FW version:FluidNC v4.0.0-sim',
@@ -58,6 +59,7 @@ function fileListResponse(dirPrefix: string, path: string): Response {
 function handleCommand(params: URLSearchParams): Response {
   const plain = params.get('plain') ?? ''
   if (plain === '[ESP800]') return ok(ESP800)
+  if (plain === '[ESP800]json=yes') return ok(JSON.stringify({ cmd: '800', status: 'ok', data: parseESP800(ESP800) }), 'application/json')
   if (plain === '[ESP400]') return ok(ESP400, 'application/json')
   return ok('ok')
 }

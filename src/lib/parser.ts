@@ -84,16 +84,32 @@ function parsePos(str: string, linearScale = 1): Position {
 // becomes separate WebCommunication/WebSocketPort/WebSocketIP fields, and
 // "authentication:yes" becomes "Authentication":"Enabled") -- see
 // App.tsx's resolveWsHost(), the only real consumer, for how those are
-// read now.
+// read now. Older firmware can still return the hash-separated text form.
 export function parseESP800(raw: string): Record<string, string> {
   let parsed: unknown
   try {
     parsed = JSON.parse(raw)
   } catch {
-    return {}
+    const fields: Record<string, string> = {}
+    for (const field of raw.split('#')) {
+      const colon = field.indexOf(':')
+      if (colon >= 0) fields[field.slice(0, colon).trim()] = field.slice(colon + 1).trim()
+    }
+    const result: Record<string, string> = {}
+    if (fields['FW version']) result.FWVersion = fields['FW version']
+    if (fields.hostname) result.HostName = fields.hostname
+    if (fields.authentication) result.Authentication = fields.authentication === 'yes' ? 'Enabled' : 'Disabled'
+    if (fields.webcommunication) {
+      const [mode, port, ...host] = fields.webcommunication.split(':')
+      result.WebCommunication = mode.trim() === 'Async' ? 'Asynchronous' : 'Synchronous'
+      result.WebSocketPort = port?.trim() ?? ''
+      result.WebSocketIP = host.join(':').trim()
+    }
+    if (/^[1-6]$/.test(fields.axis ?? '')) result.Axisletters = 'XYZABC'.slice(0, Number(fields.axis))
+    return result
   }
   const data = (parsed as { data?: Record<string, unknown> })?.data
-  if (!data) return {}
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return {}
   const result: Record<string, string> = {}
   for (const [key, value] of Object.entries(data)) {
     result[key] = String(value)

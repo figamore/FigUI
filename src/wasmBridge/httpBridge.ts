@@ -191,6 +191,8 @@ export function installXhrInterceptor(): void {
     const real = new Orig()
     let intercept = false
     let interceptRoot: Root = 'native_sd'
+    let uploadSettled = false
+    let uploadSucceeded = false
     // Event handlers are captured whenever they're assigned, because
     // uploadFile() assigns them before open() -- i.e. before we know whether
     // this request is intercepted. They're also passed through to the real
@@ -200,8 +202,8 @@ export function installXhrInterceptor(): void {
 
     return new Proxy(real, {
       get(target, prop) {
-        if (intercept && prop === 'status') return 200
-        if (intercept && prop === 'readyState') return 4
+        if (intercept && prop === 'status') return uploadSettled && uploadSucceeded ? 200 : 0
+        if (intercept && prop === 'readyState') return uploadSettled ? 4 : 1
         if (intercept && prop === 'upload') return fakeUpload
 
         if (prop === 'open')
@@ -210,6 +212,8 @@ export function installXhrInterceptor(): void {
             const path = extractRequestUrl(String(url))?.pathname ?? ''
             intercept = path === '/upload' || path === '/files'
             interceptRoot = path === '/upload' ? 'native_sd' : 'native_localfs'
+            uploadSettled = false
+            uploadSucceeded = false
             if (!intercept) real.open.call(real, method, url, ...(rest as [boolean, string?, string?]))
           }
 
@@ -229,8 +233,16 @@ export function installXhrInterceptor(): void {
                 })
               }
               Promise.all(writes).then(
-                () => handlers.onload?.(new ProgressEvent('load', { loaded: 100, total: 100 })),
-                () => handlers.onerror?.(new ProgressEvent('error'))
+                () => {
+                  uploadSettled = true
+                  uploadSucceeded = true
+                  handlers.onload?.(new ProgressEvent('load', { loaded: 100, total: 100 }))
+                },
+                () => {
+                  uploadSettled = true
+                  uploadSucceeded = false
+                  handlers.onerror?.(new ProgressEvent('error'))
+                }
               )
             } else {
               real.send.call(real, body as XMLHttpRequestBodyInit | Document | null | undefined)
