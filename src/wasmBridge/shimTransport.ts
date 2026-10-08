@@ -47,8 +47,16 @@ interface ShimCommandResponse {
 }
 
 const lineListeners: LineListener[] = []
-const pendingFsRequests = new Map<number, { resolve: (result: unknown) => void; reject: (error: Error) => void }>()
-const pendingShimCommands = new Map<number, { resolve: (response: string) => void; reject: (error: Error) => void }>()
+interface PendingRequest<T> {
+  resolve: (result: T) => void
+  reject: (error: Error) => void
+  timeout: ReturnType<typeof setTimeout>
+}
+
+// Bound requests even if the parent disappears or never answers an RPC.
+const REQUEST_TIMEOUT_MS = 30_000
+const pendingFsRequests = new Map<number, PendingRequest<unknown>>()
+const pendingShimCommands = new Map<number, PendingRequest<string>>()
 let nextRequestId = 1
 let nextCommandId = 1
 
@@ -82,6 +90,7 @@ if (typeof window !== 'undefined') {
       const response = msg as ShimCommandResponse
       const pending = pendingShimCommands.get(response.id)
       if (!pending) return
+      clearTimeout(pending.timeout)
       pendingShimCommands.delete(response.id)
       if (response.ok) {
         pending.resolve(response.response)
@@ -92,6 +101,7 @@ if (typeof window !== 'undefined') {
       const response = msg as FsResponse
       const pending = pendingFsRequests.get(response.id)
       if (!pending) return
+      clearTimeout(pending.timeout)
       pendingFsRequests.delete(response.id)
       if (response.ok) {
         pending.resolve(response.result)
@@ -114,8 +124,18 @@ export function sendToShim(text: string): void {
 export function sendShimCommand(cmd: string): Promise<string> {
   return new Promise((resolve, reject) => {
     const id = nextCommandId++
-    pendingShimCommands.set(id, { resolve, reject })
-    window.parent.postMessage({ type: 'fluidnc-shim-command', id, cmd }, '*')
+    const timeout = setTimeout(() => {
+      pendingShimCommands.delete(id)
+      reject(new Error('WASM command timed out'))
+    }, REQUEST_TIMEOUT_MS)
+    pendingShimCommands.set(id, { resolve, reject, timeout })
+    try {
+      window.parent.postMessage({ type: 'fluidnc-shim-command', id, cmd }, '*')
+    } catch (error) {
+      clearTimeout(timeout)
+      pendingShimCommands.delete(id)
+      reject(error)
+    }
   })
 }
 
@@ -137,7 +157,17 @@ export function addShimLineListener(fn: LineListener): () => void {
 export function fsRequest(op: string, params: Record<string, unknown>): Promise<unknown> {
   return new Promise((resolve, reject) => {
     const id = nextRequestId++
-    pendingFsRequests.set(id, { resolve, reject })
-    window.parent.postMessage({ type: 'fluidnc-fs-request', id, op, ...params }, '*')
+    const timeout = setTimeout(() => {
+      pendingFsRequests.delete(id)
+      reject(new Error('WASM file operation timed out'))
+    }, REQUEST_TIMEOUT_MS)
+    pendingFsRequests.set(id, { resolve, reject, timeout })
+    try {
+      window.parent.postMessage({ type: 'fluidnc-fs-request', id, op, ...params }, '*')
+    } catch (error) {
+      clearTimeout(timeout)
+      pendingFsRequests.delete(id)
+      reject(error)
+    }
   })
 }

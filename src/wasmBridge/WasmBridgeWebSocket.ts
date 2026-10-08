@@ -60,6 +60,7 @@ export class WasmBridgeWebSocket extends EventTarget {
   }
 
   private _open() {
+    if (this.readyState !== this.CONNECTING) return
     this.readyState = 1
     // isJson is irrelevant here: whether a line came from a [JSON:...]
     // reassembly or not, ws.ts wants the same thing real hardware's

@@ -8,6 +8,7 @@
     "build": "node scripts/generate-icons.mjs && tsc && vite build",
     "build:esp32": "node scripts/generate-icons.mjs && tsc && node scripts/build-esp32.mjs",
     "build:demo": "node scripts/generate-icons.mjs && tsc && vite build --mode demo",
+    "test:bridge": "node scripts/test-wasm-bridge.mjs",
     "test:config": "node scripts/test-config-compatibility.mjs",
     "test:stream": "esbuild scripts/test-gcode-stream.ts --bundle --platform=node --format=esm --outfile=/tmp/fluidui-test-gcode-stream.mjs && node /tmp/fluidui-test-gcode-stream.mjs",
     "preview": "vite preview"

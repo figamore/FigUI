@@ -587,6 +587,18 @@ def do_command():
     plain = request.args.get('plain', '')
     if plain == '[ESP800]':
         return esp800resp
+    if plain == '[ESP800]json=yes':
+        return {
+            'cmd': '800', 'status': 'ok', 'data': {
+                'FWVersion': 'FluidNC v4.0.0-sim',
+                'HostName': 'fluidnc-sim',
+                'Authentication': 'Disabled',
+                'WebCommunication': 'Synchronous',
+                'WebSocketPort': ws_port,
+                'WebSocketIP': 'localhost',
+                'Axisletters': 'XYZ',
+            },
+        }
     if proxy:
         return do_proxy(request)
     if plain == '[ESP400]':         return esp400resp
