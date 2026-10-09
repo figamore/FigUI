@@ -1021,11 +1021,18 @@ export function JogPad() {
                   <FeedButton label="Z" value={zFeed} presets={zFeedPresetValues} onChange={setZFeed}
                     formatValue={linearFeedFormatter} toDisplayValue={value => mmToDisplay(value, units)}
                     fromDisplayValue={value => displayToMm(value, units)} max={zFeedMax} />
-                  {axes > 3 && <FeedButton label="ABC" value={abcFeed} presets={abcFeedPresetValues} onChange={setAbcFeed} formatValue={rotaryFeedFormatter} max={abcFeedMax} />}
                   <span className="text-base text-text-dim shrink-0">
-                    {axes > 3 ? `XYZ ${feedUnitLabel(units)}` : feedUnitLabel(units)}
+                    {feedUnitLabel(units)}
                   </span>
                 </div>
+
+                {axes > 3 && (
+                  <div className="flex gap-2 items-center">
+                    <FeedButton label="ABC" value={abcFeed} presets={abcFeedPresetValues} onChange={setAbcFeed}
+                      formatValue={rotaryFeedFormatter} max={abcFeedMax} />
+                    <span className="text-base text-text-dim shrink-0">mm/min</span>
+                  </div>
+                )}
 
                 <div className="text-center text-base text-text-dim leading-tight">
                   {continuous
