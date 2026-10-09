@@ -641,7 +641,7 @@ textarea {
     color: var(--accent);
   }
 
-  /* Tablet jog pad: size cluster to the largest 4:3 rect that fits the area */
+  /* Tablet jog pad: fit four columns and all configured axis rows in the area. */
   .jog-controls-area {
     container-type: size;
   }
@@ -649,8 +649,8 @@ textarea {
   .jog-cluster {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
-    grid-template-rows: repeat(3, 1fr);
-    aspect-ratio: 4 / 3;
+    grid-template-rows: repeat(var(--jog-cluster-rows, 3), 1fr);
+    aspect-ratio: 4 / var(--jog-cluster-rows, 3);
     width: auto;
     max-width: 100%;
     flex-shrink: 0;
@@ -663,7 +663,7 @@ textarea {
 
   @supports (height: 1cqh) {
     .jog-cluster {
-      height: min(100cqh, 75cqw);
+      height: min(100cqh, calc(25cqw * var(--jog-cluster-rows, 3)));
       max-height: 100cqh;
     }
   }

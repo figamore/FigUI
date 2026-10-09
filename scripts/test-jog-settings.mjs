@@ -17,6 +17,10 @@ const bundle = await build({
       export { updateControllerConfigSetting } from './src/lib/controllerConfig'
       export { buildLimitedFeedPresets, getJogFeedMax } from './src/lib/jog'
       export { parseControllerSettingLine } from './src/lib/parser'
+      export { TabletJogPad } from './src/components/JogPad'
+      export { axisStepToCommand } from './src/lib/units'
+      export { createElement } from 'react'
+      export { renderToStaticMarkup } from 'react-dom/server.browser'
     `,
     resolveDir: process.cwd(),
   },
@@ -32,6 +36,10 @@ const {
   buildLimitedFeedPresets,
   getJogFeedMax,
   parseControllerSettingLine,
+  TabletJogPad,
+  axisStepToCommand,
+  createElement,
+  renderToStaticMarkup,
 } = await import(`data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].contents).toString('base64')}`)
 
 const presets = [50, 100, 200, 500, 1000, 2000, 3000]
@@ -102,4 +110,30 @@ for (const [number, axis] of [[113, 'A'], [114, 'B'], [115, 'C']]) {
   assert.deepEqual(parseControllerSettingLine(`$${number}=720.000`), { [`maxRate${axis}`]: 720 })
 }
 
-console.log('Jog feedrate settings update without reload for XY, Z, and ABC.')
+storage.set('jog.abcFeed', '350')
+// Render each configured machine as the server snapshot used by Zustand.
+const renderState = store.getInitialState()
+for (const axes of [3, 4, 5, 6]) {
+  for (const layout of ['default', 'topBand']) {
+    store.setState({ axes, units: 'in', status: { ...store.getState().status, state: 'Idle' } })
+    Object.assign(renderState, store.getState())
+    const html = renderToStaticMarkup(createElement(TabletJogPad, { layout }))
+    for (const [index, axis] of ['A', 'B', 'C'].entries()) {
+      for (const direction of ['negative', 'positive']) {
+        assert.equal(html.includes(`aria-label="Jog ${axis} ${direction}"`), index < axes - 3)
+      }
+    }
+    assert.equal(html.includes('aria-label="Set ABC feedrate"'), axes > 3)
+    assert.ok(html.includes(`--jog-cluster-rows:${axes}`))
+    if (axes > 3) assert.match(html, />350<\/span><span[^>]*>mm\/min/)
+  }
+}
+store.setState({ axes: 6, status: { ...store.getState().status, state: 'Run' } })
+Object.assign(renderState, store.getState())
+const busyHtml = renderToStaticMarkup(createElement(TabletJogPad))
+assert.match(busyHtml, /disabled="" aria-label="Jog A positive"/)
+// Rotary distances must stay in degrees even with an inch display.
+for (const axis of ['A', 'B', 'C']) assert.equal(axisStepToCommand(1, axis, 'in'), 1)
+assert.equal(axisStepToCommand(1, 'X', 'in'), 25.4)
+
+console.log('Jog settings and compact controls passed for three through six axes.')

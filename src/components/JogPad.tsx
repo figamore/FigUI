@@ -970,6 +970,9 @@ export function JogPad() {
     <>
       {compact
         ? <TabletJogPad onSwitchStyle={() => {
+            setXyFeed(loadPersistedJogFeed('jog.xyFeed', 1000))
+            setZFeed(loadPersistedJogFeed('jog.zFeed', 200))
+            setAbcFeed(loadPersistedJogFeed('jog.abcFeed', 500))
             setCompact(false)
             localStorage.setItem('jog.desktopStyle', 'rose')
           }} />
@@ -1316,6 +1319,23 @@ export function OverridesPanel({ className, isTablet }: { className?: string; is
   )
 }
 
+function CompactRotaryJogControls({ axis, color, feed, step, continuous, disabled }: {
+  axis: string; color: string; feed: number; step: number; continuous: boolean; disabled: boolean
+}) {
+  const negative = useHoldJog(axis, -1, feed, step, continuous, disabled)
+  const positive = useHoldJog(axis, 1, feed, step, continuous, disabled)
+  return (
+    <>
+      <button {...tabletJogPointerHandlers(negative.start, negative.stop)}
+        className="jog-cluster-btn col-span-2" style={{ color }}
+        disabled={disabled} aria-label={`Jog ${axis} negative`}>{axis}-</button>
+      <button {...tabletJogPointerHandlers(positive.start, positive.stop)}
+        className="jog-cluster-btn col-span-2" style={{ color }}
+        disabled={disabled} aria-label={`Jog ${axis} positive`}>{axis}+</button>
+    </>
+  )
+}
+
 export function TabletJogPad({
   onSwitchStyle,
   layout = 'default',
@@ -1327,25 +1347,31 @@ export function TabletJogPad({
   const controllerResetPending = useMachineStore(s => s.controllerResetPending)
   const controllerJobStarting = useControllerJobStarting()
   const units = useMachineStore(s => s.units)
+  const axes = useMachineStore(s => s.axes)
   const controllerSettings = useMachineStore(s => s.controllerSettings)
   const topBand = layout === 'topBand'
+  const rotaryAxes = (['A', 'B', 'C'] as const).slice(0, Math.max(0, axes - 3))
 
   const [xyFeed, setXyFeed] = useState(() => loadPersistedJogFeed('jog.xyFeed', 1000))
   const [zFeed, setZFeed]   = useState(() => loadPersistedJogFeed('jog.zFeed', 200))
+  const [abcFeed, setAbcFeed] = useState(() => loadPersistedJogFeed('jog.abcFeed', 500))
   const [continuous, setContinuous] = useState(false)
   const [stepSize, setStepSize] = useState(1)
-  const [feedModal, setFeedModal] = useState<'xy' | 'z' | null>(null)
+  const [feedModal, setFeedModal] = useState<'xy' | 'z' | 'abc' | null>(null)
   const [customFeedValue, setCustomFeedValue] = useState('')
   const prevUnitsRef = useRef(units)
 
   const xyFeedMax = getJogFeedMax(controllerSettings, 'xy')
   const zFeedMax = getJogFeedMax(controllerSettings, 'z')
+  const abcFeedMax = getJogFeedMax(controllerSettings, 'abc', axes)
   const linearFeedPresetValues = linearFeedPresets(units)
   const xyFeedPresetValues = buildLimitedFeedPresets(linearFeedPresetValues, xyFeedMax)
   const zFeedPresetValues  = buildLimitedFeedPresets(linearFeedPresetValues, zFeedMax)
+  const abcFeedPresetValues = buildLimitedFeedPresets(MM_FEED_PRESETS, abcFeedMax)
 
   useEffect(() => { localStorage.setItem('jog.xyFeed', JSON.stringify(xyFeed)) }, [xyFeed])
   useEffect(() => { localStorage.setItem('jog.zFeed',  JSON.stringify(zFeed))  }, [zFeed])
+  useEffect(() => { localStorage.setItem('jog.abcFeed', JSON.stringify(abcFeed)) }, [abcFeed])
 
   useEffect(() => {
     if (prevUnitsRef.current === units) return
@@ -1364,6 +1390,11 @@ export function TabletJogPad({
     if (zFeedMax == null || !Number.isFinite(zFeedMax) || zFeedMax <= 0) return
     setZFeed(prev => Math.min(prev, zFeedMax))
   }, [zFeedMax])
+
+  useEffect(() => {
+    if (abcFeedMax == null) return
+    setAbcFeed(prev => Math.min(prev, abcFeedMax))
+  }, [abcFeedMax])
 
   const jobActive = status.state === 'Run' || status.state === 'Hold' || controllerJobStarting || controllerResetPending
   const canJog = (status.state === 'Idle' || status.state === 'Jog') && !controllerJobStarting && !controllerResetPending
@@ -1395,9 +1426,9 @@ export function TabletJogPad({
     if (!steps.includes(stepSize)) setStepSize(steps[1])
   }, [units])
 
-  function openFeedModal(axis: 'xy' | 'z') {
-    const current = axis === 'xy' ? xyFeed : zFeed
-    setCustomFeedValue(String(mmToDisplay(current, units)))
+  function openFeedModal(axis: 'xy' | 'z' | 'abc') {
+    const current = axis === 'xy' ? xyFeed : axis === 'z' ? zFeed : abcFeed
+    setCustomFeedValue(String(axis === 'abc' ? current : mmToDisplay(current, units)))
     setFeedModal(axis)
   }
 
@@ -1406,11 +1437,12 @@ export function TabletJogPad({
     const displayValue = Number(customFeedValue)
     if (!Number.isFinite(displayValue) || displayValue <= 0) return
 
-    const max = feedModal === 'xy' ? xyFeedMax : zFeedMax
-    const converted = displayToMm(displayValue, units)
+    const max = feedModal === 'xy' ? xyFeedMax : feedModal === 'z' ? zFeedMax : abcFeedMax
+    const converted = feedModal === 'abc' ? displayValue : displayToMm(displayValue, units)
     const next = max != null && Number.isFinite(max) ? Math.min(converted, max) : converted
     if (feedModal === 'xy') setXyFeed(next)
-    else setZFeed(next)
+    else if (feedModal === 'z') setZFeed(next)
+    else setAbcFeed(next)
     setFeedModal(null)
   }
 
@@ -1518,7 +1550,8 @@ export function TabletJogPad({
               </svg>
             </button>
           )}
-          <div className={jogClusterClass}>
+          <div className={jogClusterClass}
+            style={{ '--jog-cluster-rows': 3 + rotaryAxes.length } as React.CSSProperties}>
             <div aria-hidden="true" />
             <button {...tabletJogPointerHandlers(startYp, stopYp)} className="jog-cluster-btn text-ok">Y+</button>
             <div aria-hidden="true" />
@@ -1533,10 +1566,25 @@ export function TabletJogPad({
             <button {...tabletJogPointerHandlers(startYm, stopYm)} className="jog-cluster-btn text-ok">Y-</button>
             <div aria-hidden="true" />
             <button {...tabletJogPointerHandlers(startZm, stopZm)} className="jog-cluster-btn text-info">Z-</button>
+            {rotaryAxes.map((axis, i) => (
+              <CompactRotaryJogControls key={axis} axis={axis}
+                color={(['var(--accent)', 'var(--purple)', 'var(--teal)'] as const)[i]}
+                feed={abcFeed} step={axisStepToCommand(stepSize, axis, units)}
+                continuous={continuous} disabled={jogDisabled} />
+            ))}
           </div>
         </div>
 
       </div>
+      {rotaryAxes.length > 0 && (
+        <button onClick={() => openFeedModal('abc')}
+          className={`flex items-center gap-3 border-t border-border shrink-0 hover:bg-accent/5 transition-colors ${topBand ? 'px-3 py-1.5 text-sm' : 'px-4 py-2 text-lg'}`}
+          aria-label="Set ABC feedrate">
+          <span className="font-bold text-text-muted">ABC</span>
+          <span className="flex-1 text-right font-mono text-text-primary">{formatDisplayNumber(abcFeed, 0)}</span>
+          <span className="text-text-dim">mm/min</span>
+        </button>
+      )}
     </div>
 
     {/* Feed preset modal */}
@@ -1551,19 +1599,20 @@ export function TabletJogPad({
         >
           <div className="flex items-center justify-between mb-6">
             <span className="text-3xl font-bold">
-              {feedModal === 'xy' ? 'XY' : 'Z'} Feedrate
+              {feedModal.toUpperCase()} Feedrate
             </span>
-            <span className="text-2xl text-text-muted font-mono">{feedUnitLabel(units)}</span>
+            <span className="text-2xl text-text-muted font-mono">{feedModal === 'abc' ? 'mm/min' : feedUnitLabel(units)}</span>
           </div>
           <div className="grid grid-cols-2 gap-4">
-            {(feedModal === 'xy' ? xyFeedPresetValues : zFeedPresetValues).map(preset => {
-              const active = preset === (feedModal === 'xy' ? xyFeed : zFeed)
+            {(feedModal === 'xy' ? xyFeedPresetValues : feedModal === 'z' ? zFeedPresetValues : abcFeedPresetValues).map(preset => {
+              const active = preset === (feedModal === 'xy' ? xyFeed : feedModal === 'z' ? zFeed : abcFeed)
               return (
                 <button
                   key={preset}
                   onClick={() => {
                     if (feedModal === 'xy') setXyFeed(preset)
-                    else setZFeed(preset)
+                    else if (feedModal === 'z') setZFeed(preset)
+                    else setAbcFeed(preset)
                     setFeedModal(null)
                   }}
                   className={`btn py-6 text-3xl font-mono justify-center ${
@@ -1572,7 +1621,7 @@ export function TabletJogPad({
                       : 'btn-ghost'
                   }`}
                 >
-                  {formatDisplayNumber(mmToDisplay(preset, units), 0)}
+                  {formatDisplayNumber(feedModal === 'abc' ? preset : mmToDisplay(preset, units), 0)}
                 </button>
               )
             })}
