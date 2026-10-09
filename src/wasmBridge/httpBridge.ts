@@ -143,7 +143,7 @@ export function installFetchInterceptor(): void {
     const m = (init?.method ?? 'GET').toUpperCase()
 
     if (p === '/command' || p === '/command_silent') {
-      const plain = searchParams.get('plain') ?? ''
+      const plain = searchParams.get('cmd') ?? searchParams.get('plain') ?? ''
       try {
         return ok(await sendBridgeCommand(plain))
       } catch (e) {

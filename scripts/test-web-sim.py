@@ -25,10 +25,12 @@ class DiscoveryTests(unittest.TestCase):
         self.client = simulator.app.test_client()
 
     def test_json_discovery_advertises_the_simulator_websocket(self):
-        for endpoint in ('/command', '/command_silent'):
-            with self.subTest(endpoint=endpoint):
+        for endpoint, parameter in ((endpoint, parameter)
+                                    for endpoint in ('/command', '/command_silent')
+                                    for parameter in ('cmd', 'plain')):
+            with self.subTest(endpoint=endpoint, parameter=parameter):
                 response = self.client.get(endpoint, query_string={
-                    'plain': '[ESP800]json=yes', 'PAGEID': '0',
+                    parameter: '[ESP800]json=yes', 'PAGEID': '0',
                 })
                 self.assertEqual(response.status_code, 200)
                 self.assertTrue(response.is_json, response.get_data(as_text=True))
@@ -42,7 +44,7 @@ class DiscoveryTests(unittest.TestCase):
         with patch.object(simulator, 'proxy', True), \
                 patch.object(simulator, 'do_proxy') as forward:
             response = self.client.get('/command', query_string={
-                'plain': '[ESP800]json=yes',
+                'cmd': '[ESP800]json=yes',
             })
             self.assertTrue(response.is_json, response.get_data(as_text=True))
             self.assertEqual(int(response.get_json()['data']['WebSocketPort']), simulator.ws_port)

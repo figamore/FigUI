@@ -5,6 +5,8 @@ import { PluginFrame } from './PluginFrame'
 import type { Plugin, StoreEntry, ActiveLayout } from '../types'
 import { getEffectiveLayout } from '../types'
 import { semverGt } from '../lib/updateCheck'
+import { canLoadControllerResources, useControllerResourcesReady } from '../lib/controllerResources'
+import { useMachineStore } from '../store'
 
 type Tab = 'installed' | 'store'
 
@@ -42,9 +44,11 @@ function FsBadge({ fs }: { fs: 'sd' | 'local' }) {
 }
 
 export function PluginLauncher({ isTablet, onLaunchPanel, activeLayout }: { isTablet?: boolean; onLaunchPanel?: (plugin: Plugin) => void; activeLayout?: ActiveLayout }) {
+  const resourcesReady = useControllerResourcesReady()
   const [tab, setTab] = useState<Tab>('installed')
   const [plugins, setPlugins] = useState<Plugin[]>(pluginsCache ?? [])
-  const [scanning, setScanning] = useState(pluginsCache === null)
+  const [scanning, setScanning] = useState(false)
+  const scanGeneration = useRef(0)
   const [activePlugin, setActivePlugin] = useState<Plugin | null>(null)
   const [query, setQuery] = useState('')
 
@@ -69,14 +73,27 @@ export function PluginLauncher({ isTablet, onLaunchPanel, activeLayout }: { isTa
   const [updatingId, setUpdatingId] = useState<string | null>(null)
 
   const scan = useCallback(async (silent = false) => {
+    const generation = ++scanGeneration.current
+    if (!canLoadControllerResources(useMachineStore.getState())) {
+      setScanning(false)
+      return
+    }
     if (!silent) setScanning(true)
-    const found = await discoverPlugins()
-    pluginsCache = found
-    setPlugins(found)
-    setScanning(false)
+    try {
+      const found = await discoverPlugins()
+      if (generation !== scanGeneration.current || !canLoadControllerResources(useMachineStore.getState())) return
+      pluginsCache = found
+      setPlugins(found)
+    } finally {
+      if (generation === scanGeneration.current) setScanning(false)
+    }
   }, [])
 
-  useEffect(() => { scan(pluginsCache !== null) }, [scan])
+  useEffect(() => {
+    if (resourcesReady) scan(pluginsCache !== null)
+    else setScanning(false)
+    return () => { scanGeneration.current++ }
+  }, [scan, resourcesReady])
 
   const loadStore = useCallback(async () => {
     if (storeEntries !== null) return
@@ -289,7 +306,9 @@ export function PluginLauncher({ isTablet, onLaunchPanel, activeLayout }: { isTa
 
           {/* Installed tab */}
           {!progress && tab === 'installed' && (
-            scanning ? (
+            !resourcesReady && pluginsCache === null ? (
+              <div className="p-4 text-text-muted text-sm">Plugins will load when the controller is idle.</div>
+            ) : scanning ? (
               <div className="flex-1 flex items-center justify-center py-16">
                 <RefreshCw size={22} className="text-text-muted animate-spin" />
               </div>

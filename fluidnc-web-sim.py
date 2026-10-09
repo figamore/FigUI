@@ -669,7 +669,7 @@ def index():
 @app.route('/command')
 @app.route('/command_silent')
 def do_command():
-    plain = request.args.get('plain', '')
+    plain = request.args.get('cmd', request.args.get('plain', ''))
     if plain == '[ESP800]':
         return esp800resp
     if plain == '[ESP800]json=yes':

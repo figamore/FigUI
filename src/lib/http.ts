@@ -71,7 +71,10 @@ function get(path: string, params: Record<string, string>, timeoutMs?: number): 
     const ctl = timeoutMs ? new AbortController() : null
     const timer = ctl ? setTimeout(() => ctl.abort(), timeoutMs) : null
     try {
-      const res = await fetch(`${base}${path}?${q}`, ctl ? { signal: ctl.signal } : undefined)
+      const res = await fetch(`${base}${path}?${q}`, {
+        cache: 'no-store',
+        ...(ctl ? { signal: ctl.signal } : {}),
+      })
       if (!res.ok) {
         // FluidNC blocks synchronous HTTP during motion, even if the browser
         // has already loaded a cached copy of the WebUI.
@@ -107,7 +110,7 @@ export const sendSilent = (cmd: string) =>
   get('/command_silent', { plain: cmd })
 
 export const getDeviceInfoFast = () =>
-  get('/command', { plain: '[ESP800]json=yes' }, 4000)
+  get('/command', { cmd: '[ESP800]json=yes' }, 4000)
 
 async function listFilesRequest(path: string, fs: Filesystem): Promise<FileListResult> {
     const apiPath = fs === 'sd' ? sdRelPath(path) : path
@@ -303,7 +306,9 @@ export async function saveFileContent(
   await uploadFile(path, file, fs)
 }
 
-export const getDeviceInfo = () => sendCommand('[ESP800]json=yes')
+// FluidNC's cmd path explicitly allows ESP800 during motion. The plain path
+// blocks every synchronous command, including discovery.
+export const getDeviceInfo = () => get('/command', { cmd: '[ESP800]json=yes' }, 4000)
 
 export function uploadFirmware(
   file: File,

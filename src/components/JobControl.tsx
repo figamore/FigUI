@@ -1,7 +1,7 @@
 import { Play, Pause, Square, RotateCcw, DoorOpen, StepForward } from 'lucide-react'
 import { useMachineStore } from '../store'
 import { useGCodeStore } from '../store/gcode'
-import { formatRuntime, useJobRuntimeEstimate } from '../lib/jobRuntime'
+import { formatJobProgress, formatRuntime, useJobRuntimeEstimate } from '../lib/jobRuntime'
 import { useControllerJobStarting } from '../lib/jobState'
 import { sendRealtime, sendRealtimeNow } from '../lib/ws'
 import { clearMachineAlarm } from '../lib/alarm'
@@ -65,11 +65,16 @@ export function JobControl() {
           <div className="space-y-1.5">
             <div className="text-sm text-text-muted font-mono truncate">{sdFilename}</div>
             {progressPercent != null && (
-              <div className="w-full h-1.5 bg-elevated rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-info transition-all duration-500 rounded-full"
-                  style={{ width: `${progressPercent}%` }}
-                />
+              <div className="flex items-center gap-2.5">
+                <div className="flex-1 h-1.5 bg-elevated rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-info transition-all duration-500 rounded-full"
+                    style={{ width: `${progressPercent}%` }}
+                  />
+                </div>
+                <span className="text-sm font-mono text-text-muted tabular-nums shrink-0">
+                  {runtime.source === 'sd' ? 'File ' : ''}{formatJobProgress(progressPercent, runtime.source)}
+                </span>
               </div>
             )}
             {runtime.source === 'estimated' && (

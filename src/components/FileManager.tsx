@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { canLoadControllerResources, useControllerResourcesReady } from "../lib/controllerResources";
 import {
   Folder,
   File,
@@ -440,6 +441,7 @@ export function prefetchInternalFiles() {
 }
 
 export function FileManager({ isTablet }: { isTablet?: boolean }) {
+  const resourcesReady = useControllerResourcesReady();
   const espInfo = useMachineStore((s) => s.espInfo);
   const machineState = useMachineStore((s) => s.status.state);
   const loadGCodeFromText = useGCodeStore((s) => s.loadFromText);
@@ -450,7 +452,7 @@ export function FileManager({ isTablet }: { isTablet?: boolean }) {
   const canLoadGcode = machineState !== "Run" && machineState !== "Hold";
 
   const [fs, setFs] = useState<Filesystem>(_fmLastFs);
-  const [path, setPath] = useState(_fmCache.get(_fmLastFs)?.path ?? primarySd);
+  const [path, setPath] = useState(_fmCache.get(_fmLastFs)?.path ?? (_fmLastFs === "sd" ? primarySd : "/"));
   const [result, setResult] = useState<FileListResult | null>(
     _fmCache.get(_fmLastFs)?.result ?? null,
   );
@@ -487,27 +489,64 @@ export function FileManager({ isTablet }: { isTablet?: boolean }) {
 
   const sdRoot = primarySd;
   const localRoot = "/";
+  const pendingListing = useRef<{ path: string; fs: Filesystem } | null>(null);
+  const activeListing = useRef<{ path: string; fs: Filesystem } | null>(null);
+  const listingGeneration = useRef(0);
 
   const load = useCallback(async (p: string, filesystem: Filesystem) => {
-    setLoading(true);
+    const generation = ++listingGeneration.current;
+    const request = { path: p, fs: filesystem };
+    pendingListing.current = request;
+    activeListing.current = null;
+    setFs(filesystem);
+    setPath(p);
+    setResult(null);
     setError("");
+    _fmLastFs = filesystem;
+    if (!canLoadControllerResources(useMachineStore.getState())) {
+      setLoading(false);
+      return;
+    }
+    pendingListing.current = null;
+    activeListing.current = request;
+    setLoading(true);
     try {
       const data = await listFiles(p, filesystem);
+      if (generation !== listingGeneration.current) return;
+      if (!canLoadControllerResources(useMachineStore.getState())) {
+        pendingListing.current = request;
+        return;
+      }
       setResult(data);
-      setPath(p);
       _fmCache.set(filesystem, { result: data, path: p });
-      _fmLastFs = filesystem;
     } catch (e) {
+      if (generation !== listingGeneration.current) return;
+      if (!canLoadControllerResources(useMachineStore.getState())) {
+        pendingListing.current = request;
+        return;
+      }
       setError(e instanceof Error ? e.message : "Failed to load");
     } finally {
-      setLoading(false);
+      if (generation === listingGeneration.current) {
+        activeListing.current = null;
+        setLoading(false);
+      }
     }
   }, []);
 
   useEffect(() => {
-    if (_fmCache.has("sd")) return;
-    load(sdRoot, "sd");
-  }, [load, sdRoot]);
+    if (!resourcesReady) return;
+    const pending = pendingListing.current;
+    if (pending) {
+      load(pending.path, pending.fs);
+      return;
+    }
+    if (activeListing.current?.fs === fs && activeListing.current.path === path) return;
+    if (_fmCache.get(fs)?.path === path) return;
+    load(path, fs);
+  }, [load, fs, path, resourcesReady]);
+
+  useEffect(() => () => { listingGeneration.current++; }, []);
 
   useEffect(() => {
     if (editing) editorHistoryRef.current = editing;
@@ -546,7 +585,13 @@ export function FileManager({ isTablet }: { isTablet?: boolean }) {
 
   useEffect(() => {
     window.addEventListener("files:changed", scheduleRefresh);
-    return () => window.removeEventListener("files:changed", scheduleRefresh);
+    return () => {
+      window.removeEventListener("files:changed", scheduleRefresh);
+      if (refreshTimerRef.current !== null) {
+        clearTimeout(refreshTimerRef.current);
+        refreshTimerRef.current = null;
+      }
+    };
   }, [scheduleRefresh]);
 
   const openStudioFile = useCallback(async (filename: string) => {
@@ -682,6 +727,11 @@ export function FileManager({ isTablet }: { isTablet?: boolean }) {
   }, [fs, highlightedUpload, path, result]);
 
   function switchFs(newFs: Filesystem) {
+    listingGeneration.current++;
+    pendingListing.current = null;
+    activeListing.current = null;
+    setLoading(false);
+    setError("");
     _fmLastFs = newFs;
     setHighlightedUpload(null);
     setSelectionMode(false);
@@ -1238,6 +1288,12 @@ export function FileManager({ isTablet }: { isTablet?: boolean }) {
         {error && (
           <div className="m-3 p-3 rounded-sm bg-danger/10 border border-danger/30 text-danger text-base">
             {error}
+          </div>
+        )}
+
+        {!resourcesReady && !result && (
+          <div className="p-4 text-text-muted text-sm">
+            Files will load when the controller is idle.
           </div>
         )}
 

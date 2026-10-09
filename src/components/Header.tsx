@@ -2,7 +2,7 @@ import { Sun, Moon, Wifi, WifiOff, Settings, Maximize, Minimize, HelpCircle, Pla
 import fluidncLogo from '../assets/fluidnc-logo.svg'
 import { useMachineStore, stateColor, stateBg } from '../store'
 import { useGCodeStore } from '../store/gcode'
-import { useJobRuntimeEstimate } from '../lib/jobRuntime'
+import { formatJobProgress, useJobRuntimeEstimate } from '../lib/jobRuntime'
 import { useControllerJobStarting } from '../lib/jobState'
 import { sendRealtime } from '../lib/ws'
 import { alarmClearActionTitle, clearMachineAlarm } from '../lib/alarm'
@@ -36,7 +36,7 @@ export function Header({ onSettingsClick, onAboutClick, isTablet, sticky }: Prop
   const loadedPath = useGCodeStore(s => s.loadedPath)
   const fileName = useGCodeStore(s => s.fileName)
   const runtime = useJobRuntimeEstimate(status, model, controllerSettings, loadedPath, fileName)
-  const showHeaderProgress = status.sdFilename && runtime.source === 'estimated' && runtime.progressPercent != null
+  const showHeaderProgress = status.sdFilename && runtime.progressPercent != null
   const headerProgressPercent = runtime.progressPercent ?? 0
   const pinnedMacros = useMemo(() => macros.filter(m => m.pinned), [macros])
   const [isFullscreen, setIsFullscreen] = useState(false)
@@ -86,21 +86,22 @@ export function Header({ onSettingsClick, onAboutClick, isTablet, sticky }: Prop
       )}
 
       {status.sdFilename && (
-        <div className="hidden lg:flex items-center gap-2 text-sm text-text-muted min-w-0">
+        <div className="flex items-center gap-2 text-sm text-text-muted min-w-0">
           {showHeaderProgress && (
             <>
-              <div className="w-24 h-1 bg-elevated rounded-full overflow-hidden shrink-0">
+              <div className="hidden lg:block w-24 h-1 bg-elevated rounded-full overflow-hidden shrink-0">
                 <div
                   className="h-full bg-info transition-all"
                   style={{ width: `${headerProgressPercent}%` }}
                 />
               </div>
-              <span className="w-9 text-right font-mono tabular-nums shrink-0">
-                {Math.round(headerProgressPercent)}%
+              <span className="min-w-9 text-right font-mono tabular-nums shrink-0"
+                title={runtime.source === 'sd' ? 'File progress reported by FluidNC' : 'Estimated job progress'}>
+                {formatJobProgress(headerProgressPercent, runtime.source)}
               </span>
             </>
           )}
-          <span className="text-text-dim truncate max-w-32">{status.sdFilename}</span>
+          <span className="hidden lg:inline text-text-dim truncate max-w-32">{status.sdFilename}</span>
         </div>
       )}
 

@@ -6,7 +6,7 @@ import { useGCodeStore } from '../store/gcode'
 import { sendRaw, sendRealtime, sendRealtimeNow, STATUS_POLL_INTERVAL_MS } from '../lib/ws'
 import type { ControllerSettings, MachineStatus, Units } from '../types'
 import { displayToMm, feedUnitLabel, linearUnitLabel, mmToDisplay } from '../lib/units'
-import { buildJobTimingEstimate, formatRuntime, useJobRuntimeEstimate, type JobTimingEstimate } from '../lib/jobRuntime'
+import { buildJobTimingEstimate, formatJobProgress, formatRuntime, useJobRuntimeEstimate, type JobTimingEstimate } from '../lib/jobRuntime'
 import { createRenderer, renderLines, setStaticLineData, type WebGLRenderer, type Camera, type Vector3 } from '../lib/webgl'
 import { addSegmentToPath, buildRenderLines, buildStatic2DPaths, buildStatic3DGeometry, clamp01, EMPTY_UINT8, getArcGeometry, normalizeAngle, type RenderLines } from '../lib/gcodeBuild'
 import { RestartFromLineDialog } from './RestartFromLineDialog'
@@ -3737,6 +3737,11 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
                 {senderActive && (
                   <span className="text-[11px] font-mono text-text-muted tabular-nums" title="Position-derived toolpath completion, bounded by the latest accepted line">
                     Motion {Math.round(displayedProgressPercent)}%
+                  </span>
+                )}
+                {!simulationActive && !senderActive && runtime.source === 'sd' && (
+                  <span className="text-[11px] font-mono text-text-muted tabular-nums" title="File progress reported by FluidNC">
+                    File {formatJobProgress(displayedProgressPercent, runtime.source)}
                   </span>
                 )}
               </div>

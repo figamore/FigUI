@@ -7,7 +7,8 @@ import { connect, isSocketOpen, onLine, sendStartupQueries } from './lib/ws'
 import { setBase, getBase, getDeviceInfo, getDeviceInfoFast, loadMacroCfg, WebUIBlockedError } from './lib/http'
 import { isWasmBridgeActive, WASM_BRIDGE_BASE } from './wasmBridge/shimTransport'
 import { parseESP800 } from './lib/parser'
-import { prefetchControllerConfigSettings } from './lib/controllerConfig'
+import { loadControllerConfigSettings } from './lib/controllerConfig'
+import { scheduleControllerStartup } from './lib/controllerResources'
 import { CURRENT_VERSION, GITHUB_REPO, DISMISSED_VERSION_KEY, semverGt } from './lib/updateCheck'
 import { startWatchdog, stopWatchdog } from './lib/jogWatchdog'
 import { Header } from './components/Header'
@@ -331,13 +332,6 @@ function AppContent() {
         reconnectTimer.current = null
       }
       backoffMs.current = 0
-      setStartupPending(true)
-      sendStartupQueries()
-        .finally(() => {
-          setStartupPending(false)
-          prefetchControllerConfigSettings()
-          window.setTimeout(() => prefetchInternalFiles(), 1000)
-        })
     } else {
       setStartupPending(false)
       if (!reconnectTimer.current) {
@@ -352,6 +346,25 @@ function AppContent() {
       }
     }
   }, [connected, phase])
+
+  const macrosLoaded = useRef(false)
+  useEffect(() => {
+    if (phase !== 'ready' || !connected) return
+    return scheduleControllerStartup(async canContinue => {
+      if (!await sendStartupQueries(canContinue)) return false
+      await loadControllerConfigSettings().catch(() => {})
+      if (!canContinue()) return false
+      if (!macrosLoaded.current) {
+        const data = await loadMacroCfg()
+        if (!canContinue()) return false
+        if (data.length > 0) setMacros(data)
+        macrosLoaded.current = true
+      }
+      if (!canContinue()) return false
+      await prefetchInternalFiles()
+      return canContinue()
+    }, setStartupPending)
+  }, [connected, phase, setMacros, setStartupPending])
 
   useEffect(() => {
     if (!restarting) {
@@ -375,47 +388,33 @@ function AppContent() {
 
   useEffect(() => {
     if (!connected) return
-    const errors: string[] = []
-    let done = false
-    let fallbackTimer: ReturnType<typeof setTimeout>
+    let errors: string[] = []
+    let fallbackTimer: ReturnType<typeof setTimeout> | null = null
 
     const finish = () => {
-      if (done) return
-      done = true
-      unsub()
-      clearTimeout(fallbackTimer)
+      if (fallbackTimer !== null) clearTimeout(fallbackTimer)
+      fallbackTimer = null
       if (errors.length > 0) {
         setStartupErrors(errors)
         setStartupErrorsOpen(true)
+        errors = []
       }
     }
 
     const unsub = onLine((line: string) => {
-      if (done) return
       if (line.includes('[MSG:ERR:') && line.includes('Configuration error')) {
         errors.push(line)
+        if (fallbackTimer === null) fallbackTimer = setTimeout(finish, 5000)
       } else if (line === 'ok' || line.startsWith('error:')) {
         finish()
       }
     })
 
-    fallbackTimer = setTimeout(finish, 5000)
-
     return () => {
-      done = true
       unsub()
-      clearTimeout(fallbackTimer)
+      if (fallbackTimer !== null) clearTimeout(fallbackTimer)
     }
   }, [connected])
-
-  const macrosLoaded = useRef(false)
-  useEffect(() => {
-    if (!connected || macrosLoaded.current) return
-    macrosLoaded.current = true
-    loadMacroCfg()
-      .then(data => { if (data.length > 0) setMacros(data) })
-      .catch(() => { macrosLoaded.current = false })
-  }, [connected]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Debounce the "Reconnecting…" overlay so transient drops don't flash it.
   useEffect(() => {
