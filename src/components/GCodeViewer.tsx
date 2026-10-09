@@ -1355,6 +1355,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
   const fileName = useGCodeStore(s => s.fileName)
   const loadedPath = useGCodeStore(s => s.loadedPath)
   const sourceText = useGCodeStore(s => s.sourceText)
+  const restoredFromCache = useGCodeStore(s => s.restoredFromCache)
   const restartSource = useGCodeStore(s => s.restartSource)
   const loading = useGCodeStore(s => s.loading)
   const pendingPath = useGCodeStore(s => s.pendingPath)
@@ -3165,6 +3166,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
             <span className="text-text-dim text-sm whitespace-nowrap">No file loaded</span>
           )}
           {isLocalFile && <span className="tag border-info/30 bg-info/10 text-info normal-case tracking-normal">Local</span>}
+          {restoredFromCache && <span className="tag normal-case tracking-normal" title="Preview restored from this browser's saved copy">Cached</span>}
           {restartSource && (
             <span className="px-1.5 py-0.5 rounded text-xs font-semibold text-accent bg-accent/10 border border-accent/25 shrink-0" title={`Prepared from ${restartSource.fileName}, requested line ${restartSource.requestedLine}`}>
               Restart L{restartSource.resumeLine}
@@ -3373,7 +3375,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
               </div>
               <div className="space-y-1">
                 <div className="flex items-center justify-between text-base text-text-dim uppercase tracking-wide">
-                  <span>{pendingPath ? 'Download from controller' : 'Read local file'}</span>
+                  <span>{restoredFromCache ? 'Read cached file' : pendingPath ? 'Download from controller' : 'Read local file'}</span>
                   <span>{downloadProgress == null ? 'Streaming' : `${downloadProgress}%`}</span>
                 </div>
                 <div className="h-1.5 bg-elevated rounded-full overflow-hidden">
@@ -3966,6 +3968,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
                 <span className="text-text-primary font-mono normal-case tracking-normal font-normal truncate text-base">
                   {fileName}
                 </span>
+                {restoredFromCache && <span className="tag normal-case tracking-normal" title="Preview restored from this browser's saved copy">Cached</span>}
                 {restartSource && (
                   <span className="px-1.5 py-0.5 rounded text-sm font-semibold text-accent bg-accent/10 border border-accent/25 shrink-0">
                     Restart L{restartSource.resumeLine}

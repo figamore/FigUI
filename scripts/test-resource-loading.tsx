@@ -15,6 +15,7 @@ Object.assign(globalThis, {
 })
 
 const { useMachineStore } = await import('../src/store')
+const { useGCodeStore } = await import('../src/store/gcode')
 const { setBase } = await import('../src/lib/http')
 const { FileManager } = await import('../src/components/FileManager')
 const { PluginLauncher } = await import('../src/components/PluginLauncher')
@@ -191,6 +192,28 @@ try {
   assert.match(text(reopened.render()), /Newest plugin/, 'stale scans must not overwrite the module cache')
   reopened.unmount()
 
+  // App restores the reported controller file only after a fresh status, and
+  // percentage-only updates must not repeatedly rebuild that same preview.
+  const restored: string[] = []
+  const restoreRunningFile = useGCodeStore.getState().restoreRunningFile
+  useGCodeStore.setState({ restoreRunningFile: async path => { restored.push(path) } })
+  const runningApp = panel((App().props.children as any).type, effect => effect.toString().includes('restoreRunningFile'))
+  ready(false)
+  useMachineStore.setState({ statusReceived: false })
+  runningApp.render()
+  assert.deepEqual(restored, [])
+  useMachineStore.setState({ statusReceived: true })
+  runningApp.render()
+  assert.deepEqual(restored, ['/sd/job.nc'])
+  useMachineStore.setState({ status: { ...useMachineStore.getState().status, sdPercent: 60.74 } })
+  runningApp.render()
+  assert.equal(restored.length, 1)
+  useMachineStore.setState({ status: { ...useMachineStore.getState().status, sdFilename: '/sd/next.nc' } })
+  runningApp.render()
+  assert.deepEqual(restored, ['/sd/job.nc', '/sd/next.nc'])
+  runningApp.unmount()
+  useGCodeStore.setState({ restoreRunningFile })
+
   // Exercise App's real subscription effect before startupPending is true,
   // and again after pending changes; other App effects stay isolated here.
   class Socket {
@@ -221,7 +244,7 @@ try {
   assert(app.slots.some(slot => Array.isArray(slot?.value) && slot.value.includes(secondError)), 'subscription must survive startupPending changes and previous batches')
   app.unmount()
   disconnect()
-  console.log('Deferred file listings, plugin scan ordering, and configuration error checks passed')
+  console.log('Deferred file listings, plugin scan ordering, job cache restoration, and configuration error checks passed')
 } finally {
   disconnect()
   globalThis.fetch = originalFetch

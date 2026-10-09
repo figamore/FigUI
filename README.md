@@ -65,6 +65,8 @@ Keyboard jogging is supported: arrow keys for X/Y, `+`/`-` for Z. Feed rates for
 
 A 3D toolpath viewer renders the loaded G-code file using WebGL. It provides a spatial overview of the job before and during execution.
 
+Controller file previews and their work offsets are saved in IndexedDB. Reloading during a running or held job restores the matching preview from this browser without reading the file from the controller. The cache keeps the last prepared and last running file for each controller; successful uploads are included. Restored previews show a **Cached** label. Use the same browser and controller address, and prepare the file at least once before running it. Edits, replacements, renames, and deletions through FigUI invalidate saved copies; changes made elsewhere cannot be verified during a job.
+
 > [!Info]
 > For very large G-code files, toolhead progress tracking is intentionally disabled. Rendering a live toolhead position on a dense toolpath is expensive and may degrade responsiveness.
 

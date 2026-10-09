@@ -808,7 +808,7 @@ export function FileManager({ isTablet }: { isTablet?: boolean }) {
             setUploadPhase,
           );
           await previewLoad;
-          if (previewPath) completeSdUpload(previewPath);
+          if (previewPath) await completeSdUpload(previewPath);
         } catch (e) {
           // Let the preview request settle before removing it, so it cannot
           // finish later and re-enable Start for an incomplete SD file.

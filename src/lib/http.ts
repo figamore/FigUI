@@ -1,4 +1,5 @@
 import { getPageId } from './ws'
+import { invalidateCachedGCode } from './gcodeCache'
 import type { FileListResult, Macro } from '../types'
 
 let base = ''
@@ -142,13 +143,17 @@ async function filesystemGet(path: string, params: Record<string, string>): Prom
 }
 
 export async function deleteFile(path: string, filename: string, fs: Filesystem = 'sd'): Promise<void> {
+  const controller = base
   const apiPath = fs === 'sd' ? sdRelPath(path) : path
   await serializeFilesystem(fs, () => filesystemGet(fsEndpoint(fs), { path: apiPath, action: 'delete', filename }))
+  await invalidateCachedGCode(controller, mountedFilePath(joinUploadPath(path, filename), fs))
 }
 
 export async function deleteDir(path: string, filename: string, fs: Filesystem = 'sd'): Promise<void> {
+  const controller = base
   const apiPath = fs === 'sd' ? sdRelPath(path) : path
   await serializeFilesystem(fs, () => filesystemGet(fsEndpoint(fs), { path: apiPath, action: 'deletedir', filename }))
+  await invalidateCachedGCode(controller, mountedFilePath(joinUploadPath(path, filename), fs), true)
 }
 
 export async function createDir(path: string, filename: string, fs: Filesystem = 'sd'): Promise<void> {
@@ -157,8 +162,11 @@ export async function createDir(path: string, filename: string, fs: Filesystem =
 }
 
 export async function renameFile(path: string, filename: string, newname: string, fs: Filesystem = 'sd'): Promise<void> {
+  const controller = base
   const apiPath = fs === 'sd' ? sdRelPath(path) : path
   await serializeFilesystem(fs, () => filesystemGet(fsEndpoint(fs), { path: apiPath, action: 'rename', filename, newname }))
+  await invalidateCachedGCode(controller, mountedFilePath(joinUploadPath(path, filename), fs), true)
+  await invalidateCachedGCode(controller, mountedFilePath(joinUploadPath(path, newname), fs), true)
 }
 
 function fmtBytes(n: number): string {
@@ -206,9 +214,12 @@ export function uploadFile(
   onPhase?: (phase: 'preparing' | 'uploading' | 'finishing') => void,
 ): Promise<void> {
   onPhase?.('preparing')
+  const controller = base
   return serializeFilesystem(fs, async () => {
     await checkFreeSpace(fs, file.size, path, file.name)
-    return new Promise<void>((resolve, reject) => {
+    // A failed transfer can also replace or truncate an existing file.
+    await invalidateCachedGCode(controller, mountedFilePath(joinUploadPath(path, file.name), fs))
+    await new Promise<void>((resolve, reject) => {
       const xhr = new XMLHttpRequest()
       const fd = new FormData()
       const rawPath = fs === 'sd' ? sdRelPath(path) : path

@@ -75,6 +75,8 @@ export function App() {
 
 function AppContent() {
   const connected = useMachineStore(s => s.connected)
+  const statusReceived = useMachineStore(s => s.statusReceived)
+  const runningFile = useMachineStore(s => s.status.sdFilename)
   const restarting = useMachineStore(s => s.restarting)
   const sidebarTab = useMachineStore(s => s.sidebarTab)
   const layoutMode = useMachineStore(s => s.layoutMode)
@@ -92,6 +94,7 @@ function AppContent() {
   const { isCompactLandscape } = useViewportMetrics()
   const compactLandscapeScroll = isCompactLandscape && activeLayout === 'tablet'
   const loadGCodeFile = useGCodeStore(s => s.loadFile)
+  const restoreRunningFile = useGCodeStore(s => s.restoreRunningFile)
   const senderPhase = useGCodeSenderStore(s => s.phase)
   const senderFileName = useGCodeSenderStore(s => s.fileName)
   const senderError = useGCodeSenderStore(s => s.error)
@@ -484,6 +487,10 @@ function AppContent() {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [settingsOpen, requestSettingsClose])
+
+  useEffect(() => {
+    if (connected && statusReceived && runningFile) void restoreRunningFile(runningFile)
+  }, [connected, statusReceived, runningFile, restoreRunningFile])
 
   // On mobile/tablet, switch to the viewer when a file is selected; also kick off
   // the single shared download via the gcode store.

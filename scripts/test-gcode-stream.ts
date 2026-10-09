@@ -173,7 +173,7 @@ secondTab.postMessage('tab-active')
 assert.equal(sessionTakeovers, 1, 'a newly active browser tab must preserve FluidNC session-takeover signaling')
 stopWatchingTakeovers()
 secondTab.close()
-useMachineStore.getState().updateStatus({ state: 'Idle' })
+socket.reportStatus()
 await delay(300)
 
 // Internal storage is served at bare paths, even on devices with no SD card.
