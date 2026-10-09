@@ -576,7 +576,7 @@ export function DRO({
       </div>
 
       {!topBandLayout && <GCodeModesRow isTablet={isTablet} />}
-      {axisEditor && <AxisPositionDialog {...axisEditor} disabled={axisEntryDisabled} onAction={applyAxisPosition} onClose={() => setAxisEditor(null)} />}
+      {axisEditor && <AxisPositionDialog {...axisEditor} isTablet={isTablet} disabled={axisEntryDisabled} onAction={applyAxisPosition} onClose={() => setAxisEditor(null)} />}
     </div>
   )
 }

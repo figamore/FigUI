@@ -45,7 +45,7 @@ The DRO displays live axis positions in both work coordinates (WPos) and machine
 
 - Zero any axis independently or all at once
 - "Go to zero" buttons for each axis
-- Tap an axis readout to enter a coordinate using your device’s keyboard. **Set** assigns the current position that work coordinate; **Go** moves the axis at its jog feed rate.
+- Tap an axis readout to enter a coordinate using your device’s keyboard, or the compact numpad in tablet mode. **Set** assigns the current position that work coordinate; **Go** moves the axis at its jog feed rate.
 - Home all axes or individual axes
 - Live feed rate and spindle RPM display
 
