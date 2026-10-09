@@ -20,7 +20,7 @@ interface TabletMainShellProps {
 }
 
 const TABLET_LEFT_COLUMN_CLASS =
-  'flex flex-col gap-1 portrait:shrink-0 landscape:flex-1 landscape:basis-1/2 landscape:min-h-0 landscape:overflow-hidden'
+  'grid grid-rows-2 gap-1 portrait:shrink-0 portrait:h-[884px] landscape:flex-1 landscape:basis-1/2 landscape:min-h-0 landscape:overflow-hidden'
 
 function TabletLeftColumn({
   jogPlugin,
@@ -31,16 +31,18 @@ function TabletLeftColumn({
 }) {
   return (
     <div className={TABLET_LEFT_COLUMN_CLASS}>
-      <div className="landscape:shrink-0">
+      <div className="tablet-control-slot min-w-0 min-h-0">
         <DRO isTablet />
       </div>
-      {jogPlugin ? (
-        <div className="panel flex flex-col flex-1 min-h-0 overflow-hidden">
-          <PluginFrame plugin={jogPlugin} onClose={onCloseJogPlugin} inline />
-        </div>
-      ) : (
-        <TabletJogPad />
-      )}
+      <div className="tablet-control-slot min-w-0 min-h-0">
+        {jogPlugin ? (
+          <div className="panel flex flex-col h-full min-h-0 overflow-hidden">
+            <PluginFrame plugin={jogPlugin} onClose={onCloseJogPlugin} inline />
+          </div>
+        ) : (
+          <TabletJogPad />
+        )}
+      </div>
     </div>
   )
 }

@@ -1327,10 +1327,10 @@ function CompactRotaryJogControls({ axis, color, feed, step, continuous, disable
   return (
     <>
       <button {...tabletJogPointerHandlers(negative.start, negative.stop)}
-        className="jog-cluster-btn col-span-2" style={{ color }}
+        className="jog-cluster-btn" style={{ color }}
         disabled={disabled} aria-label={`Jog ${axis} negative`}>{axis}-</button>
       <button {...tabletJogPointerHandlers(positive.start, positive.stop)}
-        className="jog-cluster-btn col-span-2" style={{ color }}
+        className="jog-cluster-btn" style={{ color }}
         disabled={disabled} aria-label={`Jog ${axis} positive`}>{axis}+</button>
     </>
   )
@@ -1413,9 +1413,8 @@ export function TabletJogPad({
   const steps = units === 'in' ? [0.001, 0.01, 0.1, 1] : [0.1, 1, 10, 100]
   const stepBtnClass = topBand
     ? 'flex-1 px-1 py-2 font-bold text-sm transition-colors'
-    : 'flex-1 px-2 sm:px-4 portrait:px-4 portrait:py-4 max-sm:portrait:py-2 font-bold text-base sm:text-lg portrait:text-xl max-sm:portrait:text-base transition-colors'
+    : 'flex-1 min-w-0 px-1 py-2 font-bold text-sm sm:px-2 sm:text-lg transition-colors'
   const jogClusterClass = topBand ? 'jog-cluster jog-cluster--top-band' : 'jog-cluster jog-cluster--default'
-  const jogAreaPadding = topBand ? 'p-1' : 'p-2 sm:p-3 portrait:p-3 landscape:p-4 max-sm:portrait:p-2'
   const jogPadRootClass = onSwitchStyle
     ? 'flex-none h-[440px]'
     : topBand
@@ -1448,9 +1447,9 @@ export function TabletJogPad({
 
   return (
     <>
-    <div className={`panel flex flex-col portrait:flex-none portrait:min-h-[440px] ${jogPadRootClass}`}>
+    <div className={`tablet-jog-pad panel w-full min-w-0 flex flex-col portrait:flex-none portrait:h-[440px] ${jogPadRootClass}`}>
       <div className="panel-header flex flex-row items-stretch justify-between shrink-0 !p-0 border-b border-border overflow-hidden">
-        <div className={`flex flex-col items-center justify-center border-r border-border shrink-0 gap-2 font-bold tracking-wider ${topBand ? 'w-12 py-1.5 text-sm' : 'w-16 py-3 text-lg'}`}>
+        <div className={`flex flex-col items-center justify-center border-r border-border shrink-0 gap-2 font-bold tracking-wider ${topBand ? 'w-12 py-1.5 text-sm' : 'w-16 max-sm:w-12 py-2 text-lg'}`}>
           JOG
           {onSwitchStyle && (
             <button
@@ -1481,52 +1480,15 @@ export function TabletJogPad({
         </div>
       </div>
 
-      <div className="flex flex-row flex-1 min-h-0 overflow-hidden">
-
-        <div className={`flex flex-col border-r border-border shrink-0 ${topBand ? 'w-12 py-1' : 'w-16 max-sm:w-12 py-2'}`}>
-          <button
-            onClick={() => openFeedModal('xy')}
-            className={`flex flex-col items-center justify-center flex-1 rounded-lg hover:bg-accent/5 transition-all group ${topBand ? 'gap-1 mx-0.5' : 'gap-3 mx-1'}`}
-          >
-            <span className={`font-extrabold text-text-muted tracking-wider leading-none ${topBand ? 'text-sm' : 'text-xl'}`}>XY</span>
-            <div className="flex items-center">
-              <span
-                className={`font-mono font-semibold text-text-primary leading-none ${topBand ? 'text-base' : 'text-2xl'}`}
-                style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}
-              >
-                {formatDisplayNumber(mmToDisplay(xyFeed, units), 0)}
-              </span>
-              <span
-                className={`text-text-dim leading-none ${topBand ? 'text-xs' : 'text-xl'}`}
-                style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}
-              >{feedUnitLabel(units)}</span>
-            </div>
-          </button>
-          <div className={`h-px bg-border shrink-0 ${topBand ? 'mx-1' : 'mx-2'}`} />
-          <button
-            onClick={() => openFeedModal('z')}
-            className={`flex flex-col items-center justify-center flex-1 rounded-lg hover:bg-accent/5 transition-all group ${topBand ? 'gap-1 mx-0.5' : 'gap-3 mx-1'}`}
-          >
-            <span className={`font-extrabold text-text-muted tracking-wider leading-none ${topBand ? 'text-sm' : 'text-xl'}`}>Z</span>
-            <div className="flex items-center">
-              <span
-                className={`font-mono font-semibold text-text-primary leading-none ${topBand ? 'text-base' : 'text-2xl'}`}
-                style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}
-              >
-                {formatDisplayNumber(mmToDisplay(zFeed, units), 0)}
-              </span>
-              <span
-                className={`text-text-dim leading-none ${topBand ? 'text-xs' : 'text-xl'}`}
-                style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}
-              >{feedUnitLabel(units)}</span>
-            </div>
-          </button>
-        </div>
-
+      <div
+        {...noContextMenu}
+        className={`jog-controls-layout ${rotaryAxes.length > 0 ? 'jog-controls-layout--rotary' : ''} ${topBand ? 'jog-controls-layout--top-band' : ''} ${jogDisabled ? 'opacity-40 pointer-events-none' : ''}`}
+        style={{ '--jog-rotary-rows': rotaryAxes.length } as React.CSSProperties}
+      >
         {/* Jog controls */}
         <div
           {...noContextMenu}
-          className={`jog-controls-area relative flex-1 min-h-0 flex justify-center items-center overflow-hidden ${jogAreaPadding} ${jogDisabled ? 'opacity-40 pointer-events-none' : ''}`}
+          className="jog-controls-area relative flex justify-center items-center"
         >
           {onSwitchStyle && continuous && (
             <button
@@ -1550,8 +1512,7 @@ export function TabletJogPad({
               </svg>
             </button>
           )}
-          <div className={jogClusterClass}
-            style={{ '--jog-cluster-rows': 3 + rotaryAxes.length } as React.CSSProperties}>
+          <div className={jogClusterClass}>
             <div aria-hidden="true" />
             <button {...tabletJogPointerHandlers(startYp, stopYp)} className="jog-cluster-btn text-ok">Y+</button>
             <div aria-hidden="true" />
@@ -1566,6 +1527,10 @@ export function TabletJogPad({
             <button {...tabletJogPointerHandlers(startYm, stopYm)} className="jog-cluster-btn text-ok">Y-</button>
             <div aria-hidden="true" />
             <button {...tabletJogPointerHandlers(startZm, stopZm)} className="jog-cluster-btn text-info">Z-</button>
+          </div>
+        </div>
+        {rotaryAxes.length > 0 && (
+          <div className="jog-rotary-controls">
             {rotaryAxes.map((axis, i) => (
               <CompactRotaryJogControls key={axis} axis={axis}
                 color={(['var(--accent)', 'var(--purple)', 'var(--teal)'] as const)[i]}
@@ -1573,18 +1538,22 @@ export function TabletJogPad({
                 continuous={continuous} disabled={jogDisabled} />
             ))}
           </div>
-        </div>
-
+        )}
       </div>
-      {rotaryAxes.length > 0 && (
-        <button onClick={() => openFeedModal('abc')}
-          className={`flex items-center gap-3 border-t border-border shrink-0 hover:bg-accent/5 transition-colors ${topBand ? 'px-3 py-1.5 text-sm' : 'px-4 py-2 text-lg'}`}
-          aria-label="Set ABC feedrate">
-          <span className="font-bold text-text-muted">ABC</span>
-          <span className="flex-1 text-right font-mono text-text-primary">{formatDisplayNumber(abcFeed, 0)}</span>
-          <span className="text-text-dim">mm/min</span>
-        </button>
-      )}
+      <div className="jog-feed-controls grid grid-flow-col auto-cols-fr divide-x divide-border border-t border-border shrink-0">
+        {(['xy', 'z', ...(rotaryAxes.length > 0 ? ['abc'] : [])] as ('xy' | 'z' | 'abc')[]).map(group => {
+          const feed = group === 'xy' ? xyFeed : group === 'z' ? zFeed : abcFeed
+          return (
+            <button key={group} onClick={() => openFeedModal(group)}
+              className={`flex flex-wrap items-center justify-between gap-x-2 px-3 py-2 hover:bg-accent/5 transition-colors ${topBand ? 'text-sm' : 'text-base'}`}
+              aria-label={`Set ${group.toUpperCase()} feedrate`}>
+              <span className="font-bold text-text-muted">{group.toUpperCase()}</span>
+              <span className="font-mono text-text-primary">{formatDisplayNumber(group === 'abc' ? feed : mmToDisplay(feed, units), 0)}</span>
+              <span className="jog-feed-unit text-right text-xs text-text-dim">{group === 'abc' ? 'mm/min' : feedUnitLabel(units)}</span>
+            </button>
+          )
+        })}
+      </div>
     </div>
 
     {/* Feed preset modal */}

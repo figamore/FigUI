@@ -124,7 +124,8 @@ for (const axes of [3, 4, 5, 6]) {
       }
     }
     assert.equal(html.includes('aria-label="Set ABC feedrate"'), axes > 3)
-    assert.ok(html.includes(`--jog-cluster-rows:${axes}`))
+    assert.equal(html.includes('class="jog-rotary-controls"'), axes > 3)
+    assert.ok(!html.split('class="jog-rotary-controls"')[0].includes('aria-label="Jog A'))
     if (axes > 3) assert.match(html, />350<\/span><span[^>]*>mm\/min/)
   }
 }
