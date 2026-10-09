@@ -5,6 +5,9 @@ import { useGCodeStore } from '../store/gcode'
 import { ProbePanel } from './ProbePanel'
 import { ManualATCPanel } from './ManualATCPanel'
 import { useGCodeSenderStore } from '../store/gcodeSender'
+import { useSingleBlockStore } from '../store/singleBlock'
+import { pendingBlockMatchesSource } from '../lib/singleBlock'
+import { controllerPathsMatch } from '../lib/controllerFiles'
 
 const LINE_HEIGHT = 20
 const PADDING_Y = 10
@@ -13,25 +16,6 @@ function basename(path: string | null | undefined) {
   if (!path) return ''
   const normalized = path.replace(/\\/g, '/').replace(/\/+$/, '')
   return normalized.slice(normalized.lastIndexOf('/') + 1)
-}
-
-function normalizedJobPath(path: string | null | undefined) {
-  if (!path) return ''
-  return path
-    .replace(/\\/g, '/')
-    .replace(/^\/+/, '')
-    .replace(/^(?:sd|localfs)\//i, '')
-    .replace(/\/{2,}/g, '/')
-    .replace(/\/+$/, '')
-    .toLowerCase()
-}
-
-function pathsIdentifySameJob(runningPath: string, loadedPath: string) {
-  const running = normalizedJobPath(runningPath)
-  const loaded = normalizedJobPath(loadedPath)
-  if (!running || !loaded) return false
-  if (running.includes('/') && loaded.includes('/')) return running === loaded
-  return basename(running) === basename(loaded)
 }
 
 function stripComments(raw: string) {
@@ -121,10 +105,11 @@ function buildProgram(text: string): Program {
 }
 
 /** Renders only the visible lines so multi-million-line programs stay responsive. */
-function VirtualProgramView({ program, physicalLine, isEstimated, follow }: {
+function VirtualProgramView({ program, physicalLine, isEstimated, isPending, follow }: {
   program: Program
   physicalLine: number | null
   isEstimated: boolean
+  isPending: boolean
   follow: boolean
 }) {
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -162,10 +147,10 @@ function VirtualProgramView({ program, physicalLine, isEstimated, follow }: {
     rows.push(
       <div
         key={index}
-        className={`absolute left-0 flex min-w-full ${highlighted ? (isEstimated ? 'bg-info/15' : 'bg-ok/15') : ''}`}
+        className={`absolute left-0 flex min-w-full ${highlighted ? (isPending ? 'bg-warn/15' : isEstimated ? 'bg-info/15' : 'bg-ok/15') : ''}`}
         style={{ top: scrollTop + PADDING_Y + index * LINE_HEIGHT - offset, height: LINE_HEIGHT, lineHeight: `${LINE_HEIGHT}px` }}
       >
-        <span className={`sticky left-0 w-16 shrink-0 pr-3 text-right border-r select-none ${highlighted ? (isEstimated ? 'border-l-2 border-l-info border-r-border bg-info/15 text-info' : 'border-l-2 border-l-ok border-r-border bg-ok/15 text-ok') : 'border-border bg-elevated text-text-dim'}`} aria-hidden="true">
+        <span className={`sticky left-0 w-16 shrink-0 pr-3 text-right border-r select-none ${highlighted ? (isPending ? 'border-l-2 border-l-warn border-r-border bg-warn/15 text-warn' : isEstimated ? 'border-l-2 border-l-info border-r-border bg-info/15 text-info' : 'border-l-2 border-l-ok border-r-border bg-ok/15 text-ok') : 'border-border bg-elevated text-text-dim'}`} aria-hidden="true">
           {index + 1}
         </span>
         <span className="whitespace-pre px-3 text-text-primary" style={{ tabSize: 2 }}>{lineText(program, index)}</span>
@@ -198,6 +183,8 @@ export function ProgramExecutionPanel({ isTablet, initiallyOpen = false, accordi
   const senderAcceptedLine = useGCodeSenderStore(s => s.acceptedLine)
   const senderFailureLine = useGCodeSenderStore(s => s.failureLine)
   const senderFailureLineSource = useGCodeSenderStore(s => s.failureLineSource)
+  const pendingBlock = useSingleBlockStore(s => s.pendingBlock)
+  const blockReady = useSingleBlockStore(s => s.ready)
   const programRef = useRef<HTMLTextAreaElement>(null)
   const gutterRef = useRef<HTMLDivElement>(null)
   const highlightRef = useRef<HTMLDivElement>(null)
@@ -206,19 +193,24 @@ export function ProgramExecutionPanel({ isTablet, initiallyOpen = false, accordi
   const [follow, setFollow] = useState(true)
   const [showTrackingInfo, setShowTrackingInfo] = useState(false)
 
-  const runningName = basename(status.sdFilename)
+  const pendingStep = blockReady && status.state === 'Hold' ? pendingBlock : null
+  const runningPath = pendingStep?.path ?? status.sdFilename
+  const runningName = basename(runningPath)
   const loadedName = basename(loadedPath) || fileName || ''
   const sourceMatchesJob = !!sourceText && (
-    !status.sdFilename
-    || (loadedPath
-      ? pathsIdentifySameJob(status.sdFilename, loadedPath)
-      : runningName.toLowerCase() === loadedName.toLowerCase())
+    pendingStep
+      ? pendingBlockMatchesSource(pendingStep, loadedPath)
+      : !runningPath || (loadedPath
+        ? controllerPathsMatch(runningPath, loadedPath)
+        : runningName.toLowerCase() === loadedName.toLowerCase())
   )
   const program = useMemo(() => buildProgram(sourceMatchesJob ? sourceText! : ''), [sourceMatchesJob, sourceText])
   const reportedN = status.plannerLineNumber
   const senderActive = senderPhase === 'streaming' || senderPhase === 'paused' || senderPhase === 'draining'
   const senderMode = senderPhase !== 'idle'
   const controllerPhysicalLine = reportedN == null ? null : program.nToPhysicalLine.get(reportedN) ?? null
+  const pendingPhysicalLine = pendingStep && sourceMatchesJob && pendingStep.line <= program.totalLines
+    ? pendingStep.line : null
   const estimatedPhysicalLine = sourceMatchesJob
     && viewerSourceLine != null
     && viewerSourceLine >= 1
@@ -228,8 +220,8 @@ export function ProgramExecutionPanel({ isTablet, initiallyOpen = false, accordi
   const retainedFailureLine = senderMode && !senderActive && senderFailureLineSource === 'position'
     ? senderFailureLine
     : null
-  const physicalLine = retainedFailureLine ?? controllerPhysicalLine ?? estimatedPhysicalLine
-  const isEstimated = retainedFailureLine != null || (controllerPhysicalLine == null && estimatedPhysicalLine != null)
+  const physicalLine = pendingStep ? pendingPhysicalLine : retainedFailureLine ?? controllerPhysicalLine ?? estimatedPhysicalLine
+  const isEstimated = !pendingStep && (retainedFailureLine != null || (controllerPhysicalLine == null && estimatedPhysicalLine != null))
 
   function updateHighlight(scrollTop = programRef.current?.scrollTop ?? 0) {
     const highlight = highlightRef.current
@@ -253,13 +245,15 @@ export function ProgramExecutionPanel({ isTablet, initiallyOpen = false, accordi
       if (gutterRef.current) gutterRef.current.scrollTop = editor.scrollTop
     }
     updateHighlight(editor.scrollTop)
-  }, [physicalLine, follow])
+  }, [physicalLine, follow, contentOpen, program])
 
   const trackingMessage = !sourceMatchesJob
     ? runningName
       ? `The running file ${runningName} is not loaded in the viewer.`
       : 'Program source is unavailable because this job was started without loading its preview.'
-    : reportedN != null && controllerPhysicalLine == null && estimatedPhysicalLine == null
+    : pendingStep && pendingPhysicalLine == null
+      ? `FluidNC is waiting at file line ${pendingStep.line}, which is outside the loaded source.`
+    : reportedN != null && controllerPhysicalLine == null && estimatedPhysicalLine == null && !pendingStep
         ? `FluidNC reports N${reportedN}, but that block is not present in the loaded file.`
         : physicalLine == null
           ? senderActive && senderAcceptedLine != null
@@ -306,6 +300,9 @@ export function ProgramExecutionPanel({ isTablet, initiallyOpen = false, accordi
                       When FluidNC reports an N block, that value is mapped directly to the loaded controller file. Otherwise, FigUI estimates the nearest motion line from live XYZ position.
                     </p>
                     <p className="mt-1.5">
+                      In single block mode, the amber highlight marks the next file line reported by FluidNC. That line has not executed yet.
+                    </p>
+                    <p className="mt-1.5">
                       The estimate cannot identify non-motion commands such as dwells, pauses, tool changes, spindle commands, or modal-only lines because they do not change the reported coordinates. Treat it as a visual aid, not an exact execution or restart position.
                     </p>
                   </>
@@ -313,7 +310,11 @@ export function ProgramExecutionPanel({ isTablet, initiallyOpen = false, accordi
               </div>
             )}
           </div>
-          {senderMode ? (
+          {pendingStep ? (
+            <span className="tag border-warn/35 bg-warn/10 text-warn normal-case font-mono tracking-normal">
+              Next · Line {pendingStep.line}
+            </span>
+          ) : senderMode ? (
             physicalLine != null ? (
               <span className={`tag normal-case font-mono tracking-normal ${isEstimated ? 'border-info/35 bg-info/10 text-info' : 'border-ok/35 bg-ok/10 text-ok'}`}>
                 <span className={`w-1.5 h-1.5 rounded-full ${isEstimated ? 'bg-info' : 'bg-ok'} ${senderActive ? 'animate-pulse' : ''}`} />
@@ -334,13 +335,13 @@ export function ProgramExecutionPanel({ isTablet, initiallyOpen = false, accordi
           ) : (
             <span className="text-xs font-mono text-text-dim">Locating…</span>
           )}
-          {!senderMode && controllerPhysicalLine != null && (
+          {!pendingStep && !senderMode && controllerPhysicalLine != null && (
             <span className="text-xs font-mono text-text-muted">File line {physicalLine}</span>
           )}
           <button
             className={`flex items-center gap-1 rounded px-2 py-1 text-xs transition-colors ${follow ? 'text-info bg-info/10' : 'text-text-dim hover:text-text-primary bg-elevated'}`}
             onClick={() => setFollow(value => !value)}
-            title={follow ? 'Disable automatic line following' : 'Follow the executing line'}
+            title={follow ? 'Disable automatic line following' : 'Follow the current program line'}
           >
             <Navigation size={12} /> Follow
           </button>
@@ -350,11 +351,11 @@ export function ProgramExecutionPanel({ isTablet, initiallyOpen = false, accordi
       {contentOpen && (sourceMatchesJob ? (
         <div className="relative flex-1 min-h-0 overflow-hidden bg-surface font-mono text-[13px]">
           {program.virtual ? (
-            <VirtualProgramView program={program} physicalLine={physicalLine} isEstimated={isEstimated} follow={follow} />
+            <VirtualProgramView program={program} physicalLine={physicalLine} isEstimated={isEstimated} isPending={!!pendingStep} follow={follow} />
           ) : <>
             <div
               ref={highlightRef}
-              className={`absolute left-0 right-0 h-5 pointer-events-none z-20 ${isEstimated ? 'bg-info/15 border-l-2 border-info' : 'bg-ok/15 border-l-2 border-ok'}`}
+              className={`absolute left-0 right-0 h-5 pointer-events-none z-20 ${pendingStep ? 'bg-warn/15 border-l-2 border-warn' : isEstimated ? 'bg-info/15 border-l-2 border-info' : 'bg-ok/15 border-l-2 border-ok'}`}
               style={{ display: physicalLine == null ? 'none' : 'block' }}
             />
             <div ref={gutterRef} className="absolute inset-y-0 left-0 w-16 overflow-hidden border-r border-border bg-elevated z-10 select-none" aria-hidden="true">
@@ -388,7 +389,8 @@ export function ProgramExecutionPanel({ isTablet, initiallyOpen = false, accordi
           <div className="max-w-md text-center">
             <FileCode2 size={24} className="mx-auto mb-2 text-text-dim" />
             <p className={`${isTablet ? 'text-lg' : 'text-sm'} text-text-muted`}>{trackingMessage}</p>
-            {reportedN != null && <p className="mt-2 font-mono text-ok">FluidNC executing N{reportedN}</p>}
+            {pendingStep ? <p className="mt-2 font-mono text-warn">Next · Line {pendingStep.line}: {pendingStep.preview}</p>
+              : reportedN != null && <p className="mt-2 font-mono text-ok">FluidNC executing N{reportedN}</p>}
           </div>
         </div>
       ))}
@@ -399,6 +401,7 @@ export function ProgramExecutionPanel({ isTablet, initiallyOpen = false, accordi
 /** Occupies the normal probing slot with live program tracking during a job. */
 export function ProbeOrProgramPanel({ isTablet }: { isTablet?: boolean }) {
   const status = useMachineStore(s => s.status)
+  const pendingBlock = useSingleBlockStore(s => s.pendingBlock)
   const reportedHasProbe = useMachineStore(s => s.controllerSettings.hasProbe)
   const reportedHasToolsetter = useMachineStore(s => s.controllerSettings.hasToolsetter)
   const hasManualATC = useMachineStore(s => s.controllerSettings.hasManualATC === true)
@@ -406,7 +409,7 @@ export function ProbeOrProgramPanel({ isTablet }: { isTablet?: boolean }) {
   const senderPhase = useGCodeSenderStore(s => s.phase)
   const senderActive = senderPhase === 'streaming' || senderPhase === 'paused' || senderPhase === 'draining'
   const isProgramRunning = (status.state === 'Run' || status.state === 'Hold')
-    && (!!status.sdFilename || status.plannerLineNumber != null)
+    && (!!status.sdFilename || status.plannerLineNumber != null || !!pendingBlock)
   if (isProgramRunning || senderActive) return <ProgramExecutionPanel isTablet={isTablet} />
   return <ProbeAndManualATCPanel
     isTablet={isTablet}

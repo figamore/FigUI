@@ -12,6 +12,8 @@ export function parseStatusReport(raw: string, options: ParseStatusOptions = {})
 
   const stateParts = parts[0].split(':')
   status.state = stateParts[0] as MachineState
+  status.holdComplete = stateParts[0] === 'Hold' && stateParts[1] === '0'
+    ? true : stateParts[0] === 'Hold' && stateParts[1] === '1' ? false : undefined
   if (stateParts[0] === 'Alarm' && stateParts[1]) {
     status.alarmCode = parseInt(stateParts[1], 10)
   } else if (stateParts[0] !== 'Alarm') {
@@ -20,6 +22,8 @@ export function parseStatusReport(raw: string, options: ParseStatusOptions = {})
 
   status.feed = 0
   status.spindle = 0
+  // Pn is omitted when no inputs are active, including when block mode is off.
+  status.pinState = ''
 
   const linearScale = options.reportInches ? MM_PER_INCH : 1
 

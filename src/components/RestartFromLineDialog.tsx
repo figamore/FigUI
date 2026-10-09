@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { AlertTriangle, ArrowRight, FileCode2, ShieldCheck, X } from 'lucide-react'
 import { analyzeRestart, buildRestartProgram, makeRestartFilename } from '../lib/gcodeRestart'
 import { saveFileContent } from '../lib/http'
+import { controllerFilesystem } from '../lib/controllerFiles'
 import { useGCodeStore } from '../store/gcode'
 import { useMachineStore } from '../store'
 import { displayToMm, feedUnitLabel, linearUnitLabel, mmToDisplay } from '../lib/units'
@@ -27,10 +28,6 @@ function splitPath(path: string) {
     directory: path.slice(0, slash + 1) || '/',
     filename: path.slice(slash + 1),
   }
-}
-
-function controllerFilesystem(path: string): 'sd' | 'local' {
-  return /^\/sd(?:\/|$)/i.test(path) ? 'sd' : 'local'
 }
 
 function fmtLinear(mmValue: number | null, units: Units) {

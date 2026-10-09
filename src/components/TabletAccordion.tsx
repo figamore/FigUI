@@ -12,6 +12,7 @@ import { OverridesPanel, SpindlePanel } from './JogPad'
 import { PluginLauncher } from './PluginLauncher'
 import type { Plugin } from '../types'
 import { useMachineStore } from '../store'
+import { useSingleBlockStore } from '../store/singleBlock'
 import {
   buildFullTabletTabs,
   buildLandscapeAccordionTabs,
@@ -44,8 +45,9 @@ export function TabletAccordion({
   const hasProbingInput = Boolean(reportedHasProbe || reportedHasToolsetter)
   const hasManualATC = useMachineStore(s => s.controllerSettings.hasManualATC === true)
   const status = useMachineStore(s => s.status)
+  const pendingBlock = useSingleBlockStore(s => s.pendingBlock)
   const isProgramRunning = (status.state === 'Run' || status.state === 'Hold')
-    && (!!status.sdFilename || status.plannerLineNumber != null)
+    && (!!status.sdFilename || status.plannerLineNumber != null || !!pendingBlock)
 
   const landscapeTabs = useMemo(
     () => buildLandscapeAccordionTabs(hasProbingInput, hasManualATC),

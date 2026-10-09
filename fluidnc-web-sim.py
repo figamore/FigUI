@@ -88,6 +88,8 @@ machine = {
     'spindle_ov': 100,
     'sd_file':    None,
     'sd_pct':     0,
+    'single_block': False,
+    'job_token': 0,
 }
 _lock = threading.Lock()
 
@@ -100,15 +102,19 @@ def status_report():
              f"|FS:{m['feed']},{m['spindle']}"
              f"|Ov:{m['feed_ov']},{m['rapid_ov']},{m['spindle_ov']}>")
         if m['sd_file']:
-            s = s[:-1] + f"|SD:{m['sd_file']},{m['sd_pct']}>"
+            s = s[:-1] + f"|SD:{m['sd_pct']},{m['sd_file']}>"
+        if m['single_block']:
+            s = s[:-1] + '|Pn:Q>'
     return s
 
 def handle_realtime(byte):
     with _lock:
         m = machine
-        if   byte == 0x21: m['state'] = 'Hold' if m['state'] in ('Run', 'Jog') else m['state']
-        elif byte == 0x7E: m['state'] = 'Run'  if m['state'] == 'Hold' else m['state']
-        elif byte == 0x18: m.update(state='Idle', feed=0, spindle=0)
+        if   byte == 0x21: m['state'] = 'Hold:0' if m['state'] in ('Run', 'Jog') else m['state']
+        elif byte == 0x7E: m['state'] = 'Run' if m['state'].startswith('Hold') else m['state']
+        elif byte == 0x18:
+            m.update(state='Idle', feed=0, spindle=0, sd_file=None, sd_pct=0,
+                     single_block=False, job_token=m['job_token'] + 1)
         elif byte == 0x85: m['state'] = 'Idle' if m['state'] == 'Jog' else m['state']
         elif byte == 0x90: m['feed_ov'] = 100
         elif byte == 0x91: m['feed_ov'] = min(200, m['feed_ov'] + 10)
@@ -122,6 +128,18 @@ def handle_realtime(byte):
 
 AXIS    = {'X':0,'Y':1,'Z':2,'A':3,'B':4,'C':5}
 JOG_RE  = re.compile(r'\$J=.*?F(\d+(?:\.\d+)?)\s+([XYZABC])(-?\d+(?:\.\d+)?)', re.I)
+
+def block_mode_command(cmd):
+    match = re.fullmatch(r'\$(?:GB|GCode/BlockMode)(?:=(On|Off))?', cmd, re.I)
+    if not match:
+        return None
+    with _lock:
+        value = match.group(1)
+        enabled = value.lower() == 'on' if value else not machine['single_block']
+        if enabled == machine['single_block']:
+            return 'ok\n'
+        machine['single_block'] = enabled
+    return f"[MSG:INFO: Single Block Mode {'Enabled' if enabled else 'Disabled'}]\nok\n"
 ZERO_RE = re.compile(r'G10\s+L20\s+P0\s+([XYZABC])(-?\d+(?:\.\d+)?)', re.I)
 PROBE_RE = re.compile(r'\bG38\.\d\b', re.I)
 PROBE_FEED_RE = re.compile(r'\bF(-?\d+(?:\.\d+)?)\b', re.I)
@@ -129,7 +147,7 @@ PROBE_AXIS_RE = re.compile(r'\b([XYZABC])(-?\d+(?:\.\d+)?)\b', re.I)
 SPINDLE_RE = re.compile(r'S(\d+)\s+(M3|M4)', re.I)
 
 SIM_STARTUP_STATUS = '\n'.join((
-    '[MSG:INFO: FluidNC v4.0.4 (Simulator)]',
+    '[MSG:INFO: FluidNC v4.1.1 (Simulator)]',
     '[MSG:INFO: Connecting to STA SSID: SimNet]',
     '[MSG:INFO: Connected - IP is 127.0.0.1]',
     '[MSG:INFO: Probe Pin: gpio.34]',
@@ -144,6 +162,12 @@ async def handle_text_command(cmd, ws):
     print(f'  cmd: {cmd!r}')
 
     if cmd == '?':
+        await ws.send(status_report() + '\n')
+        return
+
+    block_mode = block_mode_command(cmd)
+    if block_mode is not None:
+        await ws.send(block_mode)
         await ws.send(status_report() + '\n')
         return
 
@@ -235,22 +259,69 @@ async def handle_text_command(cmd, ws):
         await ws.send('[MSG:INFO: Motors disabled]\n')
         await ws.send('ok\n'); return
 
-    m = re.match(r'\$SD/Run=(.*)', cmd, re.I)
+    m = re.match(r'\$(SD|LocalFS)/Run=(.*)', cmd, re.I)
     if m:
-        asyncio.create_task(_run_sd(m.group(1), ws)); return
+        asyncio.create_task(_run_file(m.group(2), ws, 'sd' if m.group(1).lower() == 'sd' else 'localfs')); return
 
     await ws.send('ok\n')
 
-async def _run_sd(fname, ws):
-    with _lock: machine.update(state='Run', sd_file=fname, sd_pct=0, feed=1500)
-    for pct in range(0, 101, 5):
+async def _run_file(fname, ws, fs='sd'):
+    """Simulate file line boundaries; streamed console lines never enter this loop."""
+    try:
+        with open(_fs_path(fs, fname), encoding='utf-8') as source:
+            lines = source.read().splitlines()
+    except (OSError, ValueError):
+        await ws.send('[MSG:ERR: Could not open job file]\nerror:2\n')
+        return
+    job_path = '/' + fs + '/' + _strip_path(fs, fname).replace(os.sep, '/')
+    with _lock:
+        token = machine['job_token'] + 1
+        machine.update(state='Run', sd_file=job_path, sd_pct=0, feed=0, job_token=token)
+    absolute = True
+    for number, line in enumerate(lines, 1):
         with _lock:
-            if machine['state'] != 'Run': break
-            machine['sd_pct'] = pct
-        await asyncio.sleep(0.4)
-    with _lock: machine.update(state='Idle', sd_file=None, sd_pct=0, feed=0)
-    try: await ws.send('ok\n')
-    except: pass
+            if machine['job_token'] != token:
+                return
+            stepping = machine['single_block']
+            if stepping:
+                machine.update(state='Hold:0', feed=0)
+        if stepping:
+            preview = line[:20] + ('...' if len(line) > 20 else '')
+            await ws.send(f'[MSG:INFO: Step {job_path}:{number} {preview}]\n')
+            await ws.send(status_report() + '\n')
+        # Switching block mode off never releases the current Hold. Only ~ does.
+        while True:
+            with _lock:
+                if machine['job_token'] != token:
+                    return
+                holding = machine['state'].startswith('Hold')
+            if not holding:
+                break
+            await asyncio.sleep(0.01)
+        command = re.sub(r'\([^)]*\)', '', line).split(';', 1)[0].upper()
+        if re.search(r'\bG90\b', command): absolute = True
+        if re.search(r'\bG91\b', command): absolute = False
+        with _lock:
+            if machine['job_token'] != token:
+                return
+            # Simple XYZ and spindle simulation, not a motion planner.
+            for axis, value in re.findall(r'([XYZ])\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+))', command):
+                index = AXIS[axis]
+                target = float(value) + (0 if absolute else machine['wpos'][index])
+                machine['wpos'][index] = machine['mpos'][index] = target
+            speed = re.search(r'\bS(\d+)\b', command)
+            if re.search(r'\bM[34]\b', command):
+                machine['spindle'] = int(speed.group(1)) if speed else machine['spindle']
+            if re.search(r'\bM5\b|\bM(?:2|30)\b', command): machine['spindle'] = 0
+            machine['sd_pct'] = round(100 * number / max(1, len(lines)), 1)
+        await asyncio.sleep(0.08)
+        if re.search(r'\bM(?:2|30)\b', command):
+            break
+    with _lock:
+        if machine['job_token'] != token:
+            return
+        machine.update(state='Idle', sd_file=None, sd_pct=0, feed=0)
+    await ws.send(status_report() + '\nok\n')
 
 # ─── WebSocket handlers ───────────────────────────────────────────────────────
 
@@ -326,7 +397,7 @@ app = Flask(__name__)
 test_files = 'test_files'
 
 esp800resp = (
-    f'FW version:FluidNC v4.0.0-sim'
+    f'FW version:FluidNC v4.1.1-sim'
     f'#FW target:grbl-embedded'
     f'#FW HW:Direct SD'
     f'#primary sd:/sd/'
@@ -341,7 +412,7 @@ esp800jsonresp = {
     'cmd': '800',
     'status': 'ok',
     'data': {
-        'FWVersion': 'FluidNC v4.0.0-sim',
+        'FWVersion': 'FluidNC v4.1.1-sim',
         'HostName': 'fluidnc-sim',
         'Authentication': 'Disabled',
         'WebCommunication': 'Synchronous',
@@ -605,6 +676,9 @@ def do_command():
         return esp800jsonresp
     if proxy:
         return do_proxy(request)
+    block_mode = block_mode_command(plain)
+    if block_mode is not None:
+        return block_mode
     if plain == '[ESP400]':         return esp400resp
     if plain == '$SS':              return SIM_STARTUP_STATUS + '\n'
     if plain.startswith('[ESP401]'): return 'ok'

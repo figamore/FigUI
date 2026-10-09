@@ -31,6 +31,8 @@ export interface GCodeModes {
 
 export interface MachineStatus {
   state: MachineState
+  /** Hold:0 is ready to resume; Hold:1 is still decelerating. */
+  holdComplete?: boolean
   alarmCode?: number
   alarmName?: string
   wpos: Position

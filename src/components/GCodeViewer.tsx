@@ -1,9 +1,9 @@
 import { useRef, useEffect, useLayoutEffect, useState, useCallback } from 'react'
-import { Eye, Axis3D, Maximize2, Crosshair, Navigation, Play, Pause, Square, CloudDrizzle, Waves, PowerOff, Box, Zap, Orbit, Hand, ListStart, RotateCcw, FilePlus, X, AlertTriangle, Maximize, ChevronDown, Wrench } from 'lucide-react'
+import { Eye, Axis3D, Maximize2, Crosshair, Navigation, Play, Pause, Square, CloudDrizzle, Waves, PowerOff, Box, Zap, Orbit, Hand, ListStart, RotateCcw, FilePlus, X, AlertTriangle, Maximize, ChevronDown, Wrench, StepForward } from 'lucide-react'
 import { MOVE_FEED, MOVE_RAPID, type GCodeModel, type Segment, type SegmentTable } from '../lib/gcode'
 import { useMachineStore } from '../store'
 import { useGCodeStore } from '../store/gcode'
-import { sendRaw, sendRealtime, STATUS_POLL_INTERVAL_MS } from '../lib/ws'
+import { sendRaw, sendRealtime, sendRealtimeNow, STATUS_POLL_INTERVAL_MS } from '../lib/ws'
 import type { ControllerSettings, MachineStatus, Units } from '../types'
 import { displayToMm, feedUnitLabel, linearUnitLabel, mmToDisplay } from '../lib/units'
 import { buildJobTimingEstimate, formatRuntime, useJobRuntimeEstimate, type JobTimingEstimate } from '../lib/jobRuntime'
@@ -11,7 +11,10 @@ import { createRenderer, renderLines, setStaticLineData, type WebGLRenderer, typ
 import { addSegmentToPath, buildRenderLines, buildStatic2DPaths, buildStatic3DGeometry, clamp01, EMPTY_UINT8, getArcGeometry, normalizeAngle, type RenderLines } from '../lib/gcodeBuild'
 import { RestartFromLineDialog } from './RestartFromLineDialog'
 import { useGCodeSenderStore } from '../store/gcodeSender'
+import { useSingleBlockStore } from '../store/singleBlock'
+import { SingleBlockNotice, SingleBlockToggle } from './SingleBlockControl'
 import { GCODE_ACCEPT_ATTRIBUTE, isGCodeFileName } from '../lib/gcodeFiles'
+import { controllerRunCommand } from '../lib/controllerFiles'
 import { buildFramingGCode, getFramingRequiredTravelZ, type FramingMode } from '../lib/gcodeOutline'
 
 const GCODE_EXTENSIONS_PREVIEW = '.g, .nc, .gcode, .ngc, .tap, or .cnc'
@@ -2042,16 +2045,25 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
   const isJobRunning = senderPhase === 'streaming' || senderPhase === 'draining'
     || (status.state === 'Run' && senderPhase !== 'paused') || controllerJobStarting
   const isJobHeld = senderPhase === 'paused' || status.state === 'Hold'
+  const singleBlockEnabled = status.pinState.includes('Q')
+  const pendingBlock = useSingleBlockStore(s => s.pendingBlock)
+  const blockReady = useSingleBlockStore(s => s.ready)
+  const blockAdvancing = useSingleBlockStore(s => s.advancing)
+  const blockModePending = useSingleBlockStore(s => s.requestedMode !== null)
+  const resumeController = useSingleBlockStore(s => s.resume)
+  const isStepHold = !senderActive && singleBlockEnabled && (!!pendingBlock || blockAdvancing)
+  const controllerResumeDisabled = !connected || controllerResetPending || blockModePending
+    || blockAdvancing || status.holdComplete === false || (status.state === 'Hold' && !!pendingBlock && !blockReady)
   const isLargeProgressOverlayDisabled = !!model && isRunning && model.segments.length > LARGE_PROGRESS_OVERLAY_SEGMENT_LIMIT
   const cancelAndStartJob = useGCodeStore(s => s.cancelAndStartJob)
   const cancelLoad = useGCodeStore(s => s.clear)
   const handleStartWithoutPreview = useCallback(() => {
     const path = pendingPath
-    if (!path) return
+    if (!path || blockModePending) return
     if (cancelAndStartJob(path)) startTrackedJob('controller')
-  }, [pendingPath, cancelAndStartJob, startTrackedJob])
+  }, [pendingPath, blockModePending, cancelAndStartJob, startTrackedJob])
 
-  const isViewerStartBlocked = loading || isProcessing2D || pendingPath !== null || !!sdUploadPath || controllerResetPending
+  const isViewerStartBlocked = loading || isProcessing2D || pendingPath !== null || !!sdUploadPath || controllerResetPending || blockModePending
   const is3DToggleDisabled = pendingPath !== null || isProcessing2D || (!!model && !is3DReady)
   const [autoFollow, setAutoFollow] = useState(true)
   const [followMode, setFollowMode] = useState<FollowMode>(() => getStoredFollowMode())
@@ -3394,6 +3406,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
                   <button
                     className="btn btn-warn gap-2 justify-center text-sm flex-1"
                     onClick={handleStartWithoutPreview}
+                    disabled={blockModePending}
                     title="Cancel the preview download and start the job immediately"
                   >
                     <Zap size={12} />
@@ -3729,7 +3742,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
               </div>
             )}
             {showDisplayedTiming && (
-              <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] font-mono text-text-muted tabular-nums">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-sm font-mono text-text-muted tabular-nums">
                 <div className="flex items-center justify-between gap-3 min-w-[220px] flex-1">
                   <span>Elapsed {formatRuntime(displayedElapsedSeconds)}</span>
                   <span>Remain {formatRuntime(displayedRemainingSeconds)}</span>
@@ -3819,21 +3832,21 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
           <div className="flex gap-1.5 sm:flex-[6]">
             {controllerSettings.hasMist && <button
               onClick={() => { sendRealtime(0xA1); setCoolantState('mist') }}
-              className={`btn gap-1.5 ${isTablet ? 'text-xl py-3' : 'text-lg'} justify-center flex-1 ${coolantState === 'mist' ? 'border-accent/50 text-accent' : 'btn-ghost'}`}
+              className={`btn gap-1.5 job-action ${isTablet ? 'text-base' : 'text-sm'} justify-center flex-1 ${coolantState === 'mist' ? 'border-accent/50 text-accent' : 'btn-ghost'}`}
             >
               <CloudDrizzle size={isTablet ? 18 : 13} />
               Mist
             </button>}
             {controllerSettings.hasFlood && <button
               onClick={() => { sendRealtime(0xA0); setCoolantState('flood') }}
-              className={`btn gap-1.5 ${isTablet ? 'text-xl py-3' : 'text-lg'} justify-center flex-1 ${coolantState === 'flood' ? 'border-info/50 text-info' : 'btn-ghost'}`}
+              className={`btn gap-1.5 job-action ${isTablet ? 'text-base' : 'text-sm'} justify-center flex-1 ${coolantState === 'flood' ? 'border-info/50 text-info' : 'btn-ghost'}`}
             >
               <Waves size={isTablet ? 18 : 13} />
               Flood
             </button>}
             <button
               onClick={() => { if (sendRaw('M9')) setCoolantState('off') }}
-              className={`btn gap-1.5 ${isTablet ? 'text-xl py-3' : 'text-lg'} justify-center flex-1 ${coolantState === 'off' ? 'border-danger/50 text-danger' : 'btn-ghost'}`}
+              className={`btn gap-1.5 job-action ${isTablet ? 'text-base' : 'text-sm'} justify-center flex-1 ${coolantState === 'off' ? 'border-danger/50 text-danger' : 'btn-ghost'}`}
             >
               <PowerOff size={isTablet ? 18 : 13} />
               Off
@@ -3842,10 +3855,11 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
           <div className="hidden sm:block w-px bg-border self-stretch" />
         </>}
 
-        <div className={`flex gap-1.5 ${(controllerSettings.hasMist || controllerSettings.hasFlood) ? 'sm:flex-[3]' : 'sm:ml-auto'}`}>
+        <div className={`flex flex-wrap items-center gap-1.5 ${(controllerSettings.hasMist || controllerSettings.hasFlood) ? 'sm:flex-[3]' : 'sm:ml-auto'}`}>
+          <SingleBlockToggle isTablet={isTablet} unavailable={senderActive || simulationActive || (isLocalFile && !machineJobActive)} />
           {!isJobRunning && !isJobHeld && !simulationActive && (
             <button
-              className={`btn btn-ghost justify-center shrink-0 ${isTablet ? 'px-3 py-3' : 'px-2'}`}
+              className={`btn btn-ghost justify-center shrink-0 job-action px-2`}
               onClick={() => localFileInputRef.current?.click()}
               disabled={isRunning}
               title="Open a G-code file from this device"
@@ -3856,7 +3870,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
           )}
           {!isJobRunning && !isJobHeld && !simulationActive && restartSource && (
             <button
-              className={`btn btn-ghost gap-1.5 justify-center ${isTablet ? 'text-xl py-3' : 'text-sm'}`}
+              className={`btn btn-ghost gap-1.5 justify-center job-action ${isTablet ? 'text-base' : 'text-sm'}`}
               onClick={() => restartSource.path
                 ? loadFile(restartSource.path)
                 : restartSource.sourceText && loadFromText(restartSource.sourceText, restartSource.fileName)}
@@ -3869,10 +3883,10 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
           )}
           {!isJobRunning && !isJobHeld && !simulationActive && !restartSource && hasLoadedSource && (
             <button
-              className={`btn btn-ghost gap-1.5 justify-center ${isTablet ? 'text-xl py-3' : 'text-sm'}`}
+              className={`btn btn-ghost gap-1.5 justify-center job-action ${isTablet ? 'text-base' : 'text-sm'}`}
               onClick={() => { setRestartInitialLine(null); setShowRestartFromLine(true) }}
               disabled={isViewerStartBlocked}
-              title={isLocalFile ? 'Prepare a safe local stream that resumes from a file line' : 'Prepare a reviewable SD-card program that restarts from a file line'}
+              title={isLocalFile ? 'Prepare a safe local stream that resumes from a file line' : 'Prepare a reviewable controller program that restarts from a file line'}
             >
               <ListStart size={isTablet ? 18 : 14} />
               From line
@@ -3880,15 +3894,17 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
           )}
           {!isJobRunning && !isJobHeld && !simulationActive && (
             <button
-              className={`btn btn-ok-solid gap-2 justify-center font-bold ${isTablet ? 'text-xl py-3' : 'text-base'} flex-1`}
+              className={`btn btn-ok-solid gap-2 justify-center font-bold job-action ${isTablet ? 'text-base' : 'text-sm'} flex-1`}
               onClick={() => {
                 if (isLocalFile) startLocalSenderWithWarning()
-                else if (loadedPath && sendRaw(`$SD/Run=${loadedPath}`)) startTrackedJob('controller')
+                else if (loadedPath && sendRaw(controllerRunCommand(loadedPath))) startTrackedJob('controller')
               }}
               disabled={(!loadedPath && !isLocalFile) || !connected || status.state !== 'Idle' || isViewerStartBlocked}
               title={isViewerStartBlocked
                 ? controllerResetPending
                   ? 'Controller is resetting after the abort'
+                  : blockModePending
+                    ? 'Waiting for FluidNC to confirm single block mode'
                   : sdUploadPath
                     ? 'Wait for the SD-card upload to finish before starting the job'
                     : 'Wait for file processing to finish before starting the job'
@@ -3900,7 +3916,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
           )}
           {isJobRunning && (
             <button
-              className={`btn btn-warn-solid gap-1.5 ${isTablet ? 'text-xl py-3' : 'text-sm'} justify-center flex-1`}
+              className={`btn btn-warn-solid job-cycle-action gap-1.5 job-action ${isTablet ? 'text-base' : 'text-sm'} justify-center flex-1`}
               onClick={() => senderActive ? pauseSender() : sendRealtime(0x21)}
               title={controllerJobStarting ? 'Request a feed hold while the job starts' : undefined}
             >
@@ -3910,22 +3926,24 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
           )}
           {isJobHeld && (
             <button
-              className={`btn btn-ok-solid gap-1.5 ${isTablet ? 'text-xl py-3' : 'text-sm'} justify-center flex-1`}
-              onClick={() => senderPhase === 'paused' ? resumeSender() : sendRealtime(0x7e)}
-              disabled={senderPhase === 'paused' && status.state === 'Door'}
-              title={senderPhase === 'paused' && status.state === 'Door' ? 'Close the safety door before resuming' : undefined}
+              className={`btn ${isStepHold ? 'btn-step' : 'btn-ok-solid'} job-cycle-action gap-1.5 job-action ${isTablet ? 'text-base' : 'text-sm'} justify-center flex-1`}
+              onClick={() => senderPhase === 'paused' ? resumeSender() : resumeController()}
+              disabled={senderActive ? status.state === 'Door' : controllerResumeDisabled}
+              title={senderPhase === 'paused' && status.state === 'Door'
+                ? 'Close the safety door before resuming'
+                : isStepHold ? 'Run one line. Spindle and coolant stay on.' : undefined}
             >
-              <Play size={isTablet ? 18 : 13} />
-              Resume
+              {isStepHold ? <StepForward size={isTablet ? 18 : 13} /> : <Play size={isTablet ? 18 : 13} />}
+              {isStepHold ? 'Next block' : 'Resume'}
             </button>
           )}
           {(isJobRunning || isJobHeld) && (
             <button
-              className={`btn btn-danger-solid gap-1.5 ${isTablet ? 'text-xl py-3' : 'text-sm'} justify-center flex-1`}
+              className={`btn btn-danger-solid gap-1.5 job-action ${isTablet ? 'text-base' : 'text-sm'} justify-center flex-1`}
               onClick={() => {
                 if (senderActive) abortSender()
                 else {
-                  if (sendRealtime(0x18)) cancelTrackedJob('controller')
+                  if (sendRealtimeNow(0x18)) cancelTrackedJob('controller')
                 }
               }}
             >
@@ -3935,6 +3953,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
           )}
         </div>
         </div>
+        <SingleBlockNotice unavailable={senderActive || (isLocalFile && !machineJobActive)} />
         {isTablet && (
           <div className="flex items-center gap-2 min-w-0 pt-1 border-t border-border">
             {fileName ? (

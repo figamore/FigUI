@@ -79,6 +79,13 @@ function get(path: string, params: Record<string, string>, timeoutMs?: number): 
 export const sendCommand = (cmd: string) =>
   get('/command', { plain: cmd })
 
+export async function sendBlockMode(enabled: boolean, signal: AbortSignal): Promise<string> {
+  const params = new URLSearchParams({ plain: `$GB=${enabled ? 'On' : 'Off'}`, PAGEID: getPageId() })
+  const response = await fetch(`${base}/command?${params}`, { signal })
+  if (!response.ok) throw new Error(`HTTP ${response.status}`)
+  return response.text()
+}
+
 export const sendSilent = (cmd: string) =>
   get('/command_silent', { plain: cmd })
 

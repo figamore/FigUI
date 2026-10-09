@@ -65,6 +65,11 @@ class FakeWebSocket {
   binaryType = ''
   sent: Array<string | Uint8Array> = []
   machineState = 'Idle'
+  singleBlock = false
+  supportsBlockMode = true
+  reportModeChanges = true
+  modeReply = 'info'
+  failModeRequest = false
   reportInterval = 750
   supportsReportInterval = true
   url = ''
@@ -88,11 +93,15 @@ class FakeWebSocket {
     const copy = typeof data === 'string' ? data : new Uint8Array(data)
     this.sent.push(copy)
     if (copy instanceof Uint8Array && copy.length === 1 && copy[0] === 0x3f) {
-      queueMicrotask(() => this.receive(`<${this.machineState}|WPos:0,0,0|MPos:0,0,0|FS:0,0>\n`))
+      queueMicrotask(() => this.reportStatus())
       return
     }
     const text = typeof copy === 'string' ? copy : new TextDecoder().decode(copy)
-    if (text.trim() === '$G') {
+    if (/^\$GB=(On|Off)$/.test(text.trim())) {
+      // A paused controller file owns this input lane until its final ack.
+      // Leave $GB queued: production mode controls must use the HTTP endpoint.
+      return
+    } else if (text.trim() === '$G') {
       queueMicrotask(() => this.receive('[GC:G0 G54 G17 G21 G90 G94 M5 M9 T0 F0 S0]\nok\n'))
     } else if (text.trim() === '$RI') {
       queueMicrotask(() => this.receive(this.supportsReportInterval
@@ -110,6 +119,10 @@ class FakeWebSocket {
     this.onmessage?.({ data })
   }
 
+  reportStatus() {
+    this.receive(`<${this.machineState}|WPos:0,0,0|MPos:0,0,0|FS:0,0${this.singleBlock ? '|Pn:Q' : ''}>\n`)
+  }
+
   close() {
     this.readyState = FakeWebSocket.CLOSED
     this.onclose?.({ code: 1000, reason: '' })
@@ -117,10 +130,34 @@ class FakeWebSocket {
 }
 
 Object.assign(globalThis, { WebSocket: FakeWebSocket })
+const modeRequests: Array<{ command: string; signal: AbortSignal }> = []
+Object.assign(globalThis, {
+  fetch: async (input: string, options: { signal: AbortSignal }) => {
+    const url = new URL(input, 'http://fluidnc.test')
+    const command = url.searchParams.get('plain') ?? ''
+    assert.equal(url.pathname, '/command')
+    assert.match(command, /^\$GB=(On|Off)$/)
+    assert.equal(url.searchParams.get('PAGEID'), '42')
+    modeRequests.push({ command, signal: options.signal })
+    const controller = FakeWebSocket.instance!
+    if (controller.failModeRequest) throw new Error('network failure')
+    if (!controller.supportsBlockMode) return new Response('error:3\n')
+    if (controller.modeReply === 'silent') return new Response('')
+    controller.singleBlock = command === '$GB=On'
+    if (controller.reportModeChanges) queueMicrotask(() => controller.reportStatus())
+    return new Response(controller.modeReply === 'ok' ? 'ok\n'
+      : `[MSG:INFO: Single Block Mode ${controller.singleBlock ? 'Enabled' : 'Disabled'}]\nok\n`)
+  },
+})
 
 const ws = await import('../src/lib/ws')
 const { useMachineStore } = await import('../src/store')
 const { useGCodeSenderStore } = await import('../src/store/gcodeSender')
+const { useGCodeStore } = await import('../src/store/gcode')
+const { controllerRunCommand, controllerPathsMatch } = await import('../src/lib/controllerFiles')
+const { useSingleBlockStore } = await import('../src/store/singleBlock')
+const { parseStepReport, pendingBlockMatchesSource, supportsSingleBlock } = await import('../src/lib/singleBlock')
+const { parseStatusReport } = await import('../src/lib/parser')
 
 await ws.connect('fluidnc.test')
 const socket = FakeWebSocket.instance!
@@ -139,10 +176,184 @@ secondTab.close()
 useMachineStore.getState().updateStatus({ state: 'Idle' })
 await delay(300)
 
+// Internal storage is served at bare paths, even on devices with no SD card.
+assert.equal(controllerRunCommand('/multi-tool-demo-3.nc'), '$LocalFS/Run=/multi-tool-demo-3.nc')
+assert.equal(controllerRunCommand('/jobs/multi-tool-demo-3.nc'), '$LocalFS/Run=/jobs/multi-tool-demo-3.nc')
+assert.equal(controllerRunCommand('/localfs/test.nc'), '$LocalFS/Run=/localfs/test.nc')
+assert.equal(controllerRunCommand('/sd/test.nc'), '$SD/Run=/sd/test.nc')
+assert.ok(controllerPathsMatch('/localfs/jobs/test.nc', '/jobs/test.nc'))
+assert.ok(!controllerPathsMatch('/sd/jobs/test.nc', '/jobs/test.nc'))
+assert.ok(!controllerPathsMatch('/localfs/macros/test.nc', '/jobs/test.nc'))
+assert.ok(useGCodeStore.getState().cancelAndStartJob('/multi-tool-demo-3.nc'))
+await waitFor(() => socket.sent.some(item => item === '$LocalFS/Run=/multi-tool-demo-3.nc\n'), 'internal Start without preview used the wrong filesystem')
+assert.ok(!socket.sent.some(item => typeof item === 'string' && item.startsWith('$SD/Run=')), 'internal jobs must not touch the SD card')
+assert.ok(useGCodeStore.getState().cancelAndStartJob('/sd/test.nc'))
+await waitFor(() => socket.sent.some(item => item === '$SD/Run=/sd/test.nc\n'), 'SD Start without preview used the wrong filesystem')
+useGCodeStore.getState().clear()
+
+// Exercise single-block controls through the actual transport and status parser.
+assert.deepEqual(parseStepReport('[MSG:INFO: Step /sd/folder/test.nc:12 G1 X10.000 Y10.000 F...]'), {
+  path: '/sd/folder/test.nc', line: 12, preview: 'G1 X10.000 Y10.000 F...',
+})
+assert.equal(parseStepReport('[MSG:INFO: Step /sd/test.nc:0 G0]'), null)
+assert.equal(parseStepReport('[MSG:INFO: Single Block Mode Enabled]'), null)
+assert.deepEqual(parseStepReport('[MSG:INFO: Step /localfs/a:b.nc:2 (brackets [ok])]'), {
+  path: '/localfs/a:b.nc', line: 2, preview: '(brackets [ok])',
+})
+assert.ok(pendingBlockMatchesSource({ path: '/sd/folder/test.nc', line: 12, preview: '' }, '/sd/folder/test.nc'))
+assert.ok(pendingBlockMatchesSource({ path: '/localfs/multi-tool-demo-3.nc', line: 12, preview: '' }, '/multi-tool-demo-3.nc'))
+assert.ok(!pendingBlockMatchesSource({ path: '/sd/multi-tool-demo-3.nc', line: 12, preview: '' }, '/multi-tool-demo-3.nc'))
+assert.ok(!pendingBlockMatchesSource({ path: '/sd/macros/test.nc', line: 12, preview: '' }, '/jobs/test.nc'))
+assert.ok(!pendingBlockMatchesSource({ path: 'macro0', line: 1, preview: '' }, null))
+assert.ok(!pendingBlockMatchesSource({ path: '/sd/test.nc', line: 1, preview: '' }, '/localfs/test.nc'))
+assert.equal(parseStepReport('[MSG:INFO: Step /sd/test.nc:12 (note:3 foo)]')?.line, 12)
+assert.equal(parseStatusReport('<Hold:1|Pn:Q>')?.holdComplete, false)
+assert.equal(parseStatusReport('<Hold:0|Pn:Q>')?.holdComplete, true)
+
+const block = () => useSingleBlockStore.getState()
+for (const version of [undefined, '', 'FluidNC v3.9.9', '4.0.9', '4.1.0']) {
+  assert.equal(supportsSingleBlock(version), false, `${version} must not support single block`)
+}
+for (const version of ['FluidNC v4.1.1', 'v4.1.1-sim', '4.1.10', '4.2.0', '5.0.0']) {
+  assert.equal(supportsSingleBlock(version), true, `${version} must support single block`)
+}
+const firmwareInfo = {
+  version: 'FluidNC v4.1.0', hostname: 'fluidnc.test', authentication: false,
+  asyncMode: true, wsPort: 81, wsIp: '', axes: 3, primarySd: '/sd/', secondarySd: '',
+}
+useMachineStore.getState().setEspInfo(firmwareInfo)
+const beforeUnsupportedToggle = socket.sent.length
+const beforeUnsupportedRequest = modeRequests.length
+block().setMode(true)
+assert.equal(block().requestedMode, null)
+assert.equal(socket.sent.length, beforeUnsupportedToggle, 'older firmware must not receive $GB')
+assert.equal(modeRequests.length, beforeUnsupportedRequest)
+useMachineStore.getState().setEspInfo({ ...firmwareInfo, version: 'FluidNC v4.1.1' })
+block().setMode(true)
+block().setMode(false)
+assert.equal(block().requestedMode, true, 'repeated mode clicks must wait for controller confirmation')
+await waitFor(() => block().requestedMode === null, 'single block enable was not confirmed')
+assert.ok(useMachineStore.getState().status.pinState.includes('Q'))
+const cycleStarts = () => socket.sent.filter(item => item instanceof Uint8Array && item[0] === 0x7e).length
+socket.receive('[MSG:INFO: Step /sd/test.nc:12 G1 X10]\n')
+socket.machineState = 'Hold:1'
+socket.reportStatus()
+const beforeSteps = cycleStarts()
+block().resume()
+assert.equal(cycleStarts(), beforeSteps, 'decelerating Hold must not enable Next block')
+socket.machineState = 'Hold:0'
+socket.reportStatus()
+assert.equal(block().ready, true)
+assert.equal(block().displayedBlock?.line, 12)
+block().resume()
+assert.equal(block().displayedBlock?.line, 12, 'the readout must retain the line during motion')
+block().resume()
+assert.equal(cycleStarts(), beforeSteps + 1, 'double click must release exactly one block')
+socket.reportStatus()
+block().resume()
+assert.equal(cycleStarts(), beforeSteps + 1, 'a stale Hold report must not release another block')
+
+// A modal-only line can advance directly from Hold to Hold, with no Run report.
+socket.receive('[MSG:INFO: Step /sd/test.nc:13 G90]\n')
+assert.equal(block().advancing, true, 'a preview alone must not unlock cycle start')
+socket.reportStatus()
+assert.equal(block().advancing, false)
+assert.equal(block().pendingBlock?.line, 13)
+// Disabling while held may only return the explicit INFO acknowledgment.
+socket.reportModeChanges = false
+block().setMode(false)
+block().resume()
+assert.equal(cycleStarts(), beforeSteps + 1, 'resume must wait for mode change confirmation')
+await waitFor(() => block().requestedMode === null, 'single block disable was not confirmed')
+assert.equal(modeRequests.at(-1)?.command, '$GB=Off', 'Off must bypass the paused job input queue')
+assert.ok(!socket.sent.some(item => typeof item === 'string' && /^\$GB=/.test(item)), 'mode changes must never enter the WebSocket job queue')
+assert.equal(useMachineStore.getState().status.pinState, '', 'the HTTP disable acknowledgment must clear Q without a status report')
+assert.equal(useMachineStore.getState().status.state, 'Hold', 'Off must keep the machine paused')
+await delay(4200)
+assert.equal(block().error, null, 'a confirmed disable must cancel the timeout')
+socket.reportModeChanges = true
+socket.reportStatus()
+assert.equal(useMachineStore.getState().status.pinState, '', 'omitted Pn must clear Q')
+assert.equal(block().pendingBlock?.line, 13, 'turning off must retain the paused line until Resume')
+assert.equal(cycleStarts(), beforeSteps + 1, 'turning off must not automatically resume')
+block().resume()
+assert.equal(cycleStarts(), beforeSteps + 2)
+assert.equal(block().pendingBlock, null)
+
+// External pendant resumes and resets must invalidate the pending highlight.
+socket.singleBlock = true
+socket.receive('[MSG:INFO: Step /sd/test.nc:14 M0]\n')
+socket.reportStatus()
+block().resume()
+assert.equal(block().advancing, true)
+socket.receive('[GC:G1 G54 G17 G21 G90 G94 M0 M5 M9 T0 F100 S0]\n')
+assert.equal(block().advancing, false, 'explicit M0 must allow an ordinary Resume without a new Step')
+const beforeM0Resume = cycleStarts()
+block().resume()
+assert.equal(cycleStarts(), beforeM0Resume + 1)
+socket.machineState = 'Run'
+socket.reportStatus()
+assert.equal(block().advancing, false, 'a feed hold during motion must remain resumable')
+socket.machineState = 'Hold:0'
+socket.reportStatus()
+const beforeManualResume = cycleStarts()
+block().resume()
+assert.equal(cycleStarts(), beforeManualResume + 1)
+socket.receive('[MSG:INFO: Step /sd/test.nc:14 M3 S1000]\n')
+socket.reportStatus()
+socket.machineState = 'Run'
+socket.reportStatus()
+assert.equal(block().pendingBlock, null)
+socket.receive('[MSG:INFO: Step /sd/test.nc:15 G1 X20]\n')
+socket.machineState = 'Hold:0'
+socket.reportStatus()
+assert.ok(ws.sendRealtimeNow(0x18))
+assert.equal(block().pendingBlock, null)
+assert.equal(useMachineStore.getState().status.pinState, '')
+socket.singleBlock = false
+socket.machineState = 'Idle'
+socket.reportStatus()
+await waitFor(() => !useMachineStore.getState().controllerResetPending, 'reset cooldown did not finish')
+
+socket.supportsBlockMode = false
+block().setMode(true)
+await waitFor(() => block().error !== null, 'unsupported block mode did not report a failure', 5000)
+assert.equal(useMachineStore.getState().status.pinState, '', 'unsupported firmware must not appear enabled')
+assert.equal(block().error, 'Mode change failed (error 3).', 'HTTP command failures must be reported immediately')
+block().clearError()
+socket.supportsBlockMode = true
+
+// A no-op $GB returns only ok. Its dedicated HTTP response still confirms it.
+socket.modeReply = 'ok'
+socket.reportModeChanges = false
+block().setMode(true)
+await waitFor(() => block().requestedMode === null, 'ok-only enable was not confirmed')
+assert.ok(useMachineStore.getState().status.pinState.includes('Q'))
+block().setMode(false)
+await waitFor(() => block().requestedMode === null, 'ok-only disable was not confirmed')
+assert.equal(useMachineStore.getState().status.pinState, '')
+socket.modeReply = 'silent'
+block().setMode(true)
+const timedOutRequest = modeRequests.at(-1)!
+await waitFor(() => block().error !== null, 'unconfirmed HTTP mode change must time out', 5000)
+assert.equal(block().error, 'Mode change timed out.')
+assert.equal(timedOutRequest.signal.aborted, true, 'timed out mode requests must be canceled')
+block().clearError()
+socket.modeReply = 'info'
+socket.failModeRequest = true
+block().setMode(true)
+await waitFor(() => block().error !== null, 'network failure was not reported')
+assert.equal(block().error, 'Mode change failed.')
+block().clearError()
+socket.failModeRequest = false
+socket.reportModeChanges = true
+
 const commands = Array.from({ length: 30 }, (_, index) => `G1 X${index} F100`).concat('M30')
 socket.bufferedAmount = 2048
 assert.equal(useGCodeSenderStore.getState().start(commands.join('\n'), 'window.gcode'), true)
 assert.equal(ws.sendRaw('M9'), false, 'normal commands must be rejected while the stream owns ok responses')
+block().setMode(true)
+assert.equal(block().requestedMode, null, 'mode commands must not enter the local stream acknowledgement lane')
 useGCodeSenderStore.getState().pause()
 assert.equal(useGCodeSenderStore.getState().phase, 'streaming', 'preparation cannot be stranded in Paused')
 await delay(350)
@@ -215,5 +426,18 @@ socket.machineState = 'Idle'
 useMachineStore.getState().updateStatus({ state: 'Idle' })
 await waitFor(() => useGCodeSenderStore.getState().phase === 'completed', 'legacy fallback stream did not complete')
 
+socket.singleBlock = true
+socket.machineState = 'Hold:0'
+socket.receive('[MSG:INFO: Step /sd/disconnected.nc:1 G1 X99]\n')
+socket.reportStatus()
+assert.ok(block().pendingBlock)
+block().setMode(false)
+const disconnectedRequest = modeRequests.at(-1)!
 ws.disconnect()
-console.log('G-code stream reliability tests passed')
+assert.equal(block().pendingBlock, null, 'disconnect must clear pending program lines')
+assert.equal(block().requestedMode, null, 'disconnect must clear pending mode changes')
+assert.equal(disconnectedRequest.signal.aborted, true)
+await delay(20)
+assert.equal(block().error, null, 'late HTTP responses must not resurrect a disconnected session')
+assert.equal(useMachineStore.getState().status.pinState, 'Q', 'late HTTP replies must not change the disconnected mode state')
+console.log('G-code stream and single-block control tests passed')

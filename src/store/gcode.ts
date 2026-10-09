@@ -11,6 +11,7 @@ import { useMachineStore } from '../store'
 import { getBase, sendCommand } from '../lib/http'
 import { MM_PER_INCH } from '../lib/units'
 import { sendRaw } from '../lib/ws'
+import { controllerRunCommand } from '../lib/controllerFiles'
 import {
   buildRenderLinesAsync,
   buildStatic2DPathsAsync,
@@ -438,7 +439,7 @@ export const useGCodeStore = create<GCodeStore>((set, get) => ({
       isProcessing2D: false,
       isProcessing3D: false,
       downloadProgress: null,
-      // Mark this path as the loaded one so the SD-job-start auto-load doesn't
+      // Mark this path as loaded so controller-job tracking doesn't
       // re-fetch it. The user explicitly chose to skip the preview.
       loadedPath: path,
       fileName: path.split('/').pop() ?? path,
@@ -452,7 +453,7 @@ export const useGCodeStore = create<GCodeStore>((set, get) => ({
       geometry3D: null,
       is3DReady: false,
     })
-    return sendRaw(`$SD/Run=${path}`)
+    return sendRaw(controllerRunCommand(path))
   },
 
   startTrackedJob: source => set({

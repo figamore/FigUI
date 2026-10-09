@@ -373,6 +373,34 @@ textarea {
     opacity: 0.4;
   }
 
+  .job-action {
+    height: 38px;
+    padding: 4px 12px;
+    white-space: nowrap;
+  }
+  .job-action svg {
+    flex-shrink: 0;
+  }
+  .job-cycle-action {
+    min-width: 122px;
+  }
+  .btn-step {
+    background: var(--ok);
+    color: #071c16;
+    border-color: var(--ok);
+    font-weight: 600;
+  }
+  .btn-step:disabled {
+    background: var(--elevated);
+    color: var(--text-muted);
+    border-color: var(--border);
+    opacity: 1;
+  }
+  .single-block-readout {
+    height: 58px;
+    overflow: hidden;
+  }
+
   .btn-warn {
     background: rgb(var(--warn-rgb) / 0.08);
     color: var(--warn);
@@ -432,6 +460,9 @@ textarea {
     }
     .btn-ok-solid:hover:not(:disabled) {
       filter: brightness(1.1);
+    }
+    .btn-step:hover:not(:disabled) {
+      filter: brightness(1.05);
     }
     .btn-warn:hover:not(:disabled) {
       background: rgb(var(--warn-rgb) / 0.16);
