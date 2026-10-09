@@ -31,7 +31,10 @@ import {
 import { useMachineStore } from "../store";
 import type { Theme } from "../store";
 import type { FluidNCSetting } from "../types";
-import { loadControllerConfigSettings } from "../lib/controllerConfig";
+import {
+  loadControllerConfigSettings,
+  updateControllerConfigSetting,
+} from "../lib/controllerConfig";
 import { LimitsTab } from "./LimitsTab";
 
 type Setting = FluidNCSetting;
@@ -1650,8 +1653,10 @@ export function SettingsPanel({
     await sendCommand(`[ESP401]P=${p} T=${t} V=${v}`);
 
     const setting = settings.find((s) => s.P === p);
-    const updatedSettings = settings.map((s) =>
-      s.P === p ? { ...s, V: v } : s,
+    const updatedSettings = updateControllerConfigSetting(
+      useMachineStore.getState().controllerConfigSettings ?? settings,
+      p,
+      v,
     );
     setSettings(updatedSettings);
     useMachineStore.getState().setControllerConfigSettings(updatedSettings);

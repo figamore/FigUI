@@ -148,6 +148,11 @@ function getFluidNCAxisRange(settings: FluidNCSetting[], axis: 'x' | 'y' | 'z') 
 
 function deriveControllerSettingsFromFluidNCSettings(settings: FluidNCSetting[]): Partial<ControllerSettings> {
   const derived: Partial<ControllerSettings> = {}
+  for (const axis of ['X', 'Y', 'Z', 'A', 'B', 'C'] as const) {
+    const maxRate = getSettingNumber(settings, `axes/${axis}/max_rate_mm_per_min`)
+      ?? getSettingNumber(settings, `Grbl/MaxRate/${axis}`)
+    if (maxRate !== undefined) derived[`maxRate${axis}`] = maxRate
+  }
   const reportInches = getSettingBoolean(settings, 'report_inches')
     ?? getSettingBoolean(settings, 'report/inches')
   if (reportInches !== undefined) derived.reportInches = reportInches

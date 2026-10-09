@@ -200,6 +200,9 @@ const CONTROLLER_SETTING_MAP: Record<string, keyof ControllerSettings> = {
   '110': 'maxRateX',
   '111': 'maxRateY',
   '112': 'maxRateZ',
+  '113': 'maxRateA',
+  '114': 'maxRateB',
+  '115': 'maxRateC',
   '120': 'accelX',
   '121': 'accelY',
   '122': 'accelZ',
@@ -215,7 +218,7 @@ export function parseControllerSettingLine(line: string): Partial<ControllerSett
     return flag === undefined ? null : { reportInches: flag }
   }
 
-  const match = line.match(/^\$(11|23|30|31|100|101|102|110|111|112|120|121|122|130|131|132)=(-?\d+(?:\.\d+)?)(?:\s|$)/)
+  const match = line.match(/^\$(11|23|30|31|100|101|102|110|111|112|113|114|115|120|121|122|130|131|132)=(-?\d+(?:\.\d+)?)(?:\s|$)/)
   if (!match) return null
 
   const value = Number.parseFloat(match[2])

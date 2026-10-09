@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { RotateCcw, Play, Square, ArrowLeft } from 'lucide-react'
 import { useMachineStore } from '../store'
-import { loadPersistedJogFeed } from '../lib/jog'
+import { buildLimitedFeedPresets, getJogFeedMax, loadPersistedJogFeed } from '../lib/jog'
 import { sendRaw, sendRealtime } from '../lib/ws'
 import { setLocalJogActive } from '../lib/jogWatchdog'
 import { useControllerJobStarting } from '../lib/jobState'
@@ -116,16 +116,6 @@ function snapToNearestPreset(value: number, presets: readonly number[]) {
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max)
-}
-
-function buildLimitedFeedPresets(presets: readonly number[], max?: number): number[] {
-  if (max == null || !Number.isFinite(max) || max <= 0) return [...presets]
-
-  const normalizedMax = Math.round(max * 1000) / 1000
-  const limited = presets.filter(preset => preset <= normalizedMax)
-  const next = limited.length > 0 ? [...limited] : [normalizedMax]
-  if (!next.some(preset => Math.abs(preset - normalizedMax) < 0.001)) next.push(normalizedMax)
-  return next
 }
 
 function buildSpindlePresets(min: number, max?: number): number[] {
@@ -881,15 +871,15 @@ export function JogPad() {
   const jobRunning = useJobRunningWithLinger(jobActive)
   const { keyboardJog, setKeyboardJog, activeKeys } = useKeyboardJog(continuous, canJog, xyFeed, zFeed)
   const zSteps = linearBarSteps(units)
-  const xyFeedMax = controllerSettings.maxRateX != null && controllerSettings.maxRateY != null
-    ? Math.min(controllerSettings.maxRateX, controllerSettings.maxRateY)
-    : controllerSettings.maxRateX ?? controllerSettings.maxRateY
-  const zFeedMax = controllerSettings.maxRateZ
+  const xyFeedMax = getJogFeedMax(controllerSettings, 'xy')
+  const zFeedMax = getJogFeedMax(controllerSettings, 'z')
+  const abcFeedMax = getJogFeedMax(controllerSettings, 'abc', axes)
   const spindleMin = controllerSettings.spindleMin ?? 0
   const spindleMax = controllerSettings.spindleMax
   const linearFeedPresetValues = linearFeedPresets(units)
   const xyFeedPresetValues = buildLimitedFeedPresets(linearFeedPresetValues, xyFeedMax)
   const zFeedPresetValues = buildLimitedFeedPresets(linearFeedPresetValues, zFeedMax)
+  const abcFeedPresetValues = buildLimitedFeedPresets(MM_FEED_PRESETS, abcFeedMax)
   const spindlePresetValues = buildSpindlePresets(spindleMin, spindleMax)
   const controllerSpindleActive = status.spindleRunning ?? status.spindle > 0
   const spindleActive = spindleOverrideState === 'off'
@@ -927,6 +917,11 @@ export function JogPad() {
     if (zFeedMax == null || !Number.isFinite(zFeedMax) || zFeedMax <= 0) return
     setZFeed(prev => Math.min(prev, zFeedMax))
   }, [zFeedMax])
+
+  useEffect(() => {
+    if (abcFeedMax == null) return
+    setAbcFeed(prev => Math.min(prev, abcFeedMax))
+  }, [abcFeedMax])
 
   useEffect(() => {
     if (spindleMax == null || !Number.isFinite(spindleMax) || spindleMax < spindleMin) return
@@ -1026,7 +1021,7 @@ export function JogPad() {
                   <FeedButton label="Z" value={zFeed} presets={zFeedPresetValues} onChange={setZFeed}
                     formatValue={linearFeedFormatter} toDisplayValue={value => mmToDisplay(value, units)}
                     fromDisplayValue={value => displayToMm(value, units)} max={zFeedMax} />
-                  {axes > 3 && <FeedButton label="ABC" value={abcFeed} presets={MM_FEED_PRESETS} onChange={setAbcFeed} formatValue={rotaryFeedFormatter} />}
+                  {axes > 3 && <FeedButton label="ABC" value={abcFeed} presets={abcFeedPresetValues} onChange={setAbcFeed} formatValue={rotaryFeedFormatter} max={abcFeedMax} />}
                   <span className="text-base text-text-dim shrink-0">
                     {axes > 3 ? `XYZ ${feedUnitLabel(units)}` : feedUnitLabel(units)}
                   </span>
@@ -1319,10 +1314,8 @@ export function TabletJogPad({
   const [customFeedValue, setCustomFeedValue] = useState('')
   const prevUnitsRef = useRef(units)
 
-  const xyFeedMax = controllerSettings.maxRateX != null && controllerSettings.maxRateY != null
-    ? Math.min(controllerSettings.maxRateX, controllerSettings.maxRateY)
-    : controllerSettings.maxRateX ?? controllerSettings.maxRateY
-  const zFeedMax = controllerSettings.maxRateZ
+  const xyFeedMax = getJogFeedMax(controllerSettings, 'xy')
+  const zFeedMax = getJogFeedMax(controllerSettings, 'z')
   const linearFeedPresetValues = linearFeedPresets(units)
   const xyFeedPresetValues = buildLimitedFeedPresets(linearFeedPresetValues, xyFeedMax)
   const zFeedPresetValues  = buildLimitedFeedPresets(linearFeedPresetValues, zFeedMax)

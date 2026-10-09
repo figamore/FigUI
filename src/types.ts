@@ -90,6 +90,9 @@ export interface ControllerSettings {
   maxRateX?: number
   maxRateY?: number
   maxRateZ?: number
+  maxRateA?: number
+  maxRateB?: number
+  maxRateC?: number
   accelX?: number
   accelY?: number
   accelZ?: number
