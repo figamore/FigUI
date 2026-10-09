@@ -212,7 +212,7 @@ function FileRow({
           />
         ) : isTablet ? (
           <button
-            className={`flex-1 text-left text-2xl truncate ${
+            className={`flex-1 min-w-0 text-left text-2xl truncate ${
               entry.isDir
                 ? "text-text-primary"
                 : isGcode(entry.name)
@@ -252,6 +252,12 @@ function FileRow({
         ) : (
           <span className={`flex-1 text-xl text-text-primary truncate`}>
             {entry.name}
+          </span>
+        )}
+
+        {!renaming && isTablet && !entry.isDir && (
+          <span className="shrink-0 text-base text-text-dim font-mono text-right whitespace-nowrap">
+            {fmtSize(entry.size)}
           </span>
         )}
 
