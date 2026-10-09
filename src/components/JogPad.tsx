@@ -463,13 +463,15 @@ function JogRose({ xyFeed, continuous, disabled, isJogging, activeKeys, units }:
 const ZONE_FILL = ['var(--jog-r0)', 'var(--jog-r1)', 'var(--jog-r2)']
 const ABC_STEPS = [10, 1, 0.1]  as const
 
-function AxisZone({ id, y, displayStep, commandStep, sign, axis, feed, fillIdx, color, disabled, hover, onHover }: {
+function AxisZone({ id, y, displayStep, commandStep, sign, axis, feed, fillIdx, color, disabled, hover, onHover, horizontal }: {
   id: string; y: number; displayStep: number; commandStep: number; sign: 1 | -1; axis: string; feed: number
   fillIdx: number; color: string; disabled: boolean
   hover: string | null; onHover: (id: string | null) => void
+  horizontal?: boolean
 }) {
   const { start, stop } = useHoldJog(axis, sign, feed, commandStep, false, disabled)
   const isHovered = hover === id
+  const labelX = horizontal ? 13 : 22
   return (
     <g className="cursor-pointer"
       onPointerEnter={() => onHover(id)}
@@ -477,10 +479,11 @@ function AxisZone({ id, y, displayStep, commandStep, sign, axis, feed, fillIdx, 
       onPointerDown={e => { alwaysCapturePointer(e); onHover(id); start() }}
       onPointerUp={() => { onHover(null); stop() }}
       onPointerCancel={() => { onHover(null); stop() }}>
-      <rect x="2" y={y} width="40" height="26" rx="2"
+      <rect x="2" y={y} width={horizontal ? 22 : 40} height="26" rx="2"
         fill={isHovered ? color : ZONE_FILL[fillIdx]}
         stroke="var(--surface)" strokeWidth="1.5" />
-      <text x="22" y={y + 16} textAnchor="middle"
+      <text x={labelX} y={y + 16} textAnchor="middle"
+        transform={horizontal ? `rotate(-90 ${labelX} ${y + 13})` : undefined}
         fill={isHovered ? '#fff' : 'var(--jog-label)'}
         fontSize="12" fontWeight="700" fontFamily="ui-monospace, monospace"
         pointerEvents="none">
@@ -490,16 +493,17 @@ function AxisZone({ id, y, displayStep, commandStep, sign, axis, feed, fillIdx, 
   )
 }
 
-function AxisCont({ id, y, h, sign, axis, feed, color, disabled, hover, onHover, activeKeys }: {
+function AxisCont({ id, y, h, sign, axis, feed, color, disabled, hover, onHover, activeKeys, horizontal }: {
   id: string; y: number; h: number; sign: 1 | -1; axis: string; feed: number
   color: string; disabled: boolean; hover: string | null; onHover: (id: string | null) => void
   activeKeys?: Set<string>
+  horizontal?: boolean
 }) {
   const { start, stop } = useHoldJog(axis, sign, feed, 0, true, disabled)
   const isKeyActive = activeKeys?.has(`${axis}${sign > 0 ? '+' : '-'}`) ?? false
   const isHovered = hover === id || isKeyActive
   return (
-    <rect x="2" y={y} width="40" height={h} rx="3"
+    <rect x="2" y={y} width={horizontal ? 22 : 40} height={h} rx="3"
       fill={isHovered ? color : 'var(--jog-r1)'}
       stroke="var(--surface)" strokeWidth="1.5"
       className="cursor-pointer"
@@ -512,48 +516,56 @@ function AxisCont({ id, y, h, sign, axis, feed, color, disabled, hover, onHover,
   )
 }
 
-function AxisBar({ axis, color, steps, feed, continuous, disabled, activeKeys, units }: {
+function AxisBar({ axis, color, steps, feed, continuous, disabled, activeKeys, units, horizontal = false }: {
   axis: string; color: string; steps: readonly number[]; feed: number
   continuous: boolean; disabled: boolean; activeKeys?: Set<string>; units: Units
+  horizontal?: boolean
 }) {
   const [hover, setHover] = useState<string | null>(null)
+  const barWidth = horizontal ? 22 : 40
+  const labelX = horizontal ? 13 : 22
   return (
-    <svg viewBox="0 0 44 220"
+    <svg viewBox={horizontal ? '0 0 220 26' : '0 0 44 220'}
       style={{ touchAction: 'none' }}
       {...noContextMenu}
-      className={`w-[50px] h-full max-h-[260px] select-none shrink-0
+      className={`${horizontal ? 'w-full h-auto' : 'w-[50px] h-full max-h-[260px]'} select-none shrink-0
                   ${disabled ? 'opacity-40 pointer-events-none' : ''}`}>
 
-      <rect x="2" y="0" width="40" height="24" rx="3" fill={color} opacity="0.15" />
-      <text x="22" y="16" textAnchor="middle" fill={color} fontSize="12" fontWeight="700" pointerEvents="none">+{axis}</text>
+      {/* Rotate the bar so negative jogs are on the left; keep labels upright. */}
+      <g transform={horizontal ? 'translate(220 0) rotate(90)' : undefined}>
+        <rect x="2" y="0" width={barWidth} height="24" rx="3" fill={color} opacity="0.15" />
+        <text x={labelX} y="16" textAnchor="middle" fill={color} fontSize="12" fontWeight="700" pointerEvents="none"
+          transform={horizontal ? `rotate(-90 ${labelX} 12)` : undefined}>+{axis}</text>
 
-      {continuous ? (
-        <>
-          <AxisCont id={`${axis}+c`} y={26} h={82} sign={1} axis={axis} feed={feed} color={color}
-            disabled={disabled} hover={hover} onHover={setHover} activeKeys={activeKeys} />
-          <AxisCont id={`${axis}-c`} y={116} h={82} sign={-1} axis={axis} feed={feed} color={color}
-            disabled={disabled} hover={hover} onHover={setHover} activeKeys={activeKeys} />
-        </>
-      ) : (
-        <>
-          {steps.map((step, i) => (
-            <AxisZone key={`+${step}`} id={`${axis}+${step}`} y={26 + i * 28}
-              displayStep={step} commandStep={axisStepToCommand(step, axis, units)} sign={1}
-              axis={axis} feed={feed} fillIdx={steps.length - 1 - i} color={color}
-              disabled={disabled} hover={hover} onHover={setHover} />
-          ))}
-          <rect x="2" y="110" width="40" height="4" rx="1" fill="var(--border)" />
-          {[...steps].reverse().map((step, i) => (
-            <AxisZone key={`-${step}`} id={`${axis}-${step}`} y={116 + i * 28}
-              displayStep={step} commandStep={axisStepToCommand(step, axis, units)} sign={-1}
-              axis={axis} feed={feed} fillIdx={i} color={color}
-              disabled={disabled} hover={hover} onHover={setHover} />
-          ))}
-        </>
-      )}
+        {continuous ? (
+          <>
+            <AxisCont id={`${axis}+c`} y={26} h={82} sign={1} axis={axis} feed={feed} color={color}
+              disabled={disabled} hover={hover} onHover={setHover} activeKeys={activeKeys} horizontal={horizontal} />
+            <AxisCont id={`${axis}-c`} y={116} h={82} sign={-1} axis={axis} feed={feed} color={color}
+              disabled={disabled} hover={hover} onHover={setHover} activeKeys={activeKeys} horizontal={horizontal} />
+          </>
+        ) : (
+          <>
+            {steps.map((step, i) => (
+              <AxisZone key={`+${step}`} id={`${axis}+${step}`} y={26 + i * 28}
+                displayStep={step} commandStep={axisStepToCommand(step, axis, units)} sign={1}
+                axis={axis} feed={feed} fillIdx={steps.length - 1 - i} color={color}
+                disabled={disabled} hover={hover} onHover={setHover} horizontal={horizontal} />
+            ))}
+            <rect x="2" y="110" width={barWidth} height="4" rx="1" fill="var(--border)" />
+            {[...steps].reverse().map((step, i) => (
+              <AxisZone key={`-${step}`} id={`${axis}-${step}`} y={116 + i * 28}
+                displayStep={step} commandStep={axisStepToCommand(step, axis, units)} sign={-1}
+                axis={axis} feed={feed} fillIdx={i} color={color}
+                disabled={disabled} hover={hover} onHover={setHover} horizontal={horizontal} />
+            ))}
+          </>
+        )}
 
-      <rect x="2" y="200" width="40" height="20" rx="3" fill={color} opacity="0.15" />
-      <text x="22" y="214" textAnchor="middle" fill={color} fontSize="12" fontWeight="700" pointerEvents="none">−{axis}</text>
+        <rect x="2" y="200" width={barWidth} height="20" rx="3" fill={color} opacity="0.15" />
+        <text x={labelX} y="214" textAnchor="middle" fill={color} fontSize="12" fontWeight="700" pointerEvents="none"
+          transform={horizontal ? `rotate(-90 ${labelX} 210)` : undefined}>−{axis}</text>
+      </g>
     </svg>
   )
 }
@@ -1006,13 +1018,18 @@ export function JogPad() {
                     activeKeys={activeKeys} units={units} />
                   <AxisBar axis="Z" color="var(--info)" steps={zSteps} feed={zFeed}
                     continuous={continuous} disabled={!canJog} activeKeys={activeKeys} units={units} />
-                  {(['A', 'B', 'C'] as const).slice(0, axes - 3).map((ax, i) => (
-                    <AxisBar key={ax} axis={ax}
-                      color={(['var(--accent)', 'var(--purple)', 'var(--teal)'] as const)[i]}
-                      steps={ABC_STEPS} feed={abcFeed}
-                      continuous={continuous} disabled={!canJog} units="mm" />
-                  ))}
                 </div>
+
+                {axes > 3 && (
+                  <div className="flex flex-col gap-2">
+                    {(['A', 'B', 'C'] as const).slice(0, axes - 3).map((ax, i) => (
+                      <AxisBar key={ax} axis={ax} horizontal
+                        color={(['var(--accent)', 'var(--purple)', 'var(--teal)'] as const)[i]}
+                        steps={ABC_STEPS} feed={abcFeed}
+                        continuous={continuous} disabled={!canJog} units="mm" />
+                    ))}
+                  </div>
+                )}
 
                 <div className="flex gap-2 items-center">
                   <FeedButton label="XY" value={xyFeed} presets={xyFeedPresetValues} onChange={setXyFeed}
