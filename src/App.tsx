@@ -4,7 +4,7 @@ import { useGCodeStore } from './store/gcode'
 import { useGCodeSenderStore } from './store/gcodeSender'
 import { useTerminalStore } from './store/terminal'
 import { connect, isSocketOpen, onLine, sendStartupQueries } from './lib/ws'
-import { setBase, getDeviceInfo, getDeviceInfoFast, loadMacroCfg } from './lib/http'
+import { setBase, getBase, getDeviceInfo, getDeviceInfoFast, loadMacroCfg, WebUIBlockedError } from './lib/http'
 import { isWasmBridgeActive, WASM_BRIDGE_BASE } from './wasmBridge/shimTransport'
 import { parseESP800 } from './lib/parser'
 import { prefetchControllerConfigSettings } from './lib/controllerConfig'
@@ -22,6 +22,7 @@ import { Macros } from './components/Macros'
 import { SettingsPanel } from './components/SettingsPanel'
 import { AboutModal } from './components/AboutModal'
 import { JobControl } from './components/JobControl'
+import { WebUIBlocked } from './components/WebUIBlocked'
 import { PluginLauncher } from './components/PluginLauncher'
 import { WifiOff, RefreshCw, Crosshair, Monitor, FolderOpen, TerminalSquare, AlertTriangle } from 'lucide-react'
 import type { Plugin, SidebarTab, ActiveLayout } from './types'
@@ -101,6 +102,7 @@ function AppContent() {
   const cancelTrackedJob = useGCodeStore(s => s.cancelTrackedJob)
   const [phase, setPhase]   = useState<Phase>('connecting')
   const [errMsg, setErrMsg] = useState('')
+  const [webUIBlocked, setWebUIBlocked] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const requestSettingsCloseRef = useRef<(() => void) | null>(null)
   const requestSettingsClose = useCallback(() => {
@@ -281,6 +283,7 @@ function AppContent() {
         if (cachedHostFailures.current >= 3) cachedWsHost.current = null
         if (phase !== 'ready') {
           setErrMsg(e instanceof Error ? e.message : 'Connection failed')
+          setWebUIBlocked(e instanceof WebUIBlockedError)
         }
         return false
       } finally {
@@ -456,6 +459,7 @@ function AppContent() {
   async function retryFromError() {
     setPhase('connecting')
     setErrMsg('')
+    setWebUIBlocked(false)
     backoffMs.current = 0
     cachedWsHost.current = null
     cachedHostFailures.current = 0
@@ -515,6 +519,9 @@ function AppContent() {
   }
 
   if (phase === 'error') {
+    if (webUIBlocked) {
+      return <WebUIBlocked base={getBase()} onReload={retryFromError} />
+    }
     return (
       <div className="fixed inset-0 flex flex-col items-center justify-center gap-4 bg-[var(--bg)]">
         <WifiOff size={28} className="text-danger" />

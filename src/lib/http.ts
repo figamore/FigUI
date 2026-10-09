@@ -5,6 +5,13 @@ let base = ''
 export const setBase = (url: string) => { base = url.replace(/\/$/, '') }
 export const getBase = () => base
 
+export class WebUIBlockedError extends Error {
+  constructor() {
+    super('Cannot load WebUI while GCode Program is Running')
+    this.name = 'WebUIBlockedError'
+  }
+}
+
 let httpChain: Promise<unknown> = Promise.resolve()
 function serialize<T>(fn: () => Promise<T>): Promise<T> {
   const next = httpChain.then(fn, fn)
@@ -65,7 +72,17 @@ function get(path: string, params: Record<string, string>, timeoutMs?: number): 
     const timer = ctl ? setTimeout(() => ctl.abort(), timeoutMs) : null
     try {
       const res = await fetch(`${base}${path}?${q}`, ctl ? { signal: ctl.signal } : undefined)
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      if (!res.ok) {
+        // FluidNC blocks synchronous HTTP during motion, even if the browser
+        // has already loaded a cached copy of the WebUI.
+        if (res.status === 503) {
+          const body = await res.text()
+          if (/Try again when not moving|Cannot load WebUI while GCode Program is Running/i.test(body)) {
+            throw new WebUIBlockedError()
+          }
+        }
+        throw new Error(`HTTP ${res.status}`)
+      }
       return await res.text()
     } catch (e) {
       if (ctl?.signal.aborted) throw new Error('HTTP timeout')

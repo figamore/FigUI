@@ -13,6 +13,7 @@
     "test:jog": "node scripts/test-jog-settings.mjs",
     "test:gcode": "esbuild scripts/test-gcode-preview.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/figui-test-gcode-preview.mjs && node node_modules/.cache/figui-test-gcode-preview.mjs",
     "test:stream": "esbuild scripts/test-gcode-stream.ts --bundle --platform=node --format=esm --outfile=/tmp/fluidui-test-gcode-stream.mjs && node /tmp/fluidui-test-gcode-stream.mjs",
+    "test:webui": "esbuild scripts/test-webui-blocked.tsx --bundle --packages=external --platform=node --format=esm --outfile=node_modules/.cache/figui-test-webui-blocked.mjs && node node_modules/.cache/figui-test-webui-blocked.mjs",
     "preview": "vite preview",
     "test:studio": "node scripts/test-config-studio-loader.mjs",
     "test:pack": "node scripts/test-esp32-pack.mjs"
