@@ -14,9 +14,6 @@ const mangleReservedPrefixes = [
   'lucide',
 ]
 const mangleReservedClasses = new Set([
-  'btn',
-  'kbd',
-  'tag',
   'dark',
   'light',
   'anthracite-dark',
@@ -45,8 +42,7 @@ export default defineConfig(({ mode }) => ({
       tailwindMangle({
         filter: shouldMangleClass,
         generator: {
-          classPrefix: '',
-          reserveClassName: [...mangleReservedClasses],
+          classPrefix: '_',
         },
         registry: {
           file: '.tw-patch/tw-class-list.json',
@@ -70,7 +66,7 @@ export default defineConfig(({ mode }) => ({
         ecma: 2022,
         module: true,
         toplevel: true,
-        compress: { passes: 3, inline: 1 },
+        compress: { passes: 3 },
         format: { comments: false },
       },
       assetsInlineLimit: 100_000_000,
