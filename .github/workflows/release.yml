@@ -46,6 +46,9 @@ jobs:
       - name: Test config compatibility and Studio loading
         run: npm run test:config && npm run test:studio
 
+      - name: Test offline firmware packing
+        run: npm run test:pack
+
       - name: Build ESP32 firmware
         run: npm run build:esp32
 

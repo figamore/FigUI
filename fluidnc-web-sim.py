@@ -337,6 +337,20 @@ esp800resp = (
     f'#axis:3'
 )
 
+esp800jsonresp = {
+    'cmd': '800',
+    'status': 'ok',
+    'data': {
+        'FWVersion': 'FluidNC v4.0.0-sim',
+        'HostName': 'fluidnc-sim',
+        'Authentication': 'Disabled',
+        'WebCommunication': 'Synchronous',
+        'WebSocketPort': ws_port,
+        'WebSocketIP': 'localhost',
+        'Axisletters': 'XYZ',
+    },
+}
+
 # Helper functions — P=H (matches real FluidNC firmware: JSONEncoder sets both to the same path)
 def _R(P, V, mn='0', mx='100000'): return {'F':'nvs','P':P,'H':P,'T':'R','V':V,'M':mn,'S':mx}
 def _I(P, V, mn='0', mx='32767'):  return {'F':'nvs','P':P,'H':P,'T':'I','V':V,'M':mn,'S':mx}
@@ -587,6 +601,8 @@ def do_command():
     plain = request.args.get('plain', '')
     if plain == '[ESP800]':
         return esp800resp
+    if plain == '[ESP800]json=yes':
+        return esp800jsonresp
     if proxy:
         return do_proxy(request)
     if plain == '[ESP400]':         return esp400resp
