@@ -31,6 +31,7 @@ import { getEffectiveLayout } from './types'
 import { PluginFrame } from './components/PluginFrame'
 import { DesktopLayout } from './components/DesktopLayout'
 import { ManualATCPrompt } from './components/ManualATCPrompt'
+import { HoldPrompt } from './components/HoldPrompt'
 import { TabletMainShell } from './components/TabletMainShell'
 import { ViewportProvider, useViewportMetrics } from './lib/viewport'
 import type { TabletTabId } from './lib/tabletTabs'
@@ -613,6 +614,7 @@ function AppContent() {
       />
 
       <ManualATCPrompt />
+      <HoldPrompt />
 
       {fullPlugin && (
         <div className="flex-1 min-h-0 flex flex-col overflow-hidden p-3">

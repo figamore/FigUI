@@ -5,9 +5,9 @@ import { formatJobProgress, formatRuntime, useJobRuntimeEstimate } from '../lib/
 import { useControllerJobStarting } from '../lib/jobState'
 import { sendRealtime, sendRealtimeNow } from '../lib/ws'
 import { clearMachineAlarm } from '../lib/alarm'
-import { useSingleBlockStore } from '../store/singleBlock'
 import { useGCodeSenderStore } from '../store/gcodeSender'
 import { SingleBlockNotice, SingleBlockToggle } from './SingleBlockControl'
+import { useJobResume } from '../lib/jobResume'
 
 export function JobControl() {
   const status = useMachineStore(s => s.status)
@@ -21,18 +21,9 @@ export function JobControl() {
   const runtime = useJobRuntimeEstimate(status, model, controllerSettings, loadedPath, fileName)
   const progressPercent = runtime.progressPercent
   const cancelTrackedJob = useGCodeStore(s => s.cancelTrackedJob)
-  const connected = useMachineStore(s => s.connected)
-  const pendingBlock = useSingleBlockStore(s => s.pendingBlock)
-  const ready = useSingleBlockStore(s => s.ready)
-  const advancing = useSingleBlockStore(s => s.advancing)
-  const modePending = useSingleBlockStore(s => s.requestedMode !== null)
-  const resumeController = useSingleBlockStore(s => s.resume)
   const senderPhase = useGCodeSenderStore(s => s.phase)
   const senderActive = ['streaming', 'paused', 'draining'].includes(senderPhase)
-  const stepHold = status.state === 'Hold' && status.pinState.includes('Q') && (!!pendingBlock || advancing) && !senderActive
-  const resumeDisabled = !connected || controllerResetPending || (senderActive
-    ? status.state === 'Door'
-    : modePending || advancing || status.holdComplete === false || (status.state === 'Hold' && !!pendingBlock && !ready))
+  const { stepHold, disabled: resumeDisabled, resume } = useJobResume()
 
   const isRunning = state === 'Run' || controllerJobStarting || controllerResetPending
   const isHold    = state === 'Hold'
@@ -40,10 +31,6 @@ export function JobControl() {
   const isDoor    = state === 'Door'
   const hasSd     = Boolean(sdFilename)
 
-  function resume()     {
-    if (senderActive) useGCodeSenderStore.getState().resume()
-    else resumeController()
-  }
   function pause()      { sendRealtime(0x21) }
   function softReset()  {
     if (!confirm('Abort job and reset?')) return
