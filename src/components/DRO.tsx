@@ -7,6 +7,11 @@ import { clearMachineAlarm } from '../lib/alarm'
 import { droFeedUnitLabel, formatAxisCoord, formatFeedRate } from '../lib/units'
 import { useControllerJobStarting } from '../lib/jobState'
 import { useManualAtcStore } from '../store/manualAtc'
+import { useGCodeStore } from '../store/gcode'
+import { useGCodeSenderStore } from '../store/gcodeSender'
+import { sendAxisPosition, type AxisPositionAction, type AxisPositionMode } from '../lib/axisPosition'
+import { AxisPositionDialog } from './AxisPositionDialog'
+import type { Units } from '../types'
 import { useIsPortrait } from '../lib/viewport'
 
 const ALARM_MESSAGES: Record<number, string> = {
@@ -42,7 +47,7 @@ const AXIS_COLOR: Record<string, string> = {
 }
 
 type PendingAxisAction = {
-  kind: 'go-to-zero' | 'home'
+  kind: 'move' | 'home'
   axis: string
 }
 
@@ -76,6 +81,8 @@ export function DRO({
   layout?: 'default' | 'topBand'
 }) {
   const status = useMachineStore(s => s.status)
+  const connected = useMachineStore(s => s.connected)
+  const statusReceived = useMachineStore(s => s.statusReceived)
   const controllerResetPending = useMachineStore(s => s.controllerResetPending)
   const controllerJobStarting = useControllerJobStarting()
   const positionMode = useMachineStore(s => s.positionMode)
@@ -85,6 +92,10 @@ export function DRO({
   const hasManualATC = useMachineStore(s => s.controllerSettings.hasManualATC === true)
   const resetToolReference = useManualAtcStore(s => s.resetReference)
   const completeReferenceSetup = useManualAtcStore(s => s.completeReferenceSetup)
+  const atcBusy = useManualAtcStore(s => s.phase !== 'idle')
+  const trackedJob = useGCodeStore(s => s.trackedJob !== null)
+  const senderBusy = useGCodeSenderStore(s => ['streaming', 'paused', 'draining'].includes(s.phase))
+  const [axisEditor, setAxisEditor] = useState<{ axis: string; mode: AxisPositionMode; value: number; units: Units } | null>(null)
   const [pendingAxisAction, setPendingAxisAction] = useState<PendingAxisAction | null>(null)
   const [pendingAxisActionStarted, setPendingAxisActionStarted] = useState(false)
   const [workOriginOpen, setWorkOriginOpen] = useState(false)
@@ -156,6 +167,8 @@ export function DRO({
   const isHomeAllPending = pendingAxisAction?.kind === 'home' && pendingAxisAction.axis === HOME_ALL_ACTION_AXIS
   const shouldHideMotionControls = isJobActive && pendingAxisAction === null
   const areAxisButtonsDisabled = pendingAxisAction !== null
+  const axisEntryDisabled = !connected || !statusReceived || status.state !== 'Idle' || isJobActive
+    || controllerResetPending || !!status.sdFilename || areAxisButtonsDisabled || trackedJob || senderBusy || atcBusy
 
   // Auto-query alarm details when entering alarm state without a name
   useEffect(() => {
@@ -214,7 +227,7 @@ export function DRO({
   function goToZero(axis: string) {
     const [feedKey, fallbackFeed] = jogFeedKeyForAxis(axis)
     const feed = loadPersistedJogFeed(feedKey, fallbackFeed)
-    setPendingAxisAction({ kind: 'go-to-zero', axis })
+    setPendingAxisAction({ kind: 'move', axis })
     setPendingAxisActionStarted(false)
     sendRaw(`$J=G90 G21 F${feed} ${axis}0`)
   }
@@ -229,11 +242,26 @@ export function DRO({
     sendRaw('$H')
   }
   function cancelPendingAxisAction() {
-    if (pendingAxisAction?.kind === 'go-to-zero') {
+    if (pendingAxisAction?.kind === 'move') {
       sendRealtime(0x85)
       return
     }
     sendRealtime(0x18)
+  }
+
+  function openAxisEditor(axis: string, mode: AxisPositionMode, value: number) {
+    if (!axisEntryDisabled) setAxisEditor({ axis, mode, value, units })
+  }
+
+  function applyAxisPosition(action: AxisPositionAction, input: string) {
+    if (!axisEditor || axisEntryDisabled) return false
+    const { axis, mode, units: entryUnits } = axisEditor
+    if (!sendAxisPosition(action, axis, mode, input, entryUnits)) return false
+    if (action === 'go') {
+      setPendingAxisAction({ kind: 'move', axis })
+      setPendingAxisActionStarted(false)
+    }
+    return true
   }
 
   return (
@@ -342,26 +370,41 @@ export function DRO({
             </span>
             {positionMode === 'Both' ? (
               <div className="flex-1 grid grid-cols-2 gap-2 min-w-0">
-                <span
-                  className={`text-right font-mono tabular-nums tracking-tight min-w-0 overflow-hidden ${tabletCoordBothSize}`}
+                <button
+                  disabled={axisEntryDisabled}
+                  onClick={() => openAxisEditor(ax, 'WPos', wCoords[ax])}
+                  aria-label={`Edit ${ax} work position`}
+                  aria-haspopup="dialog"
+                  title={`Set or go to ${ax} work position`}
+                  className={`text-right font-mono tabular-nums tracking-tight min-w-0 overflow-hidden rounded-sm hover:bg-elevated disabled:hover:bg-transparent ${tabletCoordBothSize}`}
                   style={{ fontWeight: 300, lineHeight: 1.2, color: 'var(--text-primary)' }}
                 >
                   {formatAxisCoord(wCoords[ax], ax, units)}
-                </span>
-                <span
-                  className={`text-right font-mono tabular-nums tracking-tight min-w-0 overflow-hidden ${tabletCoordBothSize}`}
+                </button>
+                <button
+                  disabled={axisEntryDisabled}
+                  onClick={() => openAxisEditor(ax, 'MPos', mCoords[ax])}
+                  aria-label={`Edit ${ax} machine position`}
+                  aria-haspopup="dialog"
+                  title={`Go to ${ax} machine position`}
+                  className={`text-right font-mono tabular-nums tracking-tight min-w-0 overflow-hidden rounded-sm hover:bg-elevated disabled:hover:bg-transparent ${tabletCoordBothSize}`}
                   style={{ fontWeight: 300, lineHeight: 1.2, color: 'var(--text-muted)' }}
                 >
                   {formatAxisCoord(mCoords[ax], ax, units)}
-                </span>
+                </button>
               </div>
             ) : (
-              <span
-                className={`flex-1 text-right font-mono tabular-nums tracking-tight ${tabletCoordSingleSize}`}
+              <button
+                disabled={axisEntryDisabled}
+                onClick={() => openAxisEditor(ax, positionMode, coordValues[ax])}
+                aria-label={`Edit ${ax} ${positionMode === 'WPos' ? 'work' : 'machine'} position`}
+                aria-haspopup="dialog"
+                title={positionMode === 'WPos' ? `Set or go to ${ax} work position` : `Go to ${ax} machine position`}
+                className={`flex-1 text-right font-mono tabular-nums tracking-tight rounded-sm hover:bg-elevated disabled:hover:bg-transparent ${tabletCoordSingleSize}`}
                 style={{ fontWeight: 300, lineHeight: 1.2, color: 'var(--text-primary)' }}
               >
                 {formatAxisCoord(coordValues[ax], ax, units)}
-              </span>
+              </button>
             )}
             {!shouldHideMotionControls && (
               <button
@@ -378,7 +421,7 @@ export function DRO({
               </button>
             )}
             {!shouldHideMotionControls && (
-              pendingAxisAction?.axis === ax && pendingAxisAction.kind === 'go-to-zero' ? (
+              pendingAxisAction?.axis === ax && pendingAxisAction.kind === 'move' ? (
                 <button
                   className={`shrink-0 flex items-center justify-center rounded-sm
                              border border-danger/50 text-danger bg-danger/10
@@ -533,6 +576,7 @@ export function DRO({
       </div>
 
       {!topBandLayout && <GCodeModesRow isTablet={isTablet} />}
+      {axisEditor && <AxisPositionDialog {...axisEditor} disabled={axisEntryDisabled} onAction={applyAxisPosition} onClose={() => setAxisEditor(null)} />}
     </div>
   )
 }
