@@ -36,6 +36,7 @@ import {
   updateControllerConfigSetting,
 } from "../lib/controllerConfig";
 import { LimitsTab } from "./LimitsTab";
+import { useViewportMetrics } from "../lib/viewport";
 
 type Setting = FluidNCSetting;
 
@@ -1566,6 +1567,7 @@ export function SettingsPanel({
   onClose,
   onRequestCloseReady,
 }: SettingsPanelProps) {
+  const isMobile = useViewportMetrics().innerWidth < 768;
   const espInfo = useMachineStore((s) => s.espInfo);
   const units = useMachineStore((s) => s.units);
   const setUnits = useMachineStore((s) => s.setUnits);
@@ -1594,16 +1596,13 @@ export function SettingsPanel({
   const [savingConfigFile, setSavingConfigFile] = useState(false);
 
   async function openConfigStudio() {
+    if (window.innerWidth < 768) return;
     const closed = await requestClose();
     if (!closed) return;
     setTimeout(
       () =>
         window.dispatchEvent(
-          new CustomEvent(
-            window.innerWidth < 768
-              ? "files:show-config-editor"
-              : "config:open-studio",
-          ),
+          new CustomEvent("config:show-studio"),
         ),
       0,
     );
@@ -2003,9 +2002,11 @@ export function SettingsPanel({
                   <button
                     className="btn btn-primary shrink-0 px-3 py-1.5 text-sm"
                     onClick={openConfigStudio}
+                    disabled={isMobile}
+                    title={isMobile ? "Config Studio is available on tablets and desktops" : undefined}
                   >
                     <FileCode2 size={14} />
-                    <span className="sm:hidden">Edit Config</span>
+                    <span className="sm:hidden">Config Studio</span>
                     <span className="hidden sm:inline">Open Config Studio</span>
                   </button>
                 )}

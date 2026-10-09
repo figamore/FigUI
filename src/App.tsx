@@ -125,23 +125,30 @@ function AppContent() {
     let firstFrame: number | null = null
     let secondFrame: number | null = null
 
-    const showConfigEditor = () => {
+    const showConfigEditor = (event: Event) => {
+      const studio = event.type === 'config:show-studio'
+      if (studio && window.innerWidth < 768) return
       setFullPlugin(null)
+      setWorkspacePlugin(null)
+      setControlsPlugin(null)
       setSidebarTab('files')
       setMobilePanel('right')
+      setTabletTab('files')
 
-      // FileManager only exists while the mobile Files panel is visible.
+      // FileManager only exists while the Files panel is visible.
       // Dispatch once it has mounted and installed its event listener.
       firstFrame = requestAnimationFrame(() => {
         secondFrame = requestAnimationFrame(() => {
-          window.dispatchEvent(new CustomEvent('files:open-config-editor'))
+          window.dispatchEvent(new CustomEvent(studio ? 'config:open-studio' : 'files:open-config-editor'))
         })
       })
     }
 
     window.addEventListener('files:show-config-editor', showConfigEditor)
+    window.addEventListener('config:show-studio', showConfigEditor)
     return () => {
       window.removeEventListener('files:show-config-editor', showConfigEditor)
+      window.removeEventListener('config:show-studio', showConfigEditor)
       if (firstFrame !== null) cancelAnimationFrame(firstFrame)
       if (secondFrame !== null) cancelAnimationFrame(secondFrame)
     }

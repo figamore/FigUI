@@ -108,7 +108,7 @@ The file manager gives access to both the SD card and the ESP32 internal filesys
 
 Text files stored on the controller can be opened and edited directly in the browser. The editor includes syntax highlighting and saves changes back to the controller filesystem.
 
-Config Studio, the visual YAML editor, downloads from GitHub Pages when first opened. After a successful download, the browser caches that Studio build for offline use on the same controller address. Clearing browser storage, changing browsers or controller addresses, or installing firmware that needs a different Studio build requires another download. Code view and config validation remain part of the controller UI.
+Config Studio, the visual YAML editor, is available on desktops and tablets; phones use YAML view. Open it from Settings → Machine Config to choose a YAML file from Internal storage. It downloads from GitHub Pages when first opened. After a successful download, the browser caches that Studio build for offline use on the same controller address. Clearing browser storage, changing browsers or controller addresses, or installing firmware that needs a different Studio build requires another download. Code view and config validation remain part of the controller UI.
 
 ---
 
