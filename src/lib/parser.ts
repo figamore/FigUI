@@ -184,7 +184,11 @@ export function parseGcStateLine(line: string): Partial<MachineStatus> | null {
 
   if (modal.has('M5')) {
     result.spindleRunning = false
-    result.spindle = spindleValue ?? 0
+    // The S word is retained under M5 (e.g. after M3 S12000; M5). Copying it
+    // here made the 2 s $G poll fight the 500 ms FS: status poll — the DRO
+    // flapped between 0 and the stale commanded speed. The spindle is off
+    // under M5, so report 0.
+    result.spindle = 0
   } else if (modal.has('M3') || modal.has('M4')) {
     result.spindleRunning = true
     if (spindleValue != null) result.spindle = spindleValue
