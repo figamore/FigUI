@@ -16,10 +16,17 @@ export const uiDir: string | null = (() => {
   return m ? m[0] : null
 })()
 
+class HttpStatusError extends Error {
+  constructor(readonly status: number) {
+    super(`HTTP ${status}`)
+    this.name = 'HttpStatusError'
+  }
+}
+
 /** Read a file from FigUI's own /ui/<name>/ directory */
 async function fetchUiFile(name: string): Promise<string> {
   const res = await fetch(`${base}${uiDir}${name}`, { cache: 'no-store' })
-  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  if (!res.ok) throw new HttpStatusError(res.status)
   return res.text()
 }
 
@@ -445,13 +452,13 @@ function asTarget(v: unknown): 'SD' | 'ESP' {
   return asString(v).toUpperCase() === 'SD' ? 'SD' : 'ESP'
 }
 
-/** Read FigUI's own macro configuration, falling back to shared LocalFS if the read fails. */
+/** Read FigUI's own macro configuration, falling back to shared LocalFS only if missing. */
 async function readMacroCfg(): Promise<string> {
   if (uiDir) {
     try {
       return await fetchUiFile('macrocfg.json')
-    } catch {
-      // Not saved here yet
+    } catch (error) {
+      if (!(error instanceof HttpStatusError) || error.status !== 404) throw error
     }
   }
   return fetchFileContent(MACRO_CFG, 'local')
@@ -473,7 +480,8 @@ export async function loadMacroCfg(): Promise<Macro[]> {
       glyph: asString(entry.glyph),
       pinned: entry.pinned === true,
     })).filter(m => m.label || m.filename)
-  } catch {
+  } catch (error) {
+    console.warn('Failed to load macro configuration:', error)
     return []
   }
 }
