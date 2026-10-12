@@ -68,9 +68,11 @@ async function handleCommand(params: URLSearchParams): Promise<Response> {
   // Route controller commands ($SS, $$, …) through the simulated machine so
   // startup queries see the same response lines as real FluidNC.
   const lines: string[] = []
-  await handleTextCommand(plain, msg => {
+  const completed = await handleTextCommand(plain, msg => {
     for (const line of msg.split('\n')) if (line.trim()) lines.push(line)
   })
+  // A command interrupted by soft reset reports no ack instead of success.
+  if (!completed) return ok('')
   return ok(lines.length > 0 ? lines.join('\n') + '\n' : 'ok')
 }
 
