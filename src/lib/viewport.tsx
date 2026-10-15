@@ -15,10 +15,20 @@ export interface ViewportMetrics {
 }
 
 function readViewportMetrics(): ViewportMetrics {
-  const innerWidth = typeof window === 'undefined' ? 1270 : window.innerWidth
-  const innerHeight = typeof window === 'undefined' ? 800 : window.innerHeight
   const vv = typeof window === 'undefined' ? null : window.visualViewport
-  const layoutHeight = vv?.height ?? innerHeight
+  // Page zoom (a pinch, or the browser fitting a wide page in desktop site
+  // mode) changes the visual viewport but never the layout viewport. Measure
+  // the layout viewport then, so that zooming magnifies the page instead of
+  // switching it to another layout.
+  const root = vv && Math.abs(vv.scale - 1) > 0.001 ? document.documentElement : null
+  const visualViewportWidth = vv ? (root ? root.clientWidth : vv.width) : null
+  const visualViewportHeight = vv ? (root ? root.clientHeight : vv.height) : null
+  const innerWidth = typeof window === 'undefined' ? 1270
+    : root ? root.clientWidth : window.innerWidth
+  const innerHeight = typeof window === 'undefined' ? 800
+    // While zoomed, keep ignoring the on-screen keyboard as innerHeight does.
+    : root ? Math.max(root.clientHeight, window.innerHeight) : window.innerHeight
+  const layoutHeight = visualViewportHeight ?? innerHeight
   const isPortrait = typeof window === 'undefined'
     ? false
     : window.matchMedia('(orientation: portrait)').matches
@@ -27,8 +37,8 @@ function readViewportMetrics(): ViewportMetrics {
   return {
     innerWidth,
     innerHeight,
-    visualViewportWidth: vv?.width ?? null,
-    visualViewportHeight: vv?.height ?? null,
+    visualViewportWidth,
+    visualViewportHeight,
     devicePixelRatio: typeof window === 'undefined' ? 1 : window.devicePixelRatio,
     isPortrait,
     isLandscape,
@@ -71,7 +81,13 @@ export function ViewportProvider({ children }: { children: ReactNode }) {
   const [metrics, setMetrics] = useState(readViewportMetrics)
 
   useEffect(() => {
-    const update = () => setMetrics(readViewportMetrics())
+    // Keep the same object while nothing changed (a pinch fires resize on
+    // every frame), so the app does not re-render for it.
+    const update = () => setMetrics(previous => {
+      const next = readViewportMetrics()
+      const changed = (Object.keys(next) as (keyof ViewportMetrics)[]).some(key => next[key] !== previous[key])
+      return changed ? next : previous
+    })
     update()
     return subscribeViewport(update)
   }, [])

@@ -74,9 +74,12 @@ function useMotionControlLock(jobActive: boolean) {
 
 export function DRO({
   isTablet = false,
+  isPhone = false,
   layout = 'default',
 }: {
   isTablet?: boolean
+  /** Phone width: touch-size buttons; per-axis Home is left out so the coordinates still fit (Home All stays). */
+  isPhone?: boolean
   /** Fit beside Jog in short-height landscape without internal scroll. */
   layout?: 'default' | 'topBand'
 }) {
@@ -110,8 +113,10 @@ export function DRO({
       ? 'w-12 h-12'
       : isTablet
         ? 'w-14 h-14'
-        : 'w-8 h-8'
-  const tabletIconSize = isTablet && isPortrait ? 22 : topBandLayout ? 14 : isTablet ? 16 : 11
+        : isPhone
+          ? 'w-11 h-11'
+          : 'w-8 h-8'
+  const tabletIconSize = isTablet && isPortrait ? 22 : topBandLayout ? 14 : isTablet ? 16 : isPhone ? 16 : 11
   const tabletHomeIconSize = isTablet && isPortrait ? 30 : topBandLayout ? 18 : isTablet ? 22 : 13
   const tabletCoordBothSize = topBandLayout
     ? 'text-[1.45rem]'
@@ -130,14 +135,21 @@ export function DRO({
       ? 'h-11 text-base'
       : isTablet
         ? 'h-14 text-lg'
-        : 'h-7 text-base'
+        : isPhone
+          ? 'h-11 text-base'
+          : 'h-7 text-base'
   const tabletStopBtnClass = isTablet && isPortrait
     ? 'h-20 text-xl'
     : topBandLayout
       ? 'h-11 text-sm'
       : isTablet
         ? 'h-14 text-lg'
-        : 'h-7 text-sm'
+        : isPhone
+          ? 'h-11 text-sm'
+          : 'h-7 text-sm'
+  const goToZeroLabelSize = isTablet ? 'text-lg' : isPhone ? 'text-sm' : 'text-[11px]'
+  const actionIconSize = isTablet && isPortrait ? 24 : topBandLayout ? 18 : isTablet ? 20 : isPhone ? 16 : 12
+  const showAxisHome = !isPhone
   const tabletFooterTextSize = topBandLayout
     ? 'text-sm'
     : isTablet
@@ -342,7 +354,7 @@ export function DRO({
       </div>
 
       {/* Axis rows – compact */}
-      <div className={`px-3 shrink-0 ${topBandLayout ? 'space-y-0 py-0.5' : 'space-y-0.5 py-2'}`}>
+      <div className={`px-3 shrink-0 ${topBandLayout ? 'space-y-0 py-0.5' : isPhone ? 'space-y-1.5 py-2' : 'space-y-0.5 py-2'}`}>
         {positionMode === 'Both' && (
           <div className="flex items-center gap-2 pb-0.5">
             <span className="w-4 shrink-0" />
@@ -354,10 +366,10 @@ export function DRO({
             {!shouldHideMotionControls && (
               <div className={`shrink-0 invisible flex items-center justify-center gap-0.5 ${tabletBtnSize}`}>
                 <ArrowRightToLine size={tabletIconSize} />
-                <span className={`font-mono ${isTablet ? 'text-lg' : 'text-[11px]'}`}>0</span>
+                <span className={`font-mono ${goToZeroLabelSize}`}>0</span>
               </div>
             )}
-            {!shouldHideMotionControls && <div className={`shrink-0 invisible ${tabletBtnSize}`} />}
+            {!shouldHideMotionControls && showAxisHome && <div className={`shrink-0 invisible ${tabletBtnSize}`} />}
           </div>
         )}
         {visibleAxes.map(ax => (
@@ -443,11 +455,11 @@ export function DRO({
                   disabled={areAxisButtonsDisabled}
                 >
                   <ArrowRightToLine size={tabletIconSize} />
-                  <span className={`font-mono ${isTablet ? 'text-lg' : 'text-[11px]'}`}>0</span>
+                  <span className={`font-mono ${goToZeroLabelSize}`}>0</span>
                 </button>
               )
             )}
-            {!shouldHideMotionControls && (
+            {!shouldHideMotionControls && showAxisHome && (
               pendingAxisAction?.axis === ax && pendingAxisAction.kind === 'home' ? (
                 <button
                   className={`shrink-0 flex items-center justify-center rounded-sm
@@ -497,7 +509,7 @@ export function DRO({
             title="Home all axes"
             disabled={areAxisButtonsDisabled}
           >
-            <Home size={isTablet && isPortrait ? 24 : topBandLayout ? 18 : isTablet ? 20 : 12} />
+            <Home size={actionIconSize} />
             Home All
           </button>
         )}
@@ -507,7 +519,7 @@ export function DRO({
             onClick={cancelPendingAxisAction}
             title="Abort homing (soft reset controller)"
           >
-            <Square size={isTablet && isPortrait ? 24 : topBandLayout ? 18 : isTablet ? 20 : 12} className="fill-current" />
+            <Square size={actionIconSize} className="fill-current" />
             Abort Homing
           </button>
         )}

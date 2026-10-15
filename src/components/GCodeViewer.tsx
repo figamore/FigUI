@@ -846,6 +846,21 @@ function getWheelZoomScale(deltaY: number, deltaMode: number, pageSize: number) 
   return Math.exp(-deltaPixels * WHEEL_ZOOM_SENSITIVITY)
 }
 
+/**
+ * True on a touch device when the viewer sits in a page or panel that scrolls
+ * vertically (tablet portrait, compact landscape). A one-finger drag on the
+ * canvas there should scroll, or the viewer traps most of the screen.
+ */
+function isInScrollingPage(element: HTMLElement) {
+  if (!window.matchMedia?.('(any-pointer: coarse)').matches) return false
+  for (let node = element.parentElement; node; node = node.parentElement) {
+    const { overflowY } = getComputedStyle(node)
+    if ((overflowY === 'auto' || overflowY === 'scroll') && node.scrollHeight > node.clientHeight + 1) return true
+  }
+  const root = document.scrollingElement
+  return !!root && root.scrollHeight > root.clientHeight + 1
+}
+
 /** Reused result of measureProgressAt; read it before the next call. */
 const lineProgressMeasurement = { fraction: 0, distanceSq: 0 }
 
@@ -1398,6 +1413,8 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
   const dragRef = useRef<{ sx: number; sy: number; ox: number; oy: number } | null>(null)
   const activePointersRef = useRef<Map<number, { x: number; y: number; dragMode: DragMode }>>(new Map())
   const lastPinchDistRef = useRef<number | null>(null)
+  const touchPinchRef = useRef<{ dist: number; centerX: number; centerY: number } | null>(null)
+  const touchPinchHandlerRef = useRef<(e: TouchEvent) => void>(() => {})
   const animRef = useRef(0)
   const renderRef = useRef<() => void>(() => {})
   const needsFitRef = useRef(true)
@@ -2079,6 +2096,16 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
   const [framingTravelZInput, setFramingTravelZInput] = useState(() => formatInputValue(mmToDisplay(getStoredFiniteNumber(FRAMING_TRAVEL_Z_KEY, 5), units), units === 'in' ? 3 : 1))
   const [framingError, setFramingError] = useState<string | null>(null)
   const [restartInitialLine, setRestartInitialLine] = useState<number | null>(null)
+  const [viewerInScrollingPage, setViewerInScrollingPage] = useState(false)
+  const [touchMovesView, setTouchMovesView] = useState(false)
+  // In a scrolling tablet page, one-finger touches scroll the page (both ways,
+  // for a zoomed-in page) until the operator turns on Move; two fingers zoom
+  // and move the view. Mouse, pen and wheel always act on the view.
+  const touchScrollsPage = !!isTablet && viewerInScrollingPage && !touchMovesView
+  // On a phone (touch is the main pointer) the toolbar gets finger-sized
+  // targets; tablet layouts already ask for them with isTablet.
+  const [coarsePointer] = useState(() => !!window.matchMedia?.('(pointer: coarse)').matches)
+  const largeToolbar = isTablet || coarsePointer
   const isLocalFile = !!sourceText && !loadedPath
   const simulationProgressPercent = simulationTotalSeconds && simulationTotalSeconds > 0
     ? clamp01(simulationElapsedSeconds / simulationTotalSeconds) * 100
@@ -2863,7 +2890,21 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
     return () => container.removeEventListener('wheel', onWheel)
   }, [is3D, projectionMode])
 
+  useEffect(() => {
+    const container = containerRef.current
+    if (!isTablet || !container || typeof ResizeObserver === 'undefined') return
+    const update = () => setViewerInScrollingPage(isInScrollingPage(container))
+    const observer = new ResizeObserver(update)
+    observer.observe(container)
+    window.addEventListener('resize', update)
+    return () => {
+      observer.disconnect()
+      window.removeEventListener('resize', update)
+    }
+  }, [isTablet])
+
   function onPointerDown(e: React.PointerEvent) {
+    if (touchScrollsPage && e.pointerType === 'touch') return
     if (is3D) e.preventDefault()
     ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
     const pointerDragMode = is3D && (e.button === 1 || e.button === 2 || e.shiftKey) ? 'pan' : dragMode
@@ -2896,23 +2937,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
       const centerX = (p1.x + p2.x) / 2
       const centerY = (p1.y + p2.y) / 2
       if (lastPinchDistRef.current !== null) {
-        const factor = dist / lastPinchDistRef.current
-
-        if (is3D) {
-          const smoothFactor = 1 + (factor - 1) * 0.5
-          const anchor = getScreenAnchor(centerX, centerY)
-          setOrbitState(prev => zoomOrbitTowardAnchor(prev, 1 / smoothFactor, anchor))
-        } else {
-          const t = transformRef.current
-          const rect = containerRef.current!.getBoundingClientRect()
-          const mx = centerX - rect.left
-          const my = centerY - rect.top
-          t.ox = mx - (mx - t.ox) * factor
-          t.oy = my - (my - t.oy) * factor
-          t.scale *= factor
-        }
-
-        scheduleRender()
+        applyPinch(dist / lastPinchDistRef.current, centerX, centerY)
       }
       lastPinchDistRef.current = dist
     } else if (pointers.length === 1) {
@@ -2956,6 +2981,61 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
       }
     }
   }
+
+  /**
+   * Zoom by `factor` about a screen point between two fingers. In 2D the
+   * fingers' movement (`panX`, `panY`) also moves the view.
+   */
+  function applyPinch(factor: number, centerX: number, centerY: number, panX = 0, panY = 0) {
+    if (is3D) {
+      const smoothFactor = 1 + (factor - 1) * 0.5
+      const anchor = getScreenAnchor(centerX, centerY)
+      setOrbitState(prev => zoomOrbitTowardAnchor(prev, 1 / smoothFactor, anchor))
+    } else {
+      const t = transformRef.current
+      const rect = containerRef.current!.getBoundingClientRect()
+      const mx = centerX - rect.left
+      const my = centerY - rect.top
+      t.ox = mx - (mx - t.ox) * factor + panX
+      t.oy = my - (my - t.oy) * factor + panY
+      t.scale *= factor
+    }
+    scheduleRender()
+  }
+
+  // While one finger scrolls the page, two fingers still zoom and move the
+  // view. Touch events, not pointer events: the browser keeps one-finger
+  // scrolling, and a cancelled two-finger move neither scrolls nor zooms the page.
+  touchPinchHandlerRef.current = (e: TouchEvent) => {
+    if (e.type !== 'touchmove' || e.touches.length !== 2) {
+      touchPinchRef.current = null
+      return
+    }
+    // A move the browser already scrolls with cannot be cancelled; leave it be.
+    if (!e.cancelable) return
+    e.preventDefault()
+    const [a, b] = [e.touches[0], e.touches[1]]
+    const dist = Math.hypot(b.clientX - a.clientX, b.clientY - a.clientY)
+    const centerX = (a.clientX + b.clientX) / 2
+    const centerY = (a.clientY + b.clientY) / 2
+    const last = touchPinchRef.current
+    touchPinchRef.current = { dist, centerX, centerY }
+    if (!last || last.dist <= 0 || dist <= 0) return
+    applyPinch(dist / last.dist, last.centerX, last.centerY, centerX - last.centerX, centerY - last.centerY)
+  }
+
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container || !touchScrollsPage) return
+    const onTouch = (e: TouchEvent) => touchPinchHandlerRef.current(e)
+    const types = ['touchstart', 'touchmove', 'touchend', 'touchcancel'] as const
+    // Only touchmove cancels; passive listeners for the rest keep scrolling smooth.
+    for (const type of types) container.addEventListener(type, onTouch, { passive: type !== 'touchmove' })
+    return () => {
+      for (const type of types) container.removeEventListener(type, onTouch)
+      touchPinchRef.current = null
+    }
+  }, [touchScrollsPage])
 
   function onPointerUp(e: React.PointerEvent) {
     activePointersRef.current.delete(e.pointerId)
@@ -3204,10 +3284,10 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
             }}
           />
           {(() => {
-            const btnCls = isTablet
+            const btnCls = largeToolbar
               ? 'flex items-center gap-1.5 px-3 py-1.5 rounded text-base transition-colors'
               : 'flex items-center gap-1 px-1.5 py-0.5 rounded text-base transition-colors'
-            const iconSize = isTablet ? 16 : 11
+            const iconSize = largeToolbar ? 16 : 11
             return (<>
           <button
             className={`${btnCls} ${is3D ? 'text-ok bg-ok/10' : 'text-text-dim bg-elevated hover:text-text-primary'} ${is3DToggleDisabled ? 'opacity-50 cursor-not-allowed hover:text-text-dim hover:bg-elevated' : ''}`}
@@ -3264,7 +3344,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
           {!is3D && (
             <div className="relative flex items-center">
               <button
-                className={`${btnCls} rounded-r-none ${isTablet ? 'pr-1' : 'pr-0.5'} ${autoFollow ? 'text-info bg-info/10' : 'text-text-dim bg-elevated hover:text-text-primary'}`}
+                className={`${btnCls} rounded-r-none ${largeToolbar ? 'pr-1' : 'pr-0.5'} ${autoFollow ? 'text-info bg-info/10' : 'text-text-dim bg-elevated hover:text-text-primary'}`}
                 onClick={() => {
                   const follow = !autoFollow
                   setAutoFollow(follow)
@@ -3276,12 +3356,12 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
                 <span>Follow</span>
               </button>
               <button
-                className={`flex items-center self-stretch rounded rounded-l-none transition-colors ${isTablet ? 'px-1' : 'px-0.5'} ${autoFollow ? 'text-info bg-info/10' : 'text-text-dim bg-elevated hover:text-text-primary'}`}
+                className={`flex items-center self-stretch rounded rounded-l-none transition-colors ${largeToolbar ? 'px-2.5' : 'px-0.5'} ${autoFollow ? 'text-info bg-info/10' : 'text-text-dim bg-elevated hover:text-text-primary'}`}
                 onClick={() => setShowFollowMenu(open => !open)}
                 title="Choose how Follow moves the view"
                 aria-expanded={showFollowMenu}
               >
-                <ChevronDown size={isTablet ? 12 : 10} className={`transition-transform ${showFollowMenu ? 'rotate-180' : ''}`} />
+                <ChevronDown size={largeToolbar ? 14 : 10} className={`transition-transform ${showFollowMenu ? 'rotate-180' : ''}`} />
               </button>
               {showFollowMenu && (
                 <div className="absolute right-0 top-full z-30 mt-1 flex w-56 flex-col gap-1 rounded border border-border bg-surface p-1 shadow-lg">
@@ -3304,6 +3384,19 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
               )}
             </div>
           )}
+          {isTablet && viewerInScrollingPage && (
+            <button
+              className={`${btnCls} ${touchMovesView ? 'text-info bg-info/10' : 'text-text-dim bg-elevated hover:text-text-primary'}`}
+              onClick={() => setTouchMovesView(v => !v)}
+              title={touchMovesView
+                ? 'One finger moves the view. Tap to let it scroll the page.'
+                : 'One finger scrolls the page, two fingers zoom. Tap to move the view with one finger.'}
+              aria-pressed={touchMovesView}
+            >
+              <Hand size={iconSize} />
+              <span>Move</span>
+            </button>
+          )}
           <button
             className={`${btnCls} text-text-muted hover:text-text-primary hover:bg-elevated`}
             onClick={() => fitToView()}
@@ -3320,7 +3413,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
       <div
         ref={containerRef}
         className="flex-1 min-h-0 relative cursor-grab active:cursor-grabbing"
-        style={{ touchAction: 'none' }}
+        style={{ touchAction: touchScrollsPage ? 'pan-x pan-y' : 'none' }}
         onDrop={onDrop}
         onDragOver={onDragOver}
         onDragLeave={event => {
@@ -3716,7 +3809,10 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
       </div>
 
       {/* Permanent bottom strip */}
-      <div className="shrink-0 border-t border-border bg-surface px-4 pt-2.5 pb-3 flex flex-col gap-2">
+      <div className="min-h-0 border-t border-border bg-surface px-4 pt-2.5 pb-3 flex flex-col gap-2">
+        {/* When the strip outgrows a short panel (a phone), the notices scroll
+            so the Start/Pause/Abort row below them is never clipped. */}
+        <div className="min-h-0 overflow-y-auto overscroll-contain flex flex-col gap-2 empty:hidden">
         {/* Progress bar — only while a job is active */}
         {(isJobRunning || isJobHeld || simulationActive) && (
           <div className="flex flex-col gap-1.5">
@@ -3833,6 +3929,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
             {senderNotice}
           </div>
         )}
+        </div>
 
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
         {!simulationActive && (controllerSettings.hasMist || controllerSettings.hasFlood) && <>
@@ -4009,9 +4106,9 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
         />
       )}
       {showFramingDialog && model && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/65 p-3 sm:p-6" onClick={() => setShowFramingDialog(false)}>
+        <div className="fixed inset-0 z-[70] flex justify-center overflow-y-auto overscroll-contain bg-black/65 p-3 sm:p-6" onClick={() => setShowFramingDialog(false)}>
           <form
-            className="w-full max-w-md rounded-lg border border-border bg-surface shadow-2xl animate-in"
+            className="my-auto w-full max-w-md rounded-lg border border-border bg-surface shadow-2xl animate-in"
             onSubmit={event => {
               event.preventDefault()
               startFramingRoutine()
@@ -4114,9 +4211,9 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
         </div>
       )}
       {showLocalSenderWarning && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/65 p-3 sm:p-6" onClick={() => setShowLocalSenderWarning(false)}>
+        <div className="fixed inset-0 z-[70] flex justify-center overflow-y-auto overscroll-contain bg-black/65 p-3 sm:p-6" onClick={() => setShowLocalSenderWarning(false)}>
           <div
-            className="w-full max-w-md rounded-lg border border-border bg-surface shadow-2xl animate-in"
+            className="my-auto w-full max-w-md rounded-lg border border-border bg-surface shadow-2xl animate-in"
             onClick={event => event.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-4 border-b border-border px-4 py-3.5">

@@ -136,5 +136,10 @@ assert.match(busyHtml, /disabled="" aria-label="Jog A positive"/)
 // Rotary distances must stay in degrees even with an inch display.
 for (const axis of ['A', 'B', 'C']) assert.equal(axisStepToCommand(1, axis, 'in'), 1)
 assert.equal(axisStepToCommand(1, 'X', 'in'), 25.4)
+// The phone pad hides during a job; the other layouts keep it in place, disabled.
+store.setState({ status: { ...store.getState().status, state: 'Run' } })
+Object.assign(renderState, store.getState())
+assert.match(renderToStaticMarkup(createElement(TabletJogPad, { hideDuringJob: true })), /^<div class="tablet-jog-pad panel w-full min-w-0 hidden /)
+assert.match(renderToStaticMarkup(createElement(TabletJogPad)), /^<div class="tablet-jog-pad panel w-full min-w-0 flex /)
 
 console.log('Jog settings and compact controls passed for three through six axes.')
