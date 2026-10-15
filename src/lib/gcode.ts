@@ -189,6 +189,8 @@ export function segmentProgress(idx: number, total: number): number {
 const WORK_COORDINATE_SYSTEMS = new Set<WorkCoordinateSystem>([
   'G54', 'G55', 'G56', 'G57', 'G58', 'G59', 'G59.1', 'G59.2', 'G59.3',
 ])
+/** G10 P1…P9 in order; P0 means the active system. */
+const WCS_BY_P = Array.from(WORK_COORDINATE_SYSTEMS)
 
 function normalizeWcs(code: string | undefined): WorkCoordinateSystem | undefined {
   if (!code) return undefined
@@ -254,11 +256,12 @@ function toolLabel(tool: number, name: string | null) {
 }
 
 // Word letters are indexed A=0 … Z=25.
-const W_F = 5, W_I = 8, W_J = 9, W_K = 10, W_P = 15, W_R = 17, W_S = 18, W_T = 19, W_X = 23, W_Y = 24, W_Z = 25
+const W_F = 5, W_I = 8, W_J = 9, W_K = 10, W_L = 11, W_P = 15, W_R = 17, W_S = 18, W_T = 19, W_X = 23, W_Y = 24, W_Z = 25
 const HAS_F = 1 << W_F
 const HAS_I = 1 << W_I
 const HAS_J = 1 << W_J
 const HAS_K = 1 << W_K
+const HAS_L = 1 << W_L
 const HAS_P = 1 << W_P
 const HAS_R = 1 << W_R
 const HAS_S = 1 << W_S
@@ -269,7 +272,11 @@ const HAS_Z = 1 << W_Z
 const INCH_SCALED_WORDS = [W_X, W_Y, W_Z, W_I, W_J, W_K, W_R]
 
 const POW10 = Array.from({ length: 23 }, (_, power) => 10 ** power)
+const CH_TAB = 9
+const CH_CR = 13
+const CH_SPACE = 32
 const CH_LPAREN = 40
+const CH_PLUS = 43
 const CH_MINUS = 45
 const CH_DOT = 46
 const CH_0 = 48
@@ -299,7 +306,12 @@ export class GCodeParser {
   private readonly optionActiveWcs: WorkCoordinateSystem | undefined
   private readonly currentWco: WorkOffset
   private readonly workOffsets: Partial<Record<WorkCoordinateSystem, WorkOffset>>
+  /** Shifts of work offsets the program itself set with G10. */
+  private readonly programShifts: Partial<Record<WorkCoordinateSystem, WorkOffset>> = {}
+  private wcs: WorkCoordinateSystem
   private wcsShift: WorkOffset
+  /** HAS_X/Y/Z bits of axes whose position a G38 probe left unknown. */
+  private probedAxes = 0
   private rapid = true
   private arcMode: 0 | 2 | 3 = 0   // 0 = linear, 2 = CW arc, 3 = CCW arc
   private plane: 17 | 18 | 19 = 17 // G17=XY, G18=ZX, G19=YZ
@@ -350,7 +362,12 @@ export class GCodeParser {
     this.optionActiveWcs = normalizeWcs(options.activeWcs)
     this.currentWco = options.currentWco ?? { x: 0, y: 0, z: 0 }
     this.workOffsets = options.workOffsets ?? {}
+    this.wcs = activeWcs
     this.wcsShift = getShift(activeWcs, activeWcs, this.currentWco, this.workOffsets)
+  }
+
+  private shiftFor(wcs: WorkCoordinateSystem) {
+    return this.programShifts[wcs] ?? getShift(wcs, this.optionActiveWcs, this.currentWco, this.workOffsets)
   }
 
   /** Fraction of the source text consumed so far (0..1). */
@@ -464,52 +481,55 @@ export class GCodeParser {
   }
 
   /**
-   * Reads `-?(?:\d+\.?\d*|\.\d+)` starting at `start`. Returns NaN when no
-   * number is present; otherwise stores the index after it in `numberEnd`.
+   * Reads `[-+]?(?:\d+\.?\d*|\.\d+)` starting at `start`, skipping blanks
+   * anywhere in it as FluidNC does. Returns NaN when no number is present;
+   * otherwise stores the index after it in `numberEnd`.
    */
   private scanNumber(start: number, end: number) {
     const text = this.text
     let index = start
-    let negative = false
-    if (index < end && text.charCodeAt(index) === CH_MINUS) {
-      negative = true
-      index++
-    }
-    let mantissa = 0
-    let digits = 0
-    let fractionDigits = 0
     let code = index < end ? text.charCodeAt(index) : 0
-    while (code >= CH_0 && code <= CH_9) {
-      mantissa = mantissa * 10 + (code - CH_0)
-      digits++
+    while (code === CH_SPACE || code === CH_TAB || code === CH_CR) {
       index++
       code = index < end ? text.charCodeAt(index) : 0
     }
-    if (code === CH_DOT) {
-      const next = index + 1 < end ? text.charCodeAt(index + 1) : 0
-      if (digits === 0 && !(next >= CH_0 && next <= CH_9)) return NaN
+    const negative = code === CH_MINUS
+    if (negative || code === CH_PLUS) {
       index++
-      code = next
-      while (code >= CH_0 && code <= CH_9) {
+      code = index < end ? text.charCodeAt(index) : 0
+    }
+    const digitsStart = index
+    let mantissa = 0
+    let digits = 0
+    let fractionDigits = 0
+    let seenDot = false
+    for (;;) {
+      if (code >= CH_0 && code <= CH_9) {
         mantissa = mantissa * 10 + (code - CH_0)
         digits++
-        fractionDigits++
-        index++
-        code = index < end ? text.charCodeAt(index) : 0
+        if (seenDot) fractionDigits++
+      } else if (code === CH_DOT && !seenDot) {
+        seenDot = true
+      } else if (code !== CH_SPACE && code !== CH_TAB && code !== CH_CR) {
+        break
       }
-    } else if (digits === 0) {
-      return NaN
+      index++
+      code = index < end ? text.charCodeAt(index) : 0
     }
+    if (digits === 0) return NaN
     this.numberEnd = index
     // Integer ÷ power of ten is correctly rounded, matching parseFloat, while
     // both stay exactly representable.
     const value = digits <= 15
       ? mantissa / POW10[fractionDigits]
-      : parseFloat(text.slice(negative ? start + 1 : start, index))
+      : parseFloat(text.slice(digitsStart, index).replace(/\s/g, ''))
     return negative ? -value : value
   }
 
-  /** Splits a line into words with the same rules as the original regex-based parser. */
+  /**
+   * Splits a line into words. Like FluidNC, a '(' comment without a ')' runs
+   * to the end of the line.
+   */
   private scanWords(start: number, end: number) {
     const text = this.text
     const words = this.words
@@ -523,10 +543,9 @@ export class GCodeParser {
       let code = text.charCodeAt(index)
       if (code === CH_LPAREN) {
         const close = text.indexOf(')', index + 1)
-        if (close >= 0 && close < end) {
-          index = close + 1
-          continue
-        }
+        if (close < 0 || close >= end) break
+        index = close + 1
+        continue
       } else if (code === CH_SEMICOLON) {
         break
       } else {
@@ -636,6 +655,7 @@ export class GCodeParser {
 
     // Process G codes
     let hasG2 = false, hasG3 = false, hasG4 = false, hasG28 = false, hasG92 = false
+    let hasG10 = false, hasG43 = false, hasG53 = false, hasG38 = false
     for (const g of gCodes) {
       if (g === 90) { this.incremental = false; continue }
       if (g === 91) { this.incremental = true; continue }
@@ -649,9 +669,15 @@ export class GCodeParser {
       if (g === 4) { hasG4 = true; continue }
       if (g === 28) { hasG28 = true; continue }
       if (g === 92) { hasG92 = true; continue }
+      if (g === 92.1 || g === 92.2) { this.offX = this.offY = this.offZ = 0; continue }
+      if (g === 10) { hasG10 = true; continue }
+      if (g === 43.1) { hasG43 = true; continue }
+      if (g === 53) { hasG53 = true; continue }
+      if (g === 38.2 || g === 38.3 || g === 38.4 || g === 38.5) { hasG38 = true; continue }
       const nextWcs = wcsFromGValue(g)
       if (nextWcs) {
-        this.wcsShift = getShift(nextWcs, this.optionActiveWcs, this.currentWco, this.workOffsets)
+        this.wcs = nextWcs
+        this.wcsShift = this.shiftFor(nextWcs)
         continue
       }
       if (g === 0) { this.rapid = true; this.arcMode = 0 }
@@ -683,13 +709,50 @@ export class GCodeParser {
 
     const shift = this.wcsShift
 
-    // G92 – set coordinate offset
+    // A probe leaves the position unknown, so zeroing a probed axis keeps its
+    // offset and puts the tool at the new value: later moves are drawn at
+    // their words.
+    const probed = this.probedAxes & mask
+
+    // G92 – set coordinate offset; axes not on the line keep theirs
     if (hasG92) {
-      this.offX = this.x - shift.x - ((mask & HAS_X) ? words[W_X] : (this.x - shift.x))
-      this.offY = this.y - shift.y - ((mask & HAS_Y) ? words[W_Y] : (this.y - shift.y))
-      this.offZ = this.z - shift.z - ((mask & HAS_Z) ? words[W_Z] : (this.z - shift.z))
+      if (probed & HAS_X) this.x = words[W_X] + this.offX + shift.x
+      else if (mask & HAS_X) this.offX = this.x - shift.x - words[W_X]
+      if (probed & HAS_Y) this.y = words[W_Y] + this.offY + shift.y
+      else if (mask & HAS_Y) this.offY = this.y - shift.y - words[W_Y]
+      if (probed & HAS_Z) this.z = words[W_Z] + this.offZ + shift.z
+      else if (mask & HAS_Z) this.offZ = this.z - shift.z - words[W_Z]
+      this.probedAxes &= ~probed
       return
     }
+
+    // G10 L2/L20 – set a work offset. Shifts are relative to currentWco, the
+    // zero the preview is drawn in.
+    if (hasG10) {
+      const level = (mask & HAS_L) ? words[W_L] : 0
+      const p = (mask & HAS_P) ? words[W_P] : -1
+      const target = p === 0 ? this.wcs : WCS_BY_P[p - 1]
+      if (target && (level === 2 || level === 20)) {
+        const next = { ...(target === this.wcs ? shift : this.shiftFor(target)) }
+        const wco = this.currentWco
+        const keep = level === 20 ? probed : 0
+        if ((mask & HAS_X) && !(keep & HAS_X)) next.x = level === 2 ? words[W_X] - wco.x : this.x - this.offX - words[W_X]
+        if ((mask & HAS_Y) && !(keep & HAS_Y)) next.y = level === 2 ? words[W_Y] - wco.y : this.y - this.offY - words[W_Y]
+        if ((mask & HAS_Z) && !(keep & HAS_Z)) next.z = level === 2 ? words[W_Z] - wco.z : this.z - this.offZ - words[W_Z]
+        this.programShifts[target] = next
+        if (target === this.wcs) {
+          this.wcsShift = next
+          if (keep & HAS_X) this.x = words[W_X] + this.offX + next.x
+          if (keep & HAS_Y) this.y = words[W_Y] + this.offY + next.y
+          if (keep & HAS_Z) this.z = words[W_Z] + this.offZ + next.z
+          this.probedAxes &= ~keep
+        }
+      }
+      return
+    }
+
+    // G43.1 – tool length offset; it does not move.
+    if (hasG43) return
 
     if (hasG28) {
       // Reference-return distance depends on the current machine position and
@@ -706,10 +769,18 @@ export class GCodeParser {
         : (mask & (HAS_J | HAS_K | HAS_R)) !== 0
     const isArc = hasG2 || hasG3 || (this.arcMode > 0 && hasMove && hasArcCenter)
     if (!hasMove && !isArc) return
+    // FluidNC rejects G53 with an arc.
+    if (hasG53 && this.arcMode > 0) return
 
     const x0 = this.x, y0 = this.y, z0 = this.z
     let x: number, y: number, z: number
-    if (this.incremental) {
+    if (hasG53) {
+      // Machine coordinates for this line only, even in G91.
+      const wco = this.currentWco
+      x = (mask & HAS_X) ? words[W_X] - wco.x : x0
+      y = (mask & HAS_Y) ? words[W_Y] - wco.y : y0
+      z = (mask & HAS_Z) ? words[W_Z] - wco.z : z0
+    } else if (this.incremental) {
       x = x0 + ((mask & HAS_X) ? words[W_X] : 0)
       y = y0 + ((mask & HAS_Y) ? words[W_Y] : 0)
       z = z0 + ((mask & HAS_Z) ? words[W_Z] : 0)
@@ -719,6 +790,8 @@ export class GCodeParser {
       z = ((mask & HAS_Z) ? words[W_Z] : (z0 - shift.z - this.offZ)) + this.offZ + shift.z
     }
     this.x = x; this.y = y; this.z = z
+    if (hasG38) this.probedAxes |= mask & (HAS_X | HAS_Y | HAS_Z)
+    else if (hasG53 || !this.incremental) this.probedAxes &= ~mask
 
     this.expandBounds(x0, y0, z0)
     this.expandBounds(x, y, z)
@@ -753,11 +826,12 @@ export class GCodeParser {
     const cw = hasG2 || (!hasG3 && this.arcMode === 2)
     let i: number, j: number, k = 0
     if (mask & HAS_R) {
-      // R-format arc: compute offsets in the active plane.
+      // R-format arc: compute offsets in the active plane. G18 is (Z, X), as
+      // in FluidNC, so the centre lands on the side the machine uses.
       const R = words[W_R]
       const [u0, v0, u1, v1] = plane === 17
         ? [x0, y0, x, y]
-        : plane === 18 ? [x0, z0, x, z] : [y0, z0, y, z]
+        : plane === 18 ? [z0, x0, z, x] : [y0, z0, y, z]
       const du = u1 - u0, dv = v1 - v0
       const d = Math.hypot(du, dv)
       if (d > 0) {
@@ -766,7 +840,7 @@ export class GCodeParser {
         const offsetU = du / 2 + sign * h * (-dv / d)
         const offsetV = dv / 2 + sign * h * (du / d)
         if (plane === 17) { i = offsetU; j = offsetV; k = 0 }
-        else if (plane === 18) { i = offsetU; j = 0; k = offsetV }
+        else if (plane === 18) { i = offsetV; j = 0; k = offsetU }
         else { i = 0; j = offsetU; k = offsetV }
       } else {
         i = 0; j = 0; k = 0

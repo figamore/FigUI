@@ -54,13 +54,25 @@ export function normalizeAngle(angle: number) {
   return ((angle % TAU) + TAU) % TAU
 }
 
+/**
+ * Centre, radius and angles of an arc in its own plane: (X, Y) for G17,
+ * (Z, X) for G18 and (Y, Z) for G19, the axis order FluidNC uses, so G2/G3
+ * turn the same way as on the machine. Only for G17 are cx/cy an X/Y centre;
+ * getArcPoint maps any plane back to X/Y/Z.
+ */
 export function getArcGeometry(seg: Segment) {
-  const cx = seg.x0 + (seg.i ?? 0)
-  const cy = seg.y0 + (seg.j ?? 0)
-  const r = Math.sqrt((seg.i ?? 0) ** 2 + (seg.j ?? 0) ** 2)
-  const startAngle = Math.atan2(seg.y0 - cy, seg.x0 - cx)
-  const endAngle = Math.atan2(seg.y1 - cy, seg.x1 - cx)
-  const fullCircle = Math.abs(seg.x0 - seg.x1) < 1e-4 && Math.abs(seg.y0 - seg.y1) < 1e-4
+  let u0 = seg.x0, v0 = seg.y0, u1 = seg.x1, v1 = seg.y1, offsetU = seg.i ?? 0, offsetV = seg.j ?? 0
+  if (seg.arcPlane === 18) {
+    u0 = seg.z0; v0 = seg.x0; u1 = seg.z1; v1 = seg.x1; offsetU = seg.k ?? 0; offsetV = seg.i ?? 0
+  } else if (seg.arcPlane === 19) {
+    u0 = seg.y0; v0 = seg.z0; u1 = seg.y1; v1 = seg.z1; offsetU = seg.j ?? 0; offsetV = seg.k ?? 0
+  }
+  const cx = u0 + offsetU
+  const cy = v0 + offsetV
+  const r = Math.sqrt(offsetU ** 2 + offsetV ** 2)
+  const startAngle = Math.atan2(v0 - cy, u0 - cx)
+  const endAngle = Math.atan2(v1 - cy, u1 - cx)
+  const fullCircle = Math.abs(u0 - u1) < 1e-4 && Math.abs(v0 - v1) < 1e-4
   let sweep = seg.cw
     ? normalizeAngle(startAngle - endAngle)
     : normalizeAngle(endAngle - startAngle)
@@ -68,23 +80,28 @@ export function getArcGeometry(seg: Segment) {
   return { cx, cy, r, startAngle, endAngle, sweep, fullCircle }
 }
 
+export type ArcGeometry = ReturnType<typeof getArcGeometry>
+
+/** The point `fraction` of the way along an arc. The axis normal to its plane moves linearly. */
+export function getArcPoint(seg: Segment, arc: ArcGeometry, fraction: number) {
+  const angle = arc.startAngle + (seg.cw ? -1 : 1) * arc.sweep * fraction
+  const u = arc.cx + Math.cos(angle) * arc.r
+  const v = arc.cy + Math.sin(angle) * arc.r
+  if (seg.arcPlane === 18) return { x: v, y: seg.y0 + (seg.y1 - seg.y0) * fraction, z: u }
+  if (seg.arcPlane === 19) return { x: seg.x0 + (seg.x1 - seg.x0) * fraction, y: u, z: v }
+  return { x: u, y: v, z: seg.z0 + (seg.z1 - seg.z0) * fraction }
+}
+
 export function addSegmentToPath(path: Path2D, seg: Segment) {
   if (seg.i !== undefined) {
     const arc = getArcGeometry(seg)
     const numSubs = Math.max(8, Math.min(64, Math.ceil(arc.sweep * arc.r * 4)))
+    let from = getArcPoint(seg, arc, 0)
     for (let i = 0; i < numSubs; i++) {
-      const t1 = i / numSubs
-      const t2 = (i + 1) / numSubs
-      const angle1 = arc.startAngle + (seg.cw ? -1 : 1) * arc.sweep * t1
-      const angle2 = arc.startAngle + (seg.cw ? -1 : 1) * arc.sweep * t2
-      path.moveTo(
-        arc.cx + Math.cos(angle1) * arc.r,
-        arc.cy + Math.sin(angle1) * arc.r,
-      )
-      path.lineTo(
-        arc.cx + Math.cos(angle2) * arc.r,
-        arc.cy + Math.sin(angle2) * arc.r,
-      )
+      const to = getArcPoint(seg, arc, (i + 1) / numSubs)
+      path.moveTo(from.x, from.y)
+      path.lineTo(to.x, to.y)
+      from = to
     }
     return
   }
@@ -206,16 +223,11 @@ function appendRenderSegment(writer: RenderLineWriter, segments: SegmentTable, i
   const arc = getArcGeometry(seg)
   const numSubs = Math.max(8, Math.min(64, Math.ceil(arc.sweep * arc.r * 4)))
   writer.breakChain()
+  let from = getArcPoint(seg, arc, 0)
   for (let i = 0; i < numSubs; i++) {
-    const t1 = i / numSubs
-    const t2 = (i + 1) / numSubs
-    const angle1 = arc.startAngle + (seg.cw ? -1 : 1) * arc.sweep * t1
-    const angle2 = arc.startAngle + (seg.cw ? -1 : 1) * arc.sweep * t2
-    writer.push(
-      arc.cx + Math.cos(angle1) * arc.r, arc.cy + Math.sin(angle1) * arc.r, seg.z0 + (seg.z1 - seg.z0) * t1,
-      arc.cx + Math.cos(angle2) * arc.r, arc.cy + Math.sin(angle2) * arc.r, seg.z0 + (seg.z1 - seg.z0) * t2,
-      kind, tool, false,
-    )
+    const to = getArcPoint(seg, arc, (i + 1) / numSubs)
+    writer.push(from.x, from.y, from.z, to.x, to.y, to.z, kind, tool, false)
+    from = to
   }
 }
 

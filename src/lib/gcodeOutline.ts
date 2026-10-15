@@ -1,5 +1,5 @@
 import { MOVE_FEED, type GCodeModel, type Segment, type SegmentTable } from './gcode'
-import { getArcGeometry } from './gcodeBuild'
+import { getArcGeometry, getArcPoint, type ArcGeometry } from './gcodeBuild'
 import { linearUnitLabel, mmToDisplay } from './units'
 import type { Units } from '../types'
 
@@ -151,14 +151,10 @@ function getCutEnvelope(segments: SegmentTable): CutEnvelope | null {
     const segmentPoints: Point[] = [{ x: seg.x0, y: seg.y0 }]
     if (seg.i !== undefined) {
       const arc = getArcGeometry(seg)
-      const samples = Math.max(8, Math.min(ARC_SAMPLE_MAX, Math.ceil((arc.sweep * arc.r) / ARC_SAMPLE_TARGET_MM)))
+      const samples = arcSampleCount(arc)
       for (let index = 1; index < samples; index++) {
-        const fraction = index / samples
-        const angle = arc.startAngle + (seg.cw ? -1 : 1) * arc.sweep * fraction
-        segmentPoints.push({
-          x: arc.cx + Math.cos(angle) * arc.r,
-          y: arc.cy + Math.sin(angle) * arc.r,
-        })
+        const point = getArcPoint(seg, arc, index / samples)
+        segmentPoints.push({ x: point.x, y: point.y })
       }
     }
     segmentPoints.push({ x: seg.x1, y: seg.y1 })
@@ -184,10 +180,24 @@ function isXYCuttingMove(seg: Segment) {
   return (seg.x1 - seg.x0) ** 2 + (seg.y1 - seg.y0) ** 2 > XY_MOVE_TOLERANCE_MM ** 2
 }
 
+function arcSampleCount(arc: ArcGeometry) {
+  return Math.max(8, Math.min(ARC_SAMPLE_MAX, Math.ceil((arc.sweep * arc.r) / ARC_SAMPLE_TARGET_MM)))
+}
+
 function xyMoveLength(seg: Segment) {
   if (seg.i !== undefined) {
     const arc = getArcGeometry(seg)
-    return arc.sweep * arc.r
+    if ((seg.arcPlane ?? 17) === 17) return arc.sweep * arc.r
+    // A G18/G19 arc seen from above: add up its sampled XY steps.
+    const samples = arcSampleCount(arc)
+    let length = 0
+    let from = getArcPoint(seg, arc, 0)
+    for (let index = 1; index <= samples; index++) {
+      const to = getArcPoint(seg, arc, index / samples)
+      length += Math.hypot(to.x - from.x, to.y - from.y)
+      from = to
+    }
+    return length
   }
   return Math.sqrt((seg.x1 - seg.x0) ** 2 + (seg.y1 - seg.y0) ** 2)
 }

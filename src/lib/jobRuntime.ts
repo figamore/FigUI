@@ -97,11 +97,12 @@ function getSegmentMotionProfile(seg: Segment): SegmentMotionProfile | null {
     }
   }
 
+  // G18 is (Z, X) as in FluidNC, so G2/G3 turn the way the machine does.
   const plane = seg.arcPlane ?? 17
   const [u0, v0, u1, v1, w0, w1, offsetU, offsetV] = plane === 17
     ? [seg.x0, seg.y0, seg.x1, seg.y1, seg.z0, seg.z1, seg.i ?? 0, seg.j ?? 0]
     : plane === 18
-      ? [seg.x0, seg.z0, seg.x1, seg.z1, seg.y0, seg.y1, seg.i ?? 0, seg.k ?? 0]
+      ? [seg.z0, seg.x0, seg.z1, seg.x1, seg.y0, seg.y1, seg.k ?? 0, seg.i ?? 0]
       : [seg.y0, seg.z0, seg.y1, seg.z1, seg.x0, seg.x1, seg.j ?? 0, seg.k ?? 0]
   const r = Math.hypot(offsetU, offsetV)
   if (r < 1e-9) return null
@@ -133,7 +134,7 @@ function getSegmentMotionProfile(seg: Segment): SegmentMotionProfile | null {
   const mapAxes = (u: number, v: number, w: number) => plane === 17
     ? { x: u, y: v, z: w }
     : plane === 18
-      ? { x: u, y: w, z: v }
+      ? { x: v, y: w, z: u }
       : { x: w, y: u, z: v }
 
   const buildDir = (angle: number) => {

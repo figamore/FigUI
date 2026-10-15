@@ -8,7 +8,7 @@ import type { ControllerSettings, MachineStatus, Units } from '../types'
 import { displayToMm, feedUnitLabel, linearUnitLabel, mmToDisplay } from '../lib/units'
 import { buildJobTimingEstimate, formatJobProgress, formatRuntime, useJobRuntimeEstimate, type JobTimingEstimate } from '../lib/jobRuntime'
 import { createRenderer, renderLines, setStaticLineData, type WebGLRenderer, type Camera, type Vector3 } from '../lib/webgl'
-import { addSegmentToPath, buildRenderLines, buildStatic2DPaths, buildStatic3DGeometry, clamp01, EMPTY_UINT8, getArcGeometry, normalizeAngle, type RenderLines } from '../lib/gcodeBuild'
+import { addSegmentToPath, buildRenderLines, buildStatic2DPaths, buildStatic3DGeometry, clamp01, EMPTY_UINT8, getArcGeometry, getArcPoint, normalizeAngle, type RenderLines } from '../lib/gcodeBuild'
 import { RestartFromLineDialog } from './RestartFromLineDialog'
 import { useGCodeSenderStore } from '../store/gcodeSender'
 import { useSingleBlockStore } from '../store/singleBlock'
@@ -430,6 +430,20 @@ function drawSegment(
   const clampedFraction = clamp01(fraction)
   if (clampedFraction <= 0) return
 
+  if (seg.i !== undefined && (seg.arcPlane ?? 17) !== 17) {
+    // A G18/G19 arc is not a circle when seen from above.
+    const arc = getArcGeometry(seg)
+    const numSubs = Math.max(8, Math.min(64, Math.ceil(arc.sweep * arc.r * 4)))
+    ctx.beginPath()
+    ctx.moveTo(t.ox + seg.x0 * t.scale, t.oy - seg.y0 * t.scale)
+    for (let i = 1; i <= numSubs; i++) {
+      const point = getArcPoint(seg, arc, clampedFraction * i / numSubs)
+      ctx.lineTo(t.ox + point.x * t.scale, t.oy - point.y * t.scale)
+    }
+    ctx.stroke()
+    return
+  }
+
   if (seg.i !== undefined) {
     const arc = getArcGeometry(seg)
     const sx = t.ox + arc.cx * t.scale
@@ -542,17 +556,18 @@ function measureProgressAlongSegment(seg: Segment, px: number, py: number, pz: n
     return { fraction: 0, distanceSq: distSq }
   }
 
-  const pointAngle = Math.atan2(py - arc.cy, px - arc.cx)
+  // The live position in the arc's plane, in getArcGeometry's axis order.
+  const pu = seg.arcPlane === 18 ? pz : seg.arcPlane === 19 ? py : px
+  const pv = seg.arcPlane === 18 ? px : seg.arcPlane === 19 ? pz : py
+  const pointAngle = Math.atan2(pv - arc.cy, pu - arc.cx)
   const delta = seg.cw
     ? normalizeAngle(arc.startAngle - pointAngle)
     : normalizeAngle(pointAngle - arc.startAngle)
 
   if (arc.fullCircle || delta <= arc.sweep + 1e-6) {
-    const fraction = arc.fullCircle ? clamp01(delta / arc.sweep) : clamp01(delta / arc.sweep)
-    const projX = arc.cx + Math.cos(pointAngle) * arc.r
-    const projY = arc.cy + Math.sin(pointAngle) * arc.r
-    const projZ = seg.z0 + (seg.z1 - seg.z0) * fraction
-    const distanceSq = (px - projX) ** 2 + (py - projY) ** 2 + (pz - projZ) ** 2
+    const fraction = clamp01(delta / arc.sweep)
+    const projected = getArcPoint(seg, arc, fraction)
+    const distanceSq = (px - projected.x) ** 2 + (py - projected.y) ** 2 + (pz - projected.z) ** 2
     return { fraction, distanceSq }
   }
 
@@ -973,15 +988,7 @@ function getSimulationProgressAt(
 
 function getSegmentPoint(seg: Segment, fraction: number) {
   const t = clamp01(fraction)
-  if (seg.i !== undefined) {
-    const arc = getArcGeometry(seg)
-    const angle = arc.startAngle + (seg.cw ? -1 : 1) * arc.sweep * t
-    return {
-      x: arc.cx + Math.cos(angle) * arc.r,
-      y: arc.cy + Math.sin(angle) * arc.r,
-      z: seg.z0 + (seg.z1 - seg.z0) * t,
-    }
-  }
+  if (seg.i !== undefined) return getArcPoint(seg, getArcGeometry(seg), t)
   return {
     x: seg.x0 + (seg.x1 - seg.x0) * t,
     y: seg.y0 + (seg.y1 - seg.y0) * t,
@@ -990,9 +997,10 @@ function getSegmentPoint(seg: Segment, fraction: number) {
 }
 
 function segmentXYLength(seg: Segment) {
-  if (seg.i !== undefined && (seg.arcPlane ?? 17) === 17) {
+  if (seg.i !== undefined) {
     const arc = getArcGeometry(seg)
-    return Math.hypot(arc.sweep * arc.r, seg.z1 - seg.z0)
+    const linear = seg.arcPlane === 18 ? seg.y1 - seg.y0 : seg.arcPlane === 19 ? seg.x1 - seg.x0 : seg.z1 - seg.z0
+    return Math.hypot(arc.sweep * arc.r, linear)
   }
   return Math.hypot(seg.x1 - seg.x0, seg.y1 - seg.y0, seg.z1 - seg.z0)
 }
@@ -1762,16 +1770,12 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
         if (seg.i !== undefined) {
           const arc = getArcGeometry(seg)
           const numSubs = Math.max(8, Math.min(64, Math.ceil(arc.sweep * arc.r * 4)))
+          let from = getArcPoint(seg, arc, 0)
           for (let i = 0; i < numSubs; i++) {
-            const t1 = i / numSubs
-            const t2 = (i + 1) / numSubs
-            const angle1 = arc.startAngle + (seg.cw ? -1 : 1) * arc.sweep * t1
-            const angle2 = arc.startAngle + (seg.cw ? -1 : 1) * arc.sweep * t2
-            vertices.push(
-              arc.cx + Math.cos(angle1) * arc.r, arc.cy + Math.sin(angle1) * arc.r, seg.z0 + (seg.z1 - seg.z0) * t1,
-              arc.cx + Math.cos(angle2) * arc.r, arc.cy + Math.sin(angle2) * arc.r, seg.z0 + (seg.z1 - seg.z0) * t2,
-            )
+            const to = getArcPoint(seg, arc, (i + 1) / numSubs)
+            vertices.push(from.x, from.y, from.z, to.x, to.y, to.z)
             colors.push(...nonFeedColor, ...nonFeedColor)
+            from = to
           }
         } else {
           vertices.push(seg.x0, seg.y0, seg.z0, seg.x1, seg.y1, seg.z1)
@@ -1788,17 +1792,14 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
       if (seg.i !== undefined) {
         const arc = getArcGeometry(seg)
         const numSubs = Math.max(8, Math.min(64, Math.ceil(arc.sweep * arc.r * 4)))
+        let from = getArcPoint(seg, arc, 0)
         for (let i = 0; i < numSubs; i++) {
-          const t1 = i / numSubs
           const t2 = (i + 1) / numSubs
-          const angle1 = arc.startAngle + (seg.cw ? -1 : 1) * arc.sweep * t1
-          const angle2 = arc.startAngle + (seg.cw ? -1 : 1) * arc.sweep * t2
-          vertices.push(
-            arc.cx + Math.cos(angle1) * arc.r, arc.cy + Math.sin(angle1) * arc.r, seg.z0 + (seg.z1 - seg.z0) * t1,
-            arc.cx + Math.cos(angle2) * arc.r, arc.cy + Math.sin(angle2) * arc.r, seg.z0 + (seg.z1 - seg.z0) * t2,
-          )
+          const to = getArcPoint(seg, arc, t2)
+          vertices.push(from.x, from.y, from.z, to.x, to.y, to.z)
           const subDone = isDone || (isCurrent && t2 <= frac)
           colors.push(...(subDone ? DONE_C : cutColor), ...(subDone ? DONE_C : cutColor))
+          from = to
         }
       } else {
         if (isDone) {
