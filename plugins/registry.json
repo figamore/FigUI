@@ -50,6 +50,14 @@
       "base": "https://raw.githubusercontent.com/figamore/FigUI/main/plugins/penplot/"
     },
     {
+      "id": "laser-panel",
+      "name": "Laser Panel",
+      "description": "Laser power override, Laser Off, and a low-power pointer for aligning the work zero that switches itself off.",
+      "version": "1.0.0",
+      "author": "ErkanGench",
+      "base": "https://raw.githubusercontent.com/figamore/FigUI/main/plugins/laser-panel/"
+    },
+    {
       "id": "rasterburn",
       "name": "Raster Burn",
       "description": "Laser engraving of a grayscale/B&W image by line-by-line scan, with B/W threshold and grayscale modes, LUT curve editor, and origin picker.",

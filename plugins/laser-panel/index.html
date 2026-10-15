@@ -1,0 +1,347 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Laser Panel</title>
+<style>
+  * { box-sizing: border-box }
+  body {
+    margin: 0; padding: 16px;
+    background: var(--bg, #0c1018); color: var(--text-primary, #e2e6f4);
+    font: 15px/1.4 ui-sans-serif, system-ui, sans-serif;
+  }
+  main { max-width: 440px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 8px }
+  h1 { margin: 0; font-size: 18px }
+  .badge {
+    display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: 6px; font-weight: 600;
+    color: var(--text-muted, #8b93a7); background: var(--elevated, #1a2030); border: 1px solid var(--border, #2a3142);
+  }
+  .badge.on { color: var(--danger, #ef4444); background: rgb(var(--danger-rgb, 239 68 68) / .1); border-color: rgb(var(--danger-rgb, 239 68 68) / .3) }
+  .badge.on::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: currentColor; animation: pulse 1s infinite alternate }
+  @keyframes pulse { to { opacity: .3 } }
+  .power { display: flex; align-items: center; gap: 10px; margin-bottom: 8px }
+  .power span:first-child { width: 52px; color: var(--text-muted, #8b93a7); font-weight: 600 }
+  .bar { flex: 1; height: 10px; border-radius: 5px; overflow: hidden; background: var(--elevated, #1a2030) }
+  .bar div { height: 100%; border-radius: 5px; transition: width .2s }
+  #ovr { width: 48px; text-align: right; font-family: ui-monospace, monospace }
+  .steps { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px }
+  button {
+    min-height: 40px; padding: 8px 10px; border-radius: 8px; cursor: pointer; font: inherit;
+    color: var(--text-primary, #e2e6f4); background: var(--elevated, #1a2030); border: 1px solid var(--border, #2a3142);
+  }
+  button:hover:not(:disabled) { border-color: var(--border-strong, #3a4458) }
+  button:disabled { opacity: .45; cursor: default }
+  #off { width: 100%; font-weight: 700; color: var(--danger, #ef4444); background: rgb(var(--danger-rgb, 239 68 68) / .15); border-color: rgb(var(--danger-rgb, 239 68 68) / .5) }
+  .pointer { display: flex; align-items: center; gap: 8px }
+  #point { flex: 1; font-weight: 700; color: var(--warn, #f59e0b); background: rgb(var(--warn-rgb, 245 158 11) / .15); border-color: rgb(var(--warn-rgb, 245 158 11) / .5) }
+  input {
+    width: 64px; min-height: 40px; padding: 6px 8px; border-radius: 8px; text-align: right; font: inherit; font-family: ui-monospace, monospace;
+    color: var(--text-primary, #e2e6f4); background: var(--surface, #121722); border: 1px solid var(--border, #2a3142);
+  }
+  p { margin: 0; font-size: 13px; color: var(--text-muted, #8b93a7) }
+  #note { padding: 8px 10px; border-radius: 8px; color: var(--warn, #f59e0b); background: rgb(var(--warn-rgb, 245 158 11) / .1); border: 1px solid rgb(var(--warn-rgb, 245 158 11) / .3) }
+  [hidden] { display: none !important }
+</style>
+</head>
+<body>
+<main>
+  <header><h1>Laser</h1><span id="badge" class="badge" role="status">OFF</span></header>
+  <section aria-label="Power override">
+    <div class="power"><span>Power</span><div class="bar"><div id="bar"></div></div><span id="ovr">100%</span></div>
+    <div class="steps">
+      <button data-byte="155" title="Power override −10 %">−10</button>
+      <button data-byte="157" title="Power override −1 %">−1</button>
+      <button data-byte="153" title="Reset the power override to 100 %">100%</button>
+      <button data-byte="156" title="Power override +1 %">+1</button>
+      <button data-byte="154" title="Power override +10 %">+10</button>
+    </div>
+  </section>
+  <button id="off" hidden>Laser Off</button>
+  <div id="pointer" class="pointer" hidden>
+    <button id="point" title="Low-power dot for aligning the work zero; switches off after 60 s">Pointer</button>
+    <input id="pct" type="text" inputmode="decimal" aria-label="Pointer power in percent"><span>%</span>
+  </div>
+  <p id="hint"></p>
+  <p id="note" role="alert" hidden></p>
+</main>
+<script>
+// Power is a share of $30 shown with its override; the program sets the power.
+// Between jobs a low-power pointer helps align the work zero and switches
+// itself off. Laser mode ($32=1) is read with $$ and again after FluidNC
+// reports a spindle change (M6 can switch between a laser and a router).
+const POINTER_MS = 60000
+const POINTER_DEFAULT_PCT = 1
+const POINTER_MAX_PCT = 10
+const FEED_HOLD = 0x21
+
+const ui = Object.fromEntries(['badge', 'bar', 'ovr', 'off', 'pointer', 'point', 'pct', 'hint', 'note'].map(id => [id, document.getElementById(id)]))
+
+let seq = 0
+const pending = new Map()
+function call(method, params = {}, timeoutMs = 10000) {
+  return new Promise((resolve, reject) => {
+    const id = String(++seq)
+    const timer = setTimeout(() => { pending.delete(id); reject(new Error('no response from FigUI')) }, timeoutMs)
+    pending.set(id, { resolve, reject, timer })
+    window.parent.postMessage({ type: 'fluid-request', id, method, params }, '*')
+  })
+}
+
+let status = null
+let spindleMax = 0
+let laserMode = null          // $32: true, false, or null until read
+let settingsNote = ''
+let needSettings = true
+let settingsRetryAt = 0
+let readingSettings = false
+let message = ''
+let pointerEndsAt = 0
+let pointerTimer = 0
+let offPending = false        // the pointer's M5 waits for Idle
+// While the pointer is on, FigUI is asked to send its M5 when this window
+// closes (setCloseCommand). A FigUI without that call rejects it, and the
+// panel then warns before closing instead.
+let closeArmed = false
+let hostCloses = null         // null until FigUI has answered
+let offInFlight = false
+let offSent = false           // hides ON until the next report shows the laser off
+let lastSpindle = 0
+let savedPct = POINTER_DEFAULT_PCT
+
+const jobRunning = s => !!s && (s.state === 'Run' || s.state === 'Hold' || s.state === 'Door' || s.sdPercent != null)
+const isIdle = s => !!s && s.state === 'Idle' && !jobRunning(s)
+const controllerLaserOn = s => !!s && (s.spindleRunning ?? s.spindle > 0)
+
+function parsePct(text) {
+  const t = text.trim()
+  if (!/^(\d+([.,]\d*)?|[.,]\d+)$/.test(t)) return null
+  const value = Number(t.replace(',', '.'))
+  return value > 0 && value <= POINTER_MAX_PCT ? value : null
+}
+
+function onStatus(s) {
+  if (!s) return
+  status = s
+  if (s.spindle !== lastSpindle) {
+    if (s.spindle > 0) offSent = false
+    lastSpindle = s.spindle
+  }
+  if (!controllerLaserOn(s)) offSent = false
+  // A program owns the laser once a job starts: drop the pointer, and send no
+  // M5 that would land in the job.
+  if (jobRunning(s)) {
+    stopPointerTimer()
+    offPending = false
+    armCloseOff(false)
+  }
+  flushOff()
+  readSettings()
+  render()
+}
+
+function stopPointerTimer() {
+  clearTimeout(pointerTimer)
+  pointerTimer = 0
+  pointerEndsAt = 0
+}
+
+function pointerOff() {
+  stopPointerTimer()
+  offPending = true
+  flushOff()
+  render()
+}
+
+// G-code is refused during a jog or an alarm, so the M5 waits for Idle; it
+// also waits out a lost link.
+async function flushOff() {
+  if (!offPending || offInFlight) return
+  if (jobRunning(status)) { offPending = false; return }
+  if (!isIdle(status)) return
+  offPending = false
+  offInFlight = true
+  try {
+    // G0 puts back the motion mode the pointer changed, so a later M3 without
+    // motion leaves the laser dark again.
+    await call('sendCommand', { command: 'G0 M5' })
+    offSent = true
+    message = ''
+    armCloseOff(false)
+  } catch (err) {
+    offPending = true
+    message = `Laser Off not sent (${err.message}); it is sent again once the machine is idle.`
+  } finally {
+    offInFlight = false
+    render()
+  }
+}
+
+/**
+ * FluidNC lights a laser for M3 S<n> without motion only in G1/G2/G3 mode
+ * (after boot it is in G0, where the same M3 leaves the laser dark). G1
+ * without axis words does not move, but it needs a feed rate. M3 keeps the
+ * power constant, so the dot stays on while jogging.
+ */
+async function pointerOn() {
+  const pct = parsePct(ui.pct.value)
+  if (pct == null || !isIdle(status) || laserMode !== true || !(spindleMax > 0) || offInFlight) return
+  const power = Number((spindleMax * pct / 100).toFixed(3))
+  try {
+    await call('sendCommand', { command: `G1 F100 M3 S${power}` })
+  } catch (err) {
+    message = `Pointer not sent (${err.message}).`
+    render()
+    return
+  }
+  message = ''
+  offSent = false
+  offPending = false
+  clearTimeout(pointerTimer)
+  pointerEndsAt = Date.now() + POINTER_MS
+  pointerTimer = setTimeout(pointerOff, POINTER_MS)
+  armCloseOff(true)
+  if (pct !== savedPct) {
+    savedPct = pct
+    call('saveSettings', { data: { pointerPct: pct } }).catch(() => {})
+  }
+  render()
+}
+
+function armCloseOff(on) {
+  if (closeArmed === on) return
+  closeArmed = on
+  call('setCloseCommand', { command: on ? 'G0 M5' : '' })
+    .then(() => { hostCloses = true }, () => { hostCloses = false })
+    .finally(render)
+}
+
+function laserOff() {
+  if (pointerEndsAt) return pointerOff()
+  // An SD job started from FigUI runs line commands only after it ends; in
+  // laser mode a feed hold switches the laser off at once.
+  if (jobRunning(status)) return realtime(FEED_HOLD)
+  call('sendCommand', { command: 'M5' })
+    .then(() => { offSent = true; message = '' }, err => { message = `Laser Off not sent (${err.message}).` })
+    .finally(render)
+}
+
+function realtime(byte) {
+  call('sendRealtime', { byte })
+    .then(() => { message = '' }, err => { message = `Not sent (${err.message}).` })
+    .finally(render)
+}
+
+async function readSettings() {
+  if (!needSettings || readingSettings || Date.now() < settingsRetryAt || !isIdle(status)) return
+  readingSettings = true
+  try {
+    const text = String(await call('sendQuery', { command: '$$' }, 15000) ?? '')
+    const max = text.match(/^\$30=([\d.]+)/m)
+    const mode = text.match(/^\$(?:32|Grbl\/LaserMode)=(\S+)/mi)
+    if (max) spindleMax = Number(max[1])
+    laserMode = mode ? /^(1|true|on|yes)$/i.test(mode[1]) : null
+    needSettings = false
+    settingsNote = mode ? '' : 'The controller did not report $32 (laser mode), so there is no pointer.'
+  } catch (err) {
+    settingsRetryAt = Date.now() + 5000
+    settingsNote = `Could not read $32 (laser mode): ${err.message}. The pointer is off until it is read.`
+  } finally {
+    readingSettings = false
+    render()
+  }
+}
+
+function render() {
+  const s = status
+  const ovr = s?.spindleOverride ?? 100
+  ui.ovr.textContent = `${ovr}%`
+  ui.bar.style.width = `${Math.min(ovr, 200) / 2}%`
+  ui.bar.style.background = ovr > 100 ? 'var(--ok, #22c55e)' : ovr < 100 ? 'var(--warn, #f59e0b)' : 'var(--accent, #f0a030)'
+
+  const laserOn = (controllerLaserOn(s) || pointerEndsAt > 0) && !offSent
+  const powerPct = spindleMax > 0 && s ? Math.round(s.spindle * ovr / spindleMax) : 0
+  ui.badge.textContent = laserOn ? `ON ${powerPct}%` : 'OFF'
+  ui.badge.classList.toggle('on', laserOn)
+
+  ui.off.hidden = !laserOn
+  const secondsLeft = Math.ceil(Math.min(POINTER_MS, Math.max(0, pointerEndsAt - Date.now())) / 1000)
+  ui.off.textContent = pointerEndsAt ? `Laser Off (auto in ${secondsLeft} s)` : 'Laser Off'
+
+  const canPoint = isIdle(s) && laserMode === true && spindleMax > 0
+  ui.pointer.hidden = laserOn || !canPoint
+  ui.point.disabled = parsePct(ui.pct.value) == null || offInFlight
+
+  ui.hint.textContent = pointerEndsAt
+    ? hostCloses === false
+      ? 'Switch it off here before closing this window or leaving the Plugins tab: once closed, this window cannot switch it off.'
+      : 'It also switches off when this window closes.'
+    : !laserOn && canPoint
+      ? `Low-power dot for aligning the work zero. It switches itself off after ${POINTER_MS / 1000} s.`
+      : jobRunning(s)
+        ? laserOn ? 'Power is set by the program. Laser Off pauses the job (feed hold).' : 'Power is set by the program.'
+        : s && s.state !== 'Idle' ? 'The pointer is available when the machine is idle.'
+          : readingSettings ? 'Reading $30 and $32 from the controller…' : ''
+
+  const note = message || (laserMode === false
+    ? 'Laser mode is off ($32=0): the active spindle is not a laser, so there is no pointer.'
+    : laserMode && !(spindleMax > 0) ? '$30 (maximum power) is unknown, so there is no pointer.' : settingsNote)
+  ui.note.textContent = note
+  ui.note.hidden = !note
+}
+
+window.addEventListener('message', e => {
+  if (e.source !== window.parent) return
+  const msg = e.data
+  if (msg?.type === 'fluid-response') {
+    const p = pending.get(msg.id)
+    if (!p) return
+    pending.delete(msg.id)
+    clearTimeout(p.timer)
+    msg.error ? p.reject(new Error(msg.error)) : p.resolve(msg.result)
+  } else if (msg?.type === 'fluid-event' && msg.event === 'status') {
+    onStatus(msg.data)
+  } else if (msg?.type === 'fluid-event' && msg.event === 'line' && /Changed to spindle:/i.test(String(msg.data))) {
+    needSettings = true
+    settingsRetryAt = 0
+    readSettings()
+  }
+})
+
+ui.off.addEventListener('click', laserOff)
+ui.point.addEventListener('click', pointerOn)
+ui.pct.addEventListener('input', render)
+document.querySelectorAll('[data-byte]').forEach(button => button.addEventListener('click', () => realtime(Number(button.dataset.byte))))
+setInterval(() => { if (pointerEndsAt) render() }, 1000)
+
+// Hiding the page switches the pointer off; closing this window does so
+// through the M5 registered with setCloseCommand.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden' && pointerEndsAt) pointerOff()
+})
+
+async function init() {
+  ui.pct.value = String(savedPct)
+  render()
+  try {
+    await Promise.all([call('subscribe', { event: 'status' }), call('subscribe', { event: 'line' })])
+    const [s, machine, saved] = await Promise.all([
+      call('getStatus'),
+      call('getMachineSettings').catch(() => null),
+      call('getSettings').catch(() => null),
+    ])
+    if (!(spindleMax > 0) && machine?.spindleMax > 0) spindleMax = machine.spindleMax
+    const pct = Number(saved?.pointerPct)
+    if (pct > 0 && pct <= POINTER_MAX_PCT) savedPct = pct
+    ui.pct.value = String(savedPct)
+    onStatus(s)
+  } catch (err) {
+    message = err.message
+    render()
+  }
+}
+init()
+</script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+{
+  "name": "Laser Panel",
+  "description": "Laser power override, Laser Off, and a low-power pointer for aligning the work zero that switches itself off.",
+  "version": "1.0.0",
+  "entry": "index.html",
+  "icon": "icon.png",
+  "layout": "default"
+}
