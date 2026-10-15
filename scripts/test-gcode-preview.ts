@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { MOVE_FEED, parseGCode, parseGCodeAsync } from '../src/lib/gcode'
 import { buildRenderLines, buildStatic3DGeometry } from '../src/lib/gcodeBuild'
 import { buildJobTimingEstimate } from '../src/lib/jobRuntime'
+import { analyzeRestart, buildRestartProgram } from '../src/lib/gcodeRestart'
 import type { ControllerSettings } from '../src/types'
 
 const near = (actual: number | undefined, expected: number, message: string) =>
@@ -90,6 +91,30 @@ const near = (actual: number | undefined, expected: number, message: string) =>
     if (model.segments.moveCode(i) === MOVE_FEED) cutLength += Math.abs(model.segments.px[i + 1] - model.segments.px[i])
   }
   assert.ok(Math.abs(length - cutLength) < 1e-3, `joined lines keep length: ${length} vs ${cutLength}`)
+}
+
+{
+  // A hand-focused laser job never commands Z: restarting it must neither
+  // require a Z position nor retract and re-enter Z, which would lose focus.
+  const laser = ['G21', 'G90', 'G0 X1 Y1', 'M4 S500', 'G1 X2 Y1 F1000', 'G1 X2 Y2', 'M5'].join('\n')
+  const analysis = analyzeRestart(laser, 6)
+  assert.equal(analysis.movesZ, false)
+  assert.deepEqual(analysis.blockers, [])
+  const program = buildRestartProgram(laser, analysis, {
+    sourceName: 'laser.nc', sourcePath: '/sd/laser.nc', safeMachineZMm: NaN, clearanceMm: NaN, approachFeedMmPerMin: NaN,
+  })
+  assert.ok(!/^[^(]*Z/m.test(program), program)
+  assert.ok(program.includes('G0 X2 Y1\nS500 M4\n'), program)
+
+  // Programs that do move Z keep the retract and controlled re-entry.
+  const milled = ['G21', 'G90', 'G0 Z5', 'G0 X1 Y1', 'M3 S10000', 'G1 Z-1 F100', 'G1 X2 Y1 F500', 'G1 X2 Y2'].join('\n')
+  const milledAnalysis = analyzeRestart(milled, 8)
+  assert.equal(milledAnalysis.movesZ, true)
+  assert.deepEqual(milledAnalysis.blockers, [])
+  const milledProgram = buildRestartProgram(milled, milledAnalysis, {
+    sourceName: 'milled.nc', sourcePath: '/sd/milled.nc', safeMachineZMm: -1, clearanceMm: 2, approachFeedMmPerMin: 100,
+  })
+  assert.ok(['G53 G0 Z-1', 'G0 Z1', 'G94 G1 Z-1 F100'].every(line => milledProgram.includes(`${line}\n`)), milledProgram)
 }
 
 console.log('G-code preview tests passed')

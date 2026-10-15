@@ -1,3 +1,5 @@
+type ToolLengthMode = { mode: 'G49' } | { mode: 'G43'; h: number | null }
+
 export interface RestartModalState {
   units: 'G20' | 'G21'
   distance: 'G90' | 'G91'
@@ -5,10 +7,12 @@ export interface RestartModalState {
   plane: 'G17' | 'G18' | 'G19'
   feedMode: 'G93' | 'G94' | 'G95'
   motion: 'G0' | 'G1' | 'G2' | 'G3'
-  wcs: string
+  /** Null when the program selects no work offset before the line; the controller's active one stays in force. */
+  wcs: string | null
   cutterComp: 'G40' | 'G41' | 'G42'
   cannedCycle: string
-  toolLength: { mode: 'G49' } | { mode: 'G43'; h: number | null }
+  /** Null when the program sets no tool-length mode before the line; the controller's offset is left alone. */
+  toolLength: ToolLengthMode | null
   tool: number | null
   feedMmPerMin: number | null
   spindleSpeed: number | null
@@ -24,6 +28,8 @@ export interface RestartAnalysis {
   resumeText: string
   context: Array<{ line: number; text: string; resume: boolean }>
   state: RestartModalState
+  /** False when no line commands Z, as in hand-focused laser jobs. The restart then leaves Z alone. */
+  movesZ: boolean
   warnings: string[]
   blockers: string[]
 }
@@ -36,7 +42,9 @@ export interface RestartProgramOptions {
   approachFeedMmPerMin: number
 }
 
-interface MutableState extends Omit<RestartModalState, 'coolant' | 'positionMm'> {
+interface MutableState extends Omit<RestartModalState, 'wcs' | 'toolLength' | 'coolant' | 'positionMm'> {
+  wcs: string
+  toolLength: ToolLengthMode
   coolant: Set<'M7' | 'M8'>
   positionMm: { x: number; y: number; z: number }
   positionKnown: { x: boolean; y: boolean; z: boolean }
@@ -62,6 +70,7 @@ function normalizedLines(text: string) {
 
 /** Remove semicolon and parenthesized comments while preserving executable words. */
 function stripComments(raw: string) {
+  if (!raw.includes('(') && !raw.includes(';')) return raw.trim().toUpperCase()
   let result = ''
   let depth = 0
   for (const char of raw) {
@@ -123,15 +132,73 @@ function defaultState(): MutableState {
   }
 }
 
+function cloneState(state: MutableState): MutableState {
+  return {
+    ...state,
+    toolLength: { ...state.toolLength },
+    coolant: new Set(state.coolant),
+    positionMm: { ...state.positionMm },
+    positionKnown: { ...state.positionKnown },
+    seen: new Set(state.seen),
+  }
+}
+
 function addUnique(target: string[], message: string) {
   if (!target.includes(message)) target.push(message)
 }
 
+/** Prefix state is saved every this many lines, so analyzing a line replays at most this many. */
+const CHECKPOINT_LINES = 5000
+
+interface ProgramScan {
+  text: string
+  lines: string[]
+  movesZ: boolean
+  /** Blockers that apply to every restart line of the program. */
+  blockers: string[]
+  /** checkpoints[k] holds the state before line index k * CHECKPOINT_LINES. */
+  checkpoints: Array<{ state: MutableState; blockers: string[] }>
+}
+
+let lastScan: ProgramScan | null = null
+
+/** The dialog analyzes many lines of one program; scan the parts that do not depend on the line once. */
+function scanProgram(text: string): ProgramScan {
+  if (lastScan?.text === text) return lastScan
+  const lines = normalizedLines(text)
+  const blockers: string[] = []
+  const movesZ = scanProgramWideSafety(lines, blockers)
+  lastScan = { text, lines, movesZ, blockers, checkpoints: [{ state: defaultState(), blockers: [] }] }
+  return lastScan
+}
+
+/** Releases the cached scan (the program text, its lines and checkpoints) once the dialog closes. */
+export function clearRestartScanCache() {
+  lastScan = null
+}
+
+function prefixStateBefore(scan: ProgramScan, resumeIndex: number) {
+  const { checkpoints } = scan
+  const start = Math.min(checkpoints.length - 1, Math.floor(resumeIndex / CHECKPOINT_LINES))
+  const state = cloneState(checkpoints[start].state)
+  const blockers = [...checkpoints[start].blockers]
+  for (let index = start * CHECKPOINT_LINES; index < resumeIndex; index++) {
+    applyPrefixLine(scan.lines[index], state, blockers)
+    if (index + 1 === checkpoints.length * CHECKPOINT_LINES) {
+      checkpoints.push({ state: cloneState(state), blockers: [...blockers] })
+    }
+  }
+  return { state, blockers }
+}
+
+/** Reports program-wide blockers and returns whether any line commands Z. */
 function scanProgramWideSafety(lines: string[], blockers: string[]) {
+  let movesZ = false
   for (let index = 0; index < lines.length; index++) {
     const code = stripComments(lines[index])
     if (!code) continue
     const line = index + 1
+    if (!movesZ && code.includes('Z') && wordsIn(code).some(word => word.letter === 'Z')) movesZ = true
     if (code.includes('#') || /\b(?:IF|WHILE|ENDWHILE|GOTO|CALL|RETURN)\b/.test(code)) {
       addUnique(blockers, `Line ${line} uses macro or conditional syntax, which cannot be reconstructed safely.`)
     }
@@ -145,6 +212,7 @@ function scanProgramWideSafety(lines: string[], blockers: string[]) {
       addUnique(blockers, `Line ${line} contains a rotary or auxiliary axis. This restart version supports XYZ programs only.`)
     }
   }
+  return movesZ
 }
 
 function applyPrefixLine(raw: string, state: MutableState, blockers: string[]) {
@@ -179,11 +247,14 @@ function applyPrefixLine(raw: string, state: MutableState, blockers: string[]) {
     } else if (g === '49') {
       state.toolLength = { mode: 'G49' }
       state.dynamicToolLength = false
+      state.seen.add('toolLength')
     } else if (g === '43') {
       state.toolLength = { mode: 'G43', h: value('H') ?? (state.toolLength.mode === 'G43' ? state.toolLength.h : null) }
       state.dynamicToolLength = false
+      state.seen.add('toolLength')
     } else if (g === '43.1') {
       state.dynamicToolLength = true
+      state.seen.add('toolLength')
     }
   }
 
@@ -205,7 +276,16 @@ function applyPrefixLine(raw: string, state: MutableState, blockers: string[]) {
     else if (m === 7) state.coolant.add('M7')
     else if (m === 8) state.coolant.add('M8')
     else if (m === 9) state.coolant.clear()
-    else if (m === 6 && state.pendingTool != null) state.tool = state.pendingTool
+    else if (m === 6) {
+      if (state.pendingTool != null) state.tool = state.pendingTool
+      // A manual tool change sets the new tool's length offset in the controller
+      // (G43.1), so an earlier G43/G49 from the program no longer applies. A
+      // tool-length word on the same line runs after the change and still counts.
+      if (!gCodes.some(g => g === '43' || g === '43.1' || g === '49') && !state.dynamicToolLength) {
+        state.toolLength = { mode: 'G49' }
+        state.seen.delete('toolLength')
+      }
+    }
   }
   if (state.tool == null && state.pendingTool != null) state.tool = state.pendingTool
 
@@ -324,27 +404,26 @@ function validateRestartProgram(program: string) {
 }
 
 export function analyzeRestart(text: string, requestedLine: number): RestartAnalysis {
-  const lines = normalizedLines(text)
+  const scan = scanProgram(text)
+  const { lines, movesZ } = scan
   const clampedRequested = Math.max(1, Math.min(Math.trunc(requestedLine), lines.length))
   let resumeIndex = clampedRequested - 1
   while (resumeIndex < lines.length && !isExecutable(lines[resumeIndex])) resumeIndex++
 
-  const blockers: string[] = []
+  const blockers = [...scan.blockers]
   const warnings: string[] = []
-  scanProgramWideSafety(lines, blockers)
 
   if (resumeIndex >= lines.length) {
     addUnique(blockers, 'There is no executable G-code at or after the requested line.')
     resumeIndex = Math.min(clampedRequested - 1, lines.length - 1)
   }
 
-  const state = defaultState()
-  for (let index = 0; index < resumeIndex; index++) {
-    applyPrefixLine(lines[index], state, blockers)
-  }
+  const prefix = prefixStateBefore(scan, resumeIndex)
+  const state = prefix.state
+  for (const blocker of prefix.blockers) addUnique(blockers, blocker)
 
   if (resumeIndex > 0) {
-    for (const axis of ['x', 'y', 'z'] as const) {
+    for (const axis of movesZ ? ['x', 'y', 'z'] as const : ['x', 'y'] as const) {
       if (!state.positionKnown[axis]) {
         addUnique(blockers, `The ${axis.toUpperCase()} position before line ${resumeIndex + 1} cannot be determined from the program.`)
       }
@@ -374,7 +453,7 @@ export function analyzeRestart(text: string, requestedLine: number): RestartAnal
     ['units', 'Units were not commanded before this line; G21 is being assumed.'],
     ['distance', 'Distance mode was not commanded before this line; G90 is being assumed.'],
     ['plane', 'Plane was not commanded before this line; G17 is being assumed.'],
-    ['wcs', 'No work offset was commanded before this line; G54 is being assumed.'],
+    ['wcs', 'No work offset was commanded before this line; the controller\'s active offset (G54 after a reset) is used.'],
   ]
   if (resumeIndex > 0) {
     for (const [group, message] of assumed) {
@@ -386,6 +465,9 @@ export function analyzeRestart(text: string, requestedLine: number): RestartAnal
   }
   if (resumeIndex > 0 && state.spindle === 'M5') {
     warnings.push('The spindle is off at the restart point. Verify that the selected line starts it before any cutting move.')
+  }
+  if (resumeIndex > 0 && !movesZ) {
+    warnings.push('The program never moves Z, so neither does the restart. Check the focus or Z height first.')
   }
 
   const contextStart = Math.max(0, resumeIndex - 2)
@@ -407,10 +489,10 @@ export function analyzeRestart(text: string, requestedLine: number): RestartAnal
       plane: state.plane,
       feedMode: state.feedMode,
       motion: state.motion,
-      wcs: state.wcs,
+      wcs: state.seen.has('wcs') ? state.wcs : null,
       cutterComp: state.cutterComp,
       cannedCycle: state.cannedCycle,
-      toolLength: state.toolLength,
+      toolLength: state.seen.has('toolLength') ? state.toolLength : null,
       tool: state.tool,
       feedMmPerMin: state.feedMmPerMin,
       spindleSpeed: state.spindleSpeed,
@@ -418,6 +500,7 @@ export function analyzeRestart(text: string, requestedLine: number): RestartAnal
       coolant: [...state.coolant],
       positionMm: { ...state.positionMm },
     },
+    movesZ,
     warnings,
     blockers,
   }
@@ -425,9 +508,12 @@ export function analyzeRestart(text: string, requestedLine: number): RestartAnal
 
 export function buildRestartProgram(text: string, analysis: RestartAnalysis, options: RestartProgramOptions) {
   if (analysis.blockers.length) throw new Error(analysis.blockers[0])
-  const lines = normalizedLines(text)
+  const { lines } = scanProgram(text)
   const state = analysis.state
   const p = state.positionMm
+  const toolLength = state.toolLength == null
+    ? null
+    : state.toolLength.mode === 'G43' ? `G43 H${state.toolLength.h}` : 'G49'
   if (analysis.resumeLine === 1) {
     return [
       '(FLUIDNC PROGRAM RESTART - REVIEW BEFORE RUNNING)',
@@ -440,11 +526,13 @@ export function buildRestartProgram(text: string, analysis: RestartAnalysis, opt
       '',
     ].join('\n')
   }
-  if (![options.safeMachineZMm, options.clearanceMm, options.approachFeedMmPerMin].every(Number.isFinite)) {
-    throw new Error('Restart positioning values must be valid numbers.')
+  if (analysis.movesZ) {
+    if (![options.safeMachineZMm, options.clearanceMm, options.approachFeedMmPerMin].every(Number.isFinite)) {
+      throw new Error('Restart positioning values must be valid numbers.')
+    }
+    if (options.clearanceMm < 0) throw new Error('Approach clearance cannot be negative.')
+    if (options.approachFeedMmPerMin <= 0) throw new Error('Approach feed must be greater than zero.')
   }
-  if (options.clearanceMm < 0) throw new Error('Approach clearance cannot be negative.')
-  if (options.approachFeedMmPerMin <= 0) throw new Error('Approach feed must be greater than zero.')
   const sourceFeed = state.feedMmPerMin == null
     ? null
     : state.units === 'G20' ? state.feedMmPerMin / 25.4 : state.feedMmPerMin
@@ -461,37 +549,38 @@ export function buildRestartProgram(text: string, analysis: RestartAnalysis, opt
     state.tool != null ? `(VERIFY TOOL T${state.tool} IS LOADED)` : '(VERIFY THE CORRECT TOOL IS LOADED)',
     '',
     '(SAFE RESTART POSITIONING)',
+    ...(analysis.movesZ ? [] : ['(THE PROGRAM NEVER COMMANDS Z - Z IS NOT MOVED)']),
     'M5',
     'M9',
-    'G21 G90 G40 G80 G49',
-    `G53 G0 Z${fmt(options.safeMachineZMm)}`,
-    state.wcs,
+    'G21 G90 G40 G80',
+    ...(analysis.movesZ ? [`G53 G0 Z${fmt(options.safeMachineZMm)}`] : []),
+    state.wcs ?? '(NO WORK OFFSET IN THE PROGRAM - THE ACTIVE OFFSET IS USED)',
   ]
 
   if (state.tool != null) output.push(`T${state.tool}`)
-  if (state.toolLength.mode === 'G43') output.push(`G43 H${state.toolLength.h}`)
-  output.push(
-    `G0 X${fmt(p.x)} Y${fmt(p.y)}`,
-    `G0 Z${fmt(p.z + options.clearanceMm)}`,
-  )
+  // A tool-length offset the program never set (e.g. one measured by a manual
+  // tool change) belongs to the controller and is left in force.
+  if (toolLength) output.push(toolLength)
+  output.push(`G0 X${fmt(p.x)} Y${fmt(p.y)}`)
+  if (analysis.movesZ) output.push(`G0 Z${fmt(p.z + options.clearanceMm)}`)
   if (state.spindle !== 'M5') {
     output.push(`${state.spindleSpeed != null ? `S${fmt(state.spindleSpeed, 2)} ` : ''}${state.spindle}`)
   }
   if (state.coolant.length) output.push(state.coolant.join(' '))
+  if (analysis.movesZ) output.push(`G94 G1 Z${fmt(p.z)} F${fmt(options.approachFeedMmPerMin, 2)}`)
   output.push(
-    `G94 G1 Z${fmt(p.z)} F${fmt(options.approachFeedMmPerMin, 2)}`,
     '',
     '(RESTORE PROGRAM MODES)',
     `${state.units} ${state.plane} ${state.arcDistance} ${state.feedMode}`,
-    state.toolLength.mode === 'G43' ? `G43 H${state.toolLength.h}` : 'G49',
   )
   if (sourceFeed != null) output.push(`F${fmt(sourceFeed, 3)}`)
   output.push(
     state.distance,
     '',
     `(ORIGINAL PROGRAM RESUMES AT FILE LINE ${analysis.resumeLine})`,
-    ...resumedLines,
   )
+  // Not push(...resumedLines): a spread call fails past ~125k arguments.
+  for (const line of resumedLines) output.push(line)
 
   const program = `${output.join('\n')}\n`
   validateRestartProgram(program)

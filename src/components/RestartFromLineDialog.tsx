@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { AlertTriangle, ArrowRight, FileCode2, ShieldCheck, X } from 'lucide-react'
-import { analyzeRestart, buildRestartProgram, makeRestartFilename } from '../lib/gcodeRestart'
+import { analyzeRestart, buildRestartProgram, clearRestartScanCache, makeRestartFilename } from '../lib/gcodeRestart'
 import { saveFileContent } from '../lib/http'
 import { controllerFilesystem } from '../lib/controllerFiles'
 import { useGCodeStore } from '../store/gcode'
 import { useMachineStore } from '../store'
 import { displayToMm, feedUnitLabel, linearUnitLabel, mmToDisplay } from '../lib/units'
+import { parseDecimalInput } from '../lib/numberInput'
 import type { Units } from '../types'
 
 interface Props {
@@ -50,7 +51,7 @@ function safeZTextFromMm(mmValue: number | null, units: Units) {
 }
 
 function numericInput(value: string) {
-  return value.trim() === '' ? Number.NaN : Number(value)
+  return parseDecimalInput(value) ?? Number.NaN
 }
 
 export function RestartFromLineDialog({
@@ -68,6 +69,7 @@ export function RestartFromLineDialog({
   const lineHighlightRef = useRef<HTMLDivElement>(null)
   const loadFromText = useGCodeStore(s => s.loadFromText)
   const units = useMachineStore(s => s.units)
+  const activeWcs = useMachineStore(s => s.status.gcodeModes?.wcs)
   const program = useMemo(() => {
     const text = sourceText.replace(/\r\n?/g, '\n')
     const starts = [0]
@@ -100,6 +102,9 @@ export function RestartFromLineDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // A large program's scan stays in memory only while the dialog is open.
+  useEffect(() => clearRestartScanCache, [])
+
   const requestedLine = Number(lineText)
   const lineIsValid = Number.isInteger(requestedLine) && requestedLine >= 1 && requestedLine <= totalLines
   const analysis = useMemo(
@@ -110,7 +115,7 @@ export function RestartFromLineDialog({
   const safeZ = numericInput(safeZText)
   const clearance = numericInput(clearanceText)
   const approachFeed = numericInput(approachFeedText)
-  const positioningValid = analysis?.resumeLine === 1 || (Number.isFinite(safeZ)
+  const positioningValid = analysis?.resumeLine === 1 || analysis?.movesZ === false || (Number.isFinite(safeZ)
     && Number.isFinite(clearance) && clearance >= 0
     && Number.isFinite(approachFeed) && approachFeed > 0)
   const canPrepare = !!analysis && analysis.blockers.length === 0 && positioningValid && !preparing
@@ -307,11 +312,11 @@ export function RestartFromLineDialog({
             <>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 <SummaryCell label="Resume line" value={`L${analysis.resumeLine}`} accent />
-                <SummaryCell label="Work offset" value={analysis.state.wcs} />
+                <SummaryCell label="Work offset" value={analysis.state.wcs ?? `Active${activeWcs ? ` (${activeWcs})` : ''}`} />
                 <SummaryCell label="Tool" value={analysis.state.tool == null ? 'Verify' : `T${analysis.state.tool}`} />
                 <SummaryCell
                   label={`Start position (${linearUnitLabel(units)})`}
-                  value={`X${fmtLinear(analysis.state.positionMm.x, units)} Y${fmtLinear(analysis.state.positionMm.y, units)} Z${fmtLinear(analysis.state.positionMm.z, units)}`}
+                  value={`X${fmtLinear(analysis.state.positionMm.x, units)} Y${fmtLinear(analysis.state.positionMm.y, units)}${analysis.movesZ ? ` Z${fmtLinear(analysis.state.positionMm.z, units)}` : ''}`}
                   compact
                 />
               </div>
@@ -338,16 +343,16 @@ export function RestartFromLineDialog({
                 </div>
               )}
 
-              {analysis.blockers.length === 0 && analysis.resumeLine > 1 && (
+              {analysis.blockers.length === 0 && analysis.resumeLine > 1 && analysis.movesZ && (
                 <details className="rounded border border-border bg-elevated/40 group">
                   <summary className="cursor-pointer select-none px-3.5 py-2.5 text-sm font-semibold text-text-primary">
                     Safe positioning
                     <span className="ml-2 font-normal text-text-muted">G53 retract and controlled Z re-entry</span>
                   </summary>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 px-3.5 pb-3.5 border-t border-border pt-3">
-                    <NumberField label="Machine safe Z" value={safeZText} onChange={setSafeZText} suffix={linearUnitLabel(units)} />
-                    <NumberField label="Approach clearance" value={clearanceText} onChange={setClearanceText} suffix={linearUnitLabel(units)} min="0" />
-                    <NumberField label="Approach feed" value={approachFeedText} onChange={setApproachFeedText} suffix={feedUnitLabel(units)} min="0.001" />
+                    <NumberField label="Machine safe Z" value={safeZText} onChange={setSafeZText} suffix={linearUnitLabel(units)} signed />
+                    <NumberField label="Approach clearance" value={clearanceText} onChange={setClearanceText} suffix={linearUnitLabel(units)} />
+                    <NumberField label="Approach feed" value={approachFeedText} onChange={setApproachFeedText} suffix={feedUnitLabel(units)} />
                   </div>
                   {!positioningValid && <p className="px-3.5 pb-3 text-sm text-danger">Enter valid safe-positioning values.</p>}
                 </details>
@@ -387,21 +392,21 @@ function SummaryCell({ label, value, accent, compact }: { label: string; value: 
   )
 }
 
-function NumberField({ label, value, onChange, suffix, min }: {
+function NumberField({ label, value, onChange, suffix, signed }: {
   label: string
   value: string
   onChange: (value: string) => void
   suffix: string
-  min?: string
+  // The iOS decimal keypad has no minus key.
+  signed?: boolean
 }) {
   return (
     <label className="text-xs text-text-muted">
       <span className="block mb-1">{label}</span>
       <span className="flex items-center rounded border border-border bg-surface focus-within:border-accent/60">
         <input
-          type="number"
-          step="any"
-          min={min}
+          type="text"
+          inputMode={signed ? undefined : "decimal"}
           value={value}
           onChange={event => onChange(event.target.value)}
           className="w-full min-w-0 bg-transparent px-2 py-1.5 font-mono text-sm text-text-primary outline-none"
