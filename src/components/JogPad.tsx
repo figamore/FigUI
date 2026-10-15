@@ -3,7 +3,10 @@ import { RotateCcw, Play, Square, ArrowLeft } from 'lucide-react'
 import { useMachineStore } from '../store'
 import { buildLimitedFeedPresets, getJogFeedMax, loadPersistedJogFeed } from '../lib/jog'
 import { sendRaw, sendRealtime } from '../lib/ws'
+import { sendControlLine } from '../lib/macros'
+import { parseDecimalInput } from '../lib/numberInput'
 import { setLocalJogActive } from '../lib/jogWatchdog'
+import { startContinuousJog, stopContinuousJogs } from '../lib/continuousJog'
 import { useControllerJobStarting } from '../lib/jobState'
 import type { Units } from '../types'
 import {
@@ -18,7 +21,6 @@ import {
 const MM_RING_STEPS = [0.1, 1, 10, 100] as const
 const IN_RING_STEPS = [0.001, 0.01, 0.1, 1] as const
 const RADII = [22, 40, 56, 74, 94] as const
-const CONTINUOUS_DISTANCE = 10000
 const MM_FEED_PRESETS = [50, 100, 200, 500, 1000, 2000, 3000] as const
 const IN_FEED_PRESETS = [5, 10, 20, 50, 100, 200, 300] as const
 const JOB_HIDE_DELAY_MS = 700
@@ -60,7 +62,10 @@ function alwaysCapturePointer(e: React.PointerEvent) {
   e.currentTarget.setPointerCapture(e.pointerId)
 }
 
-function tabletJogPointerHandlers(start: () => void, stop: () => void) {
+function tabletJogPointerHandlers(start: () => void, stop: () => void, continuous: boolean) {
+  // A step jog fires on click. The browser drops the click when the touch
+  // turns into a scroll or only stops a fling, so scrolling never jogs.
+  if (!continuous) return { onClick: start }
   return {
     onPointerDown: (e: React.PointerEvent) => {
       alwaysCapturePointer(e)
@@ -194,40 +199,41 @@ function useHoldJog(
   axis: string, sign: 1 | -1, feed: number,
   step: number, continuous: boolean, disabled: boolean,
 ) {
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const activeRef = useRef(false)
+  // Set while a continuous jog started here is running. stop() cancels on
+  // this, not on the current mode, so a mode switch mid-hold still stops it.
+  const stopSegmentsRef = useRef<(() => void) | null>(null)
   const setActiveStepJog = useMachineStore(state => state.setActiveStepJog)
-  const fire = useCallback(() => {
-    const dist = continuous ? sign * CONTINUOUS_DISTANCE : sign * step
-    sendRaw(`$J=G91 G21 F${feed} ${axis}${dist}`)
-
-    if (!continuous) {
-      setActiveStepJog({
-        active: true,
-        startTime: Date.now(),
-        expectedDistance: Math.abs(dist),
-        axis: axis
-      })
-    }
-  }, [axis, sign, feed, step, continuous, setActiveStepJog])
 
   const start = useCallback(() => {
     if (disabled) return
-    activeRef.current = true
     setLocalJogActive(true)
     if (continuous) {
-      fire()
-    } else {
-      fire()
+      stopSegmentsRef.current?.()
+      stopSegmentsRef.current = startContinuousJog([`${axis}${sign > 0 ? '+' : '-'}`], feed)
+      return
     }
-  }, [disabled, fire, continuous])
+
+    const dist = sign * step
+    sendRaw(`$J=G91 G21 F${feed} ${axis}${dist}`)
+    setActiveStepJog({
+      active: true,
+      startTime: Date.now(),
+      expectedDistance: Math.abs(dist),
+      axis: axis
+    })
+  }, [axis, sign, feed, step, continuous, disabled, setActiveStepJog])
 
   const stop = useCallback(() => {
-    const wasActive = activeRef.current
-    activeRef.current = false
-    if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null }
-    if (continuous && wasActive) sendJogCancel()
-  }, [continuous])
+    const stopSegments = stopSegmentsRef.current
+    if (!stopSegments) return
+    stopSegmentsRef.current = null
+    stopSegments()
+    sendJogCancel()
+  }, [])
+
+  useEffect(() => {
+    if (disabled || !continuous) stop()
+  }, [disabled, continuous, stop])
 
   useEffect(() => {
     function stopAll() {
@@ -240,10 +246,10 @@ function useHoldJog(
     return () => {
       window.removeEventListener('blur', stopAll)
       document.removeEventListener('visibilitychange', stopAll)
+      stop()
     }
   }, [stop])
 
-  useEffect(() => () => { if (intervalRef.current) clearInterval(intervalRef.current) }, [])
   return { start, stop }
 }
 
@@ -421,7 +427,7 @@ function JogRose({ xyFeed, continuous, disabled, isJogging, activeKeys, units }:
         className={isJogging ? 'cursor-pointer' : ''}
         onPointerEnter={isJogging ? () => setCenterHover(true) : undefined}
         onPointerLeave={isJogging ? () => setCenterHover(false) : undefined}
-        onPointerDown={isJogging ? () => sendRealtime(0x85) : undefined}
+        onPointerDown={isJogging ? () => { stopContinuousJogs(); sendRealtime(0x85) } : undefined}
       />
       <circle cx="0" cy="0" r={centerR - 3}
         fill="var(--surface)" stroke="var(--border-strong)" strokeWidth="0.5"
@@ -634,8 +640,8 @@ function FeedButton({
   }
 
   function commitCustom() {
-    const displayValue = Number(customValue)
-    if (!Number.isFinite(displayValue) || displayValue <= 0) return
+    const displayValue = parseDecimalInput(customValue)
+    if (displayValue === null || displayValue <= 0) return
     const converted = fromDisplayValue ? fromDisplayValue(displayValue) : displayValue
     onChange(max != null && Number.isFinite(max) ? Math.min(converted, max) : converted)
     close()
@@ -695,22 +701,21 @@ function FeedButton({
             customOpen ? (
               <div className="flex items-center gap-1.5 px-2 py-1.5 border-t border-border">
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="decimal"
                   value={customValue}
                   onChange={e => setCustomValue(e.target.value)}
                   onKeyDown={e => {
                     if (e.key === 'Enter') commitCustom()
                     if (e.key === 'Escape') close()
                   }}
-                  min={0}
-                  step="any"
                   className="input-field min-w-0 flex-1 py-1 px-2 text-base font-mono text-right"
                   autoFocus
                 />
                 <button
                   className="btn btn-primary px-2 py-1 text-base"
                   onClick={commitCustom}
-                  disabled={!Number.isFinite(Number(customValue)) || Number(customValue) <= 0}
+                  disabled={!((parseDecimalInput(customValue) ?? 0) > 0)}
                 >
                   Set
                 </button>
@@ -735,6 +740,7 @@ function useKeyboardJog(continuous: boolean, canJog: boolean, xyFeed: number, zF
   const [activeKeys, setActiveKeys] = useState<Set<string>>(new Set())
   const pressedKeysRef = useRef<Set<string>>(new Set())
   const fireTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const stopSegmentsRef = useRef<(() => void) | null>(null)
   const xyFeedRef = useRef(xyFeed)
   const zFeedRef = useRef(zFeed)
   const canJogRef = useRef(false)
@@ -745,6 +751,8 @@ function useKeyboardJog(continuous: boolean, canJog: boolean, xyFeed: number, zF
 
   const resetKeyboardJog = useCallback(() => {
     if (fireTimerRef.current) { clearTimeout(fireTimerRef.current); fireTimerRef.current = null }
+    stopSegmentsRef.current?.()
+    stopSegmentsRef.current = null
     const hadKeys = pressedKeysRef.current.size > 0
     pressedKeysRef.current.clear()
     setActiveKeys(new Set())
@@ -780,13 +788,18 @@ function useKeyboardJog(continuous: boolean, canJog: boolean, xyFeed: number, zF
       const numAxes = keys.size
       const vectorAdjustedFeed = Math.round(baseFeed * Math.sqrt(numAxes))
 
-      const axes = [...keys].map(k => `${k[0]}${(k[1] === '+' ? 1 : -1) * CONTINUOUS_DISTANCE}`).join(' ')
-      setLocalJogActive(true)
-      sendRaw(`$J=G91 G21 F${vectorAdjustedFeed} ${axes}`)
+      stopSegmentsRef.current?.()
+      stopSegmentsRef.current = startContinuousJog([...keys], vectorAdjustedFeed)
+    }
+
+    function stopSegments() {
+      stopSegmentsRef.current?.()
+      stopSegmentsRef.current = null
     }
 
     function scheduleJog() {
       if (fireTimerRef.current) clearTimeout(fireTimerRef.current)
+      stopSegments()
       sendRealtime(0x85)
       fireTimerRef.current = setTimeout(() => { fireTimerRef.current = null; fireJog() }, 10)
     }
@@ -835,6 +848,7 @@ function useKeyboardJog(continuous: boolean, canJog: boolean, xyFeed: number, zF
         scheduleJog()
       } else {
         if (fireTimerRef.current) { clearTimeout(fireTimerRef.current); fireTimerRef.current = null }
+        stopSegments()
         sendJogCancel()
       }
     }
@@ -862,6 +876,7 @@ function useKeyboardJog(continuous: boolean, canJog: boolean, xyFeed: number, zF
 
 export function JogPad() {
   const status = useMachineStore(s => s.status)
+  const laserMode = useMachineStore(s => s.controllerSettings.laserMode === true)
   const controllerResetPending = useMachineStore(s => s.controllerResetPending)
   const controllerJobStarting = useControllerJobStarting()
   const axes = useMachineStore(s => s.axes)
@@ -1123,7 +1138,7 @@ export function JogPad() {
                   setSpindleTarget(rpm)
                   setSelectedSpindlePreset(rpm)
                   if (spindleActive) {
-                    if (sendRaw(`M3 S${rpm}`)) sendRealtime(0x99)
+                    if (sendControlLine(`M3 S${rpm}`, 'Spindle')) sendRealtime(0x99)
                   }
                 }}
                 className={`btn py-2 text-lg font-medium justify-center ${
@@ -1143,17 +1158,19 @@ export function JogPad() {
           {spindleActive ? (
             <button
               onClick={() => {
-                if (sendRaw('M5')) setSpindleOverrideState('off')
+                if (sendControlLine('M5', 'Spindle stop')) setSpindleOverrideState('off')
               }}
               className="btn w-full justify-center bg-danger/20 hover:bg-danger/30 text-danger border-danger/50"
             >
               <Square className="w-3.5 h-3.5 shrink-0 fill-current" />
               Stop Spindle
             </button>
+          ) : laserMode ? (
+            <LaserModeNote />
           ) : (
             <button
               onClick={() => {
-                if (sendRaw(`M3 S${spindleTarget}`)) setSpindleOverrideState('on')
+                if (sendControlLine(`M3 S${spindleTarget}`, 'Spindle')) setSpindleOverrideState('on')
               }}
               className="btn w-full gap-1.5 justify-center bg-ok/20 hover:bg-ok/30 text-ok border-ok/50"
             >
@@ -1168,11 +1185,22 @@ export function JogPad() {
   )
 }
 
+// In laser mode M3 at the RPM target lights a stationary laser at full power
+// whenever the last motion mode was G1, so the panel offers no Start.
+function LaserModeNote() {
+  return (
+    <p className="text-sm text-text-dim text-center">
+      Laser mode ($32=1): start the laser from a program.
+    </p>
+  )
+}
+
 export function SpindlePanel({ className, isTablet }: { className?: string; isTablet?: boolean }) {
   const status = useMachineStore(s => s.status)
   const controllerSettings = useMachineStore(s => s.controllerSettings)
   const spindleMin = controllerSettings.spindleMin ?? 0
   const spindleMax = controllerSettings.spindleMax
+  const laserMode = controllerSettings.laserMode === true
 
   const [spindleTarget, setSpindleTarget] = useState(24000)
   const [selectedSpindlePreset, setSelectedSpindlePreset] = useState<number | null>(null)
@@ -1256,7 +1284,7 @@ export function SpindlePanel({ className, isTablet }: { className?: string; isTa
                   setSpindleTarget(rpm)
                   setSelectedSpindlePreset(rpm)
                   if (spindleActive) {
-                    if (sendRaw(`M3 S${rpm}`)) sendRealtime(0x99)
+                    if (sendControlLine(`M3 S${rpm}`, 'Spindle')) sendRealtime(0x99)
                   }
                 }}
                 className={`btn font-medium justify-center ${isTablet ? 'text-lg py-2' : 'text-base py-2'} ${
@@ -1276,17 +1304,19 @@ export function SpindlePanel({ className, isTablet }: { className?: string; isTa
           {spindleActive ? (
             <button
               onClick={() => {
-                if (sendRaw('M5')) setSpindleOverrideState('off')
+                if (sendControlLine('M5', 'Spindle stop')) setSpindleOverrideState('off')
               }}
               className={`btn w-full justify-center bg-danger/20 hover:bg-danger/30 text-danger border-danger/50 ${isTablet ? 'h-12 text-lg' : ''}`}
             >
               <Square className={`${isTablet ? 'w-4 h-4' : 'w-3.5 h-3.5'} shrink-0 fill-current`} />
               Stop Spindle
             </button>
+          ) : laserMode ? (
+            <LaserModeNote />
           ) : (
             <button
               onClick={() => {
-                if (sendRaw(`M3 S${spindleTarget}`)) setSpindleOverrideState('on')
+                if (sendControlLine(`M3 S${spindleTarget}`, 'Spindle')) setSpindleOverrideState('on')
               }}
               className={`btn w-full gap-1.5 justify-center bg-ok/20 hover:bg-ok/30 text-ok border-ok/50 ${isTablet ? 'h-12 text-lg' : ''}`}
             >
@@ -1326,10 +1356,10 @@ function CompactRotaryJogControls({ axis, color, feed, step, continuous, disable
   const positive = useHoldJog(axis, 1, feed, step, continuous, disabled)
   return (
     <>
-      <button {...tabletJogPointerHandlers(negative.start, negative.stop)}
+      <button {...tabletJogPointerHandlers(negative.start, negative.stop, continuous)}
         className="jog-cluster-btn" style={{ color }}
         disabled={disabled} aria-label={`Jog ${axis} negative`}>{axis}-</button>
-      <button {...tabletJogPointerHandlers(positive.start, positive.stop)}
+      <button {...tabletJogPointerHandlers(positive.start, positive.stop, continuous)}
         className="jog-cluster-btn" style={{ color }}
         disabled={disabled} aria-label={`Jog ${axis} positive`}>{axis}+</button>
     </>
@@ -1433,8 +1463,8 @@ export function TabletJogPad({
 
   function commitCustomFeed() {
     if (!feedModal) return
-    const displayValue = Number(customFeedValue)
-    if (!Number.isFinite(displayValue) || displayValue <= 0) return
+    const displayValue = parseDecimalInput(customFeedValue)
+    if (displayValue === null || displayValue <= 0) return
 
     const max = feedModal === 'xy' ? xyFeedMax : feedModal === 'z' ? zFeedMax : abcFeedMax
     const converted = feedModal === 'abc' ? displayValue : displayToMm(displayValue, units)
@@ -1514,19 +1544,19 @@ export function TabletJogPad({
           )}
           <div className={jogClusterClass}>
             <div aria-hidden="true" />
-            <button {...tabletJogPointerHandlers(startYp, stopYp)} className="jog-cluster-btn text-ok">Y+</button>
+            <button {...tabletJogPointerHandlers(startYp, stopYp, continuous)} className="jog-cluster-btn text-ok">Y+</button>
             <div aria-hidden="true" />
-            <button {...tabletJogPointerHandlers(startZp, stopZp)} className="jog-cluster-btn text-info">Z+</button>
-            <button {...tabletJogPointerHandlers(startXm, stopXm)} className="jog-cluster-btn text-danger">X-</button>
-            <button onClick={() => sendRealtime(0x85)} className="jog-cluster-stop" aria-label="Stop jog">
+            <button {...tabletJogPointerHandlers(startZp, stopZp, continuous)} className="jog-cluster-btn text-info">Z+</button>
+            <button {...tabletJogPointerHandlers(startXm, stopXm, continuous)} className="jog-cluster-btn text-danger">X-</button>
+            <button onClick={() => { stopContinuousJogs(); sendRealtime(0x85) }} className="jog-cluster-stop" aria-label="Stop jog">
               <Square className="jog-cluster-stop-icon" />
             </button>
-            <button {...tabletJogPointerHandlers(startXp, stopXp)} className="jog-cluster-btn text-danger">X+</button>
+            <button {...tabletJogPointerHandlers(startXp, stopXp, continuous)} className="jog-cluster-btn text-danger">X+</button>
             <div aria-hidden="true" />
             <div aria-hidden="true" />
-            <button {...tabletJogPointerHandlers(startYm, stopYm)} className="jog-cluster-btn text-ok">Y-</button>
+            <button {...tabletJogPointerHandlers(startYm, stopYm, continuous)} className="jog-cluster-btn text-ok">Y-</button>
             <div aria-hidden="true" />
-            <button {...tabletJogPointerHandlers(startZm, stopZm)} className="jog-cluster-btn text-info">Z-</button>
+            <button {...tabletJogPointerHandlers(startZm, stopZm, continuous)} className="jog-cluster-btn text-info">Z-</button>
           </div>
         </div>
         {rotaryAxes.length > 0 && (
@@ -1599,21 +1629,20 @@ export function TabletJogPad({
             <label className="block text-xl text-text-muted mb-2">Custom</label>
             <div className="flex items-center gap-3">
               <input
-                type="number"
+                type="text"
+                inputMode="decimal"
                 value={customFeedValue}
                 onChange={e => setCustomFeedValue(e.target.value)}
                 onKeyDown={e => {
                   if (e.key === 'Enter') commitCustomFeed()
                   if (e.key === 'Escape') setFeedModal(null)
                 }}
-                min={0}
-                step="any"
                 className="input-field min-w-0 flex-1 py-3 px-4 text-2xl font-mono text-right"
               />
               <button
                 className="btn btn-primary px-5 py-3 text-xl"
                 onClick={commitCustomFeed}
-                disabled={!Number.isFinite(Number(customFeedValue)) || Number(customFeedValue) <= 0}
+                disabled={!((parseDecimalInput(customFeedValue) ?? 0) > 0)}
               >
                 Set
               </button>

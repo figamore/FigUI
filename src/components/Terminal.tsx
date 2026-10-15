@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { Trash2, ChevronsDown, Clipboard, ClipboardCheck, Loader2, PanelBottom, PanelRight } from 'lucide-react'
-import { sendRaw } from '../lib/ws'
+import { lineRefusalReason, sendRaw, sendRealtime } from '../lib/ws'
 import { useTerminalStore, type LineKind } from '../store/terminal'
 import { useMachineStore } from '../store'
 
@@ -80,7 +80,14 @@ export function Terminal({ onExpandToggle, expanded = false }: TerminalProps = {
     const cmd = input.trim()
     if (!cmd) return
     appendLine(`> ${cmd}`)
-    sendRaw(cmd)
+    // Status, hold and resume are realtime bytes: they act at once, also
+    // while an SD job holds the controller's line input.
+    const realtime = cmd === '?' || cmd === '!' || cmd === '~'
+    if (!(realtime ? sendRealtime(cmd.charCodeAt(0)) : sendRaw(cmd))) {
+      // A refused command is dropped, not queued, so it stays in the input.
+      appendLine(`[MSG:WARN: Not sent: ${lineRefusalReason()}]`)
+      return
+    }
     pushHistory(cmd)
     setInput('')
     setHistIdx(-1)

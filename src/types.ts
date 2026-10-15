@@ -116,6 +116,8 @@ export interface ControllerSettings {
   hasToolsetter?: boolean
   hasManualATC?: boolean
   reportInches?: boolean
+  /** Grbl $32: the spindle output drives a laser */
+  laserMode?: boolean
 }
 
 export interface FluidNCSetting {

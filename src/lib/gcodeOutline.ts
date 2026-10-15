@@ -10,7 +10,20 @@ export interface FramingOptions {
   feedMmPerMin: number
   clearanceMm: number
   travelZMm: number
+  /**
+   * False when the program never commands Z, as in hand-focused laser jobs.
+   * The frame then leaves Z alone and the clearance and travel height are unused.
+   */
+  movesZ?: boolean
   displayUnits?: Units
+}
+
+/** True when a line outside comments mentions Z. Hand-focused laser jobs never do. */
+export function programMovesZ(text: string) {
+  for (const line of text.split('\n')) {
+    if (/z/i.test(line) && /z/i.test(line.replace(/\([^)]*\)?|;.*/g, ''))) return true
+  }
+  return false
 }
 
 interface Point {
@@ -50,6 +63,24 @@ export function buildFramingGCode(model: GCodeModel, options: FramingOptions): s
 
   if (path.length < 2) return null
 
+  const feed = Math.max(1, options.feedMmPerMin)
+  const closedPath = closePath(path)
+  const header = [
+    '(FigUI framing routine)',
+    `(${options.mode === 'rectangle' ? 'Rectangle' : 'Contour'} outline from cutting moves only)`,
+  ]
+  if (options.movesZ === false) {
+    return [
+      ...header,
+      '(THE PROGRAM NEVER COMMANDS Z - Z IS NOT MOVED)',
+      'G21 G90 G94',
+      `G0 X${format(closedPath[0].x, 3)} Y${format(closedPath[0].y, 3)}`,
+      `G1 F${format(feed, 1)}`,
+      ...closedPath.slice(1).map(point => `G1 X${format(point.x, 3)} Y${format(point.y, 3)}`),
+      'M2',
+    ].join('\n')
+  }
+
   const frameZ = envelope.topZ + options.clearanceMm
   if (!Number.isFinite(options.travelZMm)) throw new Error('Safe travel height must be valid.')
   if (options.travelZMm < frameZ) {
@@ -64,12 +95,9 @@ export function buildFramingGCode(model: GCodeModel, options: FramingOptions): s
       + detail,
     )
   }
-  const feed = Math.max(1, options.feedMmPerMin)
   const zApproachFeed = Math.min(feed, Z_APPROACH_FEED_MAX_MM_PER_MIN)
-  const closedPath = closePath(path)
   const lines = [
-    '(FigUI framing routine)',
-    `(${options.mode === 'rectangle' ? 'Rectangle' : 'Contour'} outline from cutting moves only)`,
+    ...header,
     'G21 G90 G94',
     `G0 Z${format(options.travelZMm, 3)}`,
     `G0 X${format(closedPath[0].x, 3)} Y${format(closedPath[0].y, 3)}`,

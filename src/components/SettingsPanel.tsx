@@ -30,6 +30,8 @@ import {
 } from "../lib/http";
 import { useMachineStore } from "../store";
 import type { Theme } from "../store";
+import { useGCodeSenderStore } from "../store/gcodeSender";
+import { parseDecimalInput } from "../lib/numberInput";
 import type { FluidNCSetting } from "../types";
 import {
   loadControllerConfigSettings,
@@ -488,7 +490,11 @@ function SettingRow({ setting, showPath, onSave }: SettingRowProps) {
     if (!changed || saveState === "saving") return;
     setSaveState("saving");
     try {
-      await onSave(setting.P, setting.T, normalizeSettingValueForSave(setting, value));
+      // A decimal comma must reach the controller as a point: "80,5" steps/mm
+      // was sent as 805.
+      if (isNumeric && parseDecimalInput(value) === null) throw new Error("not a number");
+      const sent = isNumeric ? value.trim().replace(",", ".") : value;
+      await onSave(setting.P, setting.T, normalizeSettingValueForSave(setting, sent));
       setSaveState("saved");
       setTimeout(() => setSaveState("idle"), 2500);
     } catch {
@@ -628,20 +634,15 @@ function SettingRow({ setting, showPath, onSave }: SettingRowProps) {
       </div>
       <div className="flex items-center gap-2">
         <input
-          type={isPassword ? "password" : isNumeric ? "number" : "text"}
+          type={isPassword ? "password" : "text"}
+          // The iOS decimal keypad has no minus key.
+          inputMode={isNumeric && Number(setting.M) >= 0 ? "decimal" : undefined}
           value={value}
           onChange={(e) => setValue(e.target.value)}
           onFocus={(e) => {
             if (maskedPassword) e.currentTarget.select();
           }}
           onKeyDown={handleKey}
-          step={isNumeric ? (setting.T === "R" ? "any" : "1") : undefined}
-          min={
-            isNumeric && setting.M !== undefined ? Number(setting.M) : undefined
-          }
-          max={
-            isNumeric && setting.S !== undefined ? Number(setting.S) : undefined
-          }
           className="input-field flex-1 py-1 text-sm font-mono"
           spellCheck={false}
         />
@@ -871,8 +872,22 @@ function ProgressBar({
   );
 }
 
+// FluidNC accepts a firmware upload while it moves and reboots once the image
+// is written, which would end a running job.
+const FLASH_AFTER_JOB = "A job is running. Flash the firmware after it has finished.";
+
+function isJobActive(state: string, sdFilename: string | undefined, senderPhase: string) {
+  return state === "Run" || state === "Hold" || !!sdFilename ||
+    senderPhase === "streaming" || senderPhase === "paused" || senderPhase === "draining";
+}
+
 function FirmwareTab() {
   const espInfo = useMachineStore((s) => s.espInfo);
+  const jobRunning = isJobActive(
+    useMachineStore((s) => s.status.state),
+    useMachineStore((s) => s.status.sdFilename),
+    useGCodeSenderStore((s) => s.phase),
+  );
 
   const [phase, setPhase] = useState<FirmwarePhase>("idle");
   const [progress, setProgress] = useState(0);
@@ -980,6 +995,13 @@ function FirmwareTab() {
   }
 
   async function flashFile(file: File) {
+    // A job may have started while the release was downloading.
+    const { state, sdFilename } = useMachineStore.getState().status;
+    if (isJobActive(state, sdFilename, useGCodeSenderStore.getState().phase)) {
+      setPhase("error");
+      setErrorMsg(FLASH_AFTER_JOB);
+      return;
+    }
     setPhase("uploading");
     setProgress(0);
     setStatusMsg(`Uploading ${file.name}…`);
@@ -993,7 +1015,7 @@ function FirmwareTab() {
   }
 
   async function downloadAndFlash() {
-    if (!selectedTag) return;
+    if (!selectedTag || jobRunning) return;
     if (
       !confirm(
         `Download and flash FluidNC ${selectedTag} (${chip} / ${radio})?\n\nThe device will restart after flashing.`,
@@ -1029,6 +1051,9 @@ function FirmwareTab() {
 
   return (
     <div className="flex flex-col divide-y divide-border max-w-lg">
+      {jobRunning && !busy && (
+        <div className="px-5 py-3 text-sm text-warn">{FLASH_AFTER_JOB}</div>
+      )}
       {/* ── Online Update ── */}
       <div className="flex flex-col gap-4 p-5">
         <div className="flex items-center justify-between">
@@ -1159,7 +1184,7 @@ function FirmwareTab() {
             {!busy && (
               <button
                 onClick={downloadAndFlash}
-                disabled={!selectedTag}
+                disabled={!selectedTag || jobRunning}
                 className="flex items-center justify-center gap-2 px-4 py-2.5 rounded text-sm font-medium
                            bg-accent text-white hover:bg-accent/90 transition-colors
                            disabled:opacity-40 disabled:cursor-not-allowed"
@@ -1262,9 +1287,9 @@ function FirmwareTab() {
         </label>
 
         <button
-          disabled={!file || busy}
+          disabled={!file || busy || jobRunning}
           onClick={() => {
-            if (!file) return;
+            if (!file || jobRunning) return;
             if (
               !confirm(
                 `Flash firmware from "${file.name}"? The device will restart.`,

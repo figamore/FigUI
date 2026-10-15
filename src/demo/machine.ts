@@ -33,7 +33,7 @@ export function statusReport(): string {
   const w = wpos.map(v => v.toFixed(3)).join(',')
   const p = mpos.map(v => v.toFixed(3)).join(',')
   let s = `<${state}|WPos:${w}|MPos:${p}|FS:${feed},${spindle}|Ov:${feedOv},${rapidOv},${spindleOv}>`
-  if (sdFile) s = s.slice(0, -1) + `|SD:${sdFile},${sdPct}>`
+  if (sdFile) s = s.slice(0, -1) + `|SD:${sdPct.toFixed(2)},${sdFile}>`
   return s
 }
 

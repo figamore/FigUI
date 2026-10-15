@@ -19,7 +19,11 @@
     "test:resources": "esbuild scripts/test-resource-loading.tsx --bundle --external:react --external:react-dom --external:lucide-react --external:zustand --loader:.svg=dataurl --define:import.meta.env='{}' --define:import.meta.env.DEV=false --define:__CONFIG_STUDIO_BUILD__='\"test\"' --platform=node --format=esm --outfile=node_modules/.cache/figui-test-resource-loading.mjs && node node_modules/.cache/figui-test-resource-loading.mjs",
     "preview": "vite preview",
     "test:studio": "node scripts/test-config-studio-loader.mjs",
-    "test:pack": "node scripts/test-esp32-pack.mjs"
+    "test:pack": "node scripts/test-esp32-pack.mjs",
+    "test:line-gate": "esbuild scripts/test-line-gate.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/figui-test-line-gate.mjs && node node_modules/.cache/figui-test-line-gate.mjs",
+    "test:continuous-jog": "esbuild scripts/test-continuous-jog.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/figui-test-continuous-jog.mjs && node node_modules/.cache/figui-test-continuous-jog.mjs",
+    "test:gcode-files": "esbuild scripts/test-gcode-files.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/figui-test-gcode-files.mjs && node node_modules/.cache/figui-test-gcode-files.mjs",
+    "test:gcode-framing": "esbuild scripts/test-gcode-framing.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/figui-test-gcode-framing.mjs && node node_modules/.cache/figui-test-gcode-framing.mjs"
   },
   "dependencies": {
     "codejar": "^4.3.0",

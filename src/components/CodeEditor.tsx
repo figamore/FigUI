@@ -518,6 +518,9 @@ export function CodeEditor({
         setDirty(false);
         if (isYamlFile) setSavedOnce(true);
         return true;
+      } catch (e) {
+        alert(e instanceof Error ? e.message : "Save failed");
+        return false;
       } finally {
         setSaving(false);
       }

@@ -3,7 +3,7 @@ import { Puzzle, X, RefreshCw } from 'lucide-react'
 import { useMachineStore } from '../store'
 import { sendCommand, listFiles as listDeviceFiles, fetchFileContent, saveFileContent } from '../lib/http'
 import { invalidateFileCache } from './FileManager'
-import { sendRaw, sendRealtime, onLine } from '../lib/ws'
+import { lineRefusalReason, sendRaw, sendRealtime, onLine } from '../lib/ws'
 import type { Plugin } from '../types'
 
 interface PluginRequest {
@@ -91,8 +91,8 @@ export function PluginFrame({ plugin, onClose, inline }: { plugin: Plugin; onClo
         case 'sendCommand': {
           const cmd = String(msg.params?.command ?? '')
           if (!useMachineStore.getState().connected) { reply(null, 'Not connected'); break }
-          sendRaw(cmd)
-          reply(null)
+          if (sendRaw(cmd)) reply(null)
+          else reply(null, lineRefusalReason())
           break
         }
         case 'sendRealtime': {

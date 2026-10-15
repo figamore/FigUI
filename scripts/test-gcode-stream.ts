@@ -187,6 +187,9 @@ assert.ok(!controllerPathsMatch('/localfs/macros/test.nc', '/jobs/test.nc'))
 assert.ok(useGCodeStore.getState().cancelAndStartJob('/multi-tool-demo-3.nc'))
 await waitFor(() => socket.sent.some(item => item === '$LocalFS/Run=/multi-tool-demo-3.nc\n'), 'internal Start without preview used the wrong filesystem')
 assert.ok(!socket.sent.some(item => typeof item === 'string' && item.startsWith('$SD/Run=')), 'internal jobs must not touch the SD card')
+// FluidNC answers a Run command only when its file ends, and takes no other
+// line from this connection before that.
+socket.receive('ok\n')
 assert.ok(useGCodeStore.getState().cancelAndStartJob('/sd/test.nc'))
 await waitFor(() => socket.sent.some(item => item === '$SD/Run=/sd/test.nc\n'), 'SD Start without preview used the wrong filesystem')
 useGCodeStore.getState().clear()

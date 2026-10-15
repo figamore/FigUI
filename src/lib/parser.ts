@@ -226,6 +226,12 @@ export function parseControllerSettingLine(line: string): Partial<ControllerSett
     return flag === undefined ? null : { reportInches: flag }
   }
 
+  const laserMode = line.match(/^\$(?:32|Grbl\/LaserMode)=(\S+)/i)
+  if (laserMode) {
+    const flag = parseBooleanSetting(laserMode[1])
+    return flag === undefined ? null : { laserMode: flag }
+  }
+
   const match = line.match(/^\$(11|23|30|31|100|101|102|110|111|112|113|114|115|120|121|122|130|131|132)=(-?\d+(?:\.\d+)?)(?:\s|$)/)
   if (!match) return null
 
