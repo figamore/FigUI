@@ -78,6 +78,37 @@ function serializeFilesystem<T>(fs: Filesystem, fn: () => Promise<T>): Promise<T
   return next
 }
 
+// File requests run one at a time, so a reply that stops arriving (a bad
+// card, a controller reset, WiFi dropping mid-request) must not hold every
+// later file action. The timer restarts on each received chunk, so a large
+// preview on a slow link is not cut off.
+const FILESYSTEM_STALL_TIMEOUT_MS = 20_000
+
+async function fetchFilesystemText(url: string): Promise<string> {
+  const ctl = new AbortController()
+  let timer = setTimeout(() => ctl.abort(), FILESYSTEM_STALL_TIMEOUT_MS)
+  try {
+    const res = await fetch(url, { signal: ctl.signal })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    if (!res.body) return await res.text()
+    const reader = res.body.getReader()
+    const decoder = new TextDecoder()
+    let text = ''
+    for (;;) {
+      clearTimeout(timer)
+      timer = setTimeout(() => ctl.abort(), FILESYSTEM_STALL_TIMEOUT_MS)
+      const { done, value } = await reader.read()
+      if (done) return text + decoder.decode()
+      text += decoder.decode(value, { stream: true })
+    }
+  } catch (e) {
+    if (ctl.signal.aborted) throw new Error('HTTP timeout')
+    throw e
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 function fsEndpoint(fs: Filesystem) {
   return fs === 'sd' ? '/upload' : '/files'
 }
@@ -111,15 +142,20 @@ function parseSize(val: unknown): number {
   return Math.round(n * (mul[unit] ?? 1))
 }
 
-function get(path: string, params: Record<string, string>, timeoutMs?: number): Promise<string> {
+// Requests run one at a time, so a reply that never arrives (the controller
+// reset or WiFi dropped mid-request) must not hold every later command,
+// including the reconnect's [ESP800], until TCP gives up.
+const DEFAULT_HTTP_TIMEOUT_MS = 15_000
+
+function get(path: string, params: Record<string, string>, timeoutMs = DEFAULT_HTTP_TIMEOUT_MS): Promise<string> {
   return serialize(async () => {
     const q = new URLSearchParams({ ...params, PAGEID: getPageId() })
-    const ctl = timeoutMs ? new AbortController() : null
-    const timer = ctl ? setTimeout(() => ctl.abort(), timeoutMs) : null
+    const ctl = new AbortController()
+    const timer = setTimeout(() => ctl.abort(), timeoutMs)
     try {
       const res = await fetch(`${base}${path}?${q}`, {
         cache: 'no-store',
-        ...(ctl ? { signal: ctl.signal } : {}),
+        signal: ctl.signal,
       })
       if (!res.ok) {
         // FluidNC blocks synchronous HTTP during motion, even if the browser
@@ -134,16 +170,16 @@ function get(path: string, params: Record<string, string>, timeoutMs?: number): 
       }
       return await res.text()
     } catch (e) {
-      if (ctl?.signal.aborted) throw new Error('HTTP timeout')
+      if (ctl.signal.aborted) throw new Error('HTTP timeout')
       throw e
     } finally {
-      if (timer) clearTimeout(timer)
+      clearTimeout(timer)
     }
   })
 }
 
-export const sendCommand = (cmd: string) =>
-  get('/command', { plain: cmd })
+export const sendCommand = (cmd: string, timeoutMs?: number) =>
+  get('/command', { plain: cmd }, timeoutMs)
 
 export async function sendBlockMode(enabled: boolean, signal: AbortSignal): Promise<string> {
   const params = new URLSearchParams({ plain: `$GB=${enabled ? 'On' : 'Off'}`, PAGEID: getPageId() })
@@ -160,9 +196,7 @@ export const getDeviceInfoFast = () =>
 
 async function listFilesRequest(path: string, fs: Filesystem): Promise<FileListResult> {
     const apiPath = fs === 'sd' ? sdRelPath(path) : path
-    const res = await fetch(`${base}${fsEndpoint(fs)}?${new URLSearchParams({ path: apiPath })}`)
-    if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    const raw = await res.json()
+    const raw = JSON.parse(await fetchFilesystemText(`${base}${fsEndpoint(fs)}?${new URLSearchParams({ path: apiPath })}`))
     return {
       files: (raw.files ?? []).map((f: { name: string; size: string }) => ({
         name:  f.name,
@@ -182,9 +216,17 @@ export function listFiles(path: string, fs: Filesystem = 'sd'): Promise<FileList
 
 async function filesystemGet(path: string, params: Record<string, string>): Promise<string> {
   const q = new URLSearchParams({ ...params, PAGEID: getPageId() })
-  const res = await fetch(`${base}${path}?${q}`)
-  if (!res.ok) throw new Error(`HTTP ${res.status}`)
-  return res.text()
+  const text = await fetchFilesystemText(`${base}${path}?${q}`)
+  // FluidNC answers 200 even when the action failed and puts the reason in
+  // the JSON status ("Cannot delete …", "Cannot rename …", "No SD card").
+  // Success statuses start with the file name ("error.nc deleted"), so the
+  // exact success text is checked first.
+  const status = uploadStatusError(text)
+  const { action, filename, newname } = params
+  const success = action === 'rename' ? `${filename} renamed to ${newname}`
+    : action === 'createdir' ? `${filename} created` : `${filename} deleted`
+  if (status && status !== success && /^(cannot|no sd|missing|error)\b/i.test(status)) throw new Error(status)
+  return text
 }
 
 export async function deleteFile(path: string, filename: string, fs: Filesystem = 'sd'): Promise<void> {
@@ -251,6 +293,8 @@ async function checkFreeSpace(fs: Filesystem, bytes: number, dir: string, filena
   }
 }
 
+const UPLOAD_STALL_TIMEOUT_MS = 30_000
+
 export function uploadFile(
   path: string,
   file: File,
@@ -275,26 +319,44 @@ export function uploadFile(
       fd.append(`${fullPath}S`, String(file.size))
       fd.append('myfile[]', file, fullPath)
 
-      if (onProgress) {
-        xhr.upload.onprogress = e => {
-          if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100))
-        }
+      // A weak link, or a card shared with a running job, can need far longer
+      // than any fixed limit, and FluidNC deletes the partial file when the
+      // upload is cut off. Give up only once no data has moved for a while.
+      let lastMoveAt = Date.now()
+      let stalled = false
+      const stallTimer = setInterval(() => {
+        if (Date.now() - lastMoveAt <= UPLOAD_STALL_TIMEOUT_MS) return
+        clearInterval(stallTimer)
+        stalled = true
+        xhr.abort()
+      }, 5_000)
+      const finish = (error?: Error) => {
+        clearInterval(stallTimer)
+        error ? reject(error) : resolve()
+      }
+
+      xhr.upload.onprogress = e => {
+        lastMoveAt = Date.now()
+        if (onProgress && e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100))
       }
       xhr.upload.onloadstart = () => onPhase?.('uploading')
-      xhr.upload.onload = () => onPhase?.('finishing')
+      xhr.upload.onload = () => {
+        lastMoveAt = Date.now()
+        onPhase?.('finishing')
+      }
 
       xhr.onload = () => {
         if (xhr.status >= 300) {
-          reject(new Error(`Upload ${xhr.status}`))
+          finish(new Error(`Upload ${xhr.status}`))
           return
         }
         const statusError = uploadStatusError(xhr.responseText)
-        statusError ? reject(new Error(statusError)) : resolve()
+        finish(statusError ? new Error(statusError) : undefined)
       }
-      xhr.onerror = () => reject(new Error('Upload failed'))
-      xhr.onabort = () => reject(new Error('Upload cancelled'))
-      xhr.ontimeout = () => reject(new Error('Upload timed out'))
-      xhr.timeout = Math.max(120_000, Math.ceil(file.size / 65_536) * 1_000)
+      xhr.onerror = () => finish(new Error('Upload failed'))
+      xhr.onabort = () => finish(new Error(stalled
+        ? `Upload stalled: no data moved for ${UPLOAD_STALL_TIMEOUT_MS / 1000} s`
+        : 'Upload cancelled'))
       xhr.open('POST', `${base}${fsEndpoint(fs)}`)
       xhr.send(fd)
     })
@@ -308,12 +370,8 @@ function mountedFilePath(fullPath: string, fs: Filesystem): string {
 }
 
 export function fetchFileContent(fullPath: string, fs: Filesystem = 'sd'): Promise<string> {
-  return serializeFilesystem(fs, async () => {
-    const url = `${base}${mountedFilePath(fullPath, fs)}`
-    const res = await fetch(url)
-    if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    return res.text()
-  })
+  return serializeFilesystem(fs, () =>
+    fetchFilesystemText(`${base}${mountedFilePath(fullPath, fs)}`))
 }
 
 export function downloadFile(fullPath: string, filename: string, fs: Filesystem): Promise<void> {
@@ -362,6 +420,30 @@ export async function saveFileContent(
   await uploadFile(path, file, fs)
 }
 
+/**
+ * Like saveFileContent, but the old file stays until the new one is complete:
+ * FluidNC empties an upload target at once and deletes it if the connection
+ * drops, so the content goes to a temporary name and is renamed over it.
+ */
+export async function replaceFileContent(
+  path: string,
+  filename: string,
+  content: string,
+  fs: Filesystem,
+): Promise<void> {
+  const temporary = `${filename}.new`
+  await saveFileContent(path, temporary, content, fs)
+  try {
+    await renameFile(path, temporary, filename, fs)
+  } catch (e) {
+    // FAT and SPIFFS refuse to rename onto an existing file. Anything else,
+    // such as a lost reply, may mean the rename already happened.
+    if (!(e instanceof Error && /^cannot rename/i.test(e.message))) throw e
+    await deleteFile(path, filename, fs)
+    await renameFile(path, temporary, filename, fs)
+  }
+}
+
 // FluidNC's cmd path explicitly allows ESP800 during motion. The plain path
 // blocks every synchronous command, including discovery.
 export const getDeviceInfo = () => get('/command', { cmd: '[ESP800]json=yes' }, 4000)
@@ -400,7 +482,16 @@ export function uploadFirmware(
       }
     }
 
-    xhr.onload    = () => settle(() => xhr.status < 300 ? resolve() : reject(new Error(`Upload failed (${xhr.status})`)))
+    // FluidNC answers 200 even when it rejected the image (wrong chip, image
+    // too large) and puts the result in the JSON status: "3" means flashed,
+    // any other number means the old firmware is still running.
+    xhr.onload    = () => settle(() => {
+      if (xhr.status >= 300) return reject(new Error(`Upload failed (${xhr.status})`))
+      const status = uploadStatusError(xhr.responseText)
+      if (status && /^\d+$/.test(status) && status !== '3')
+        return reject(new Error('The controller rejected the firmware image; the current firmware is still running.'))
+      resolve()
+    })
     xhr.onerror   = () => settle(() => reject(new Error('Upload failed')))
     xhr.ontimeout = () => settle(() => reject(new Error('Upload timed out')))
     xhr.onabort   = () => settle(() => {})

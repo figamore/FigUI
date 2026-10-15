@@ -150,7 +150,19 @@ function parseWorkOffsetResponse(
   return offsets
 }
 
-async function getParseOptions(): Promise<ParseGCodeOptions> {
+const WORK_OFFSET_QUERY_TIMEOUT_MS = 3000
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`no answer within ${ms} ms`)), ms)
+    promise.then(
+      value => { clearTimeout(timer); resolve(value) },
+      error => { clearTimeout(timer); reject(error) },
+    )
+  })
+}
+
+async function getParseOptions(text: string): Promise<ParseGCodeOptions> {
   const machine = useMachineStore.getState()
   const activeWcs = normalizeWcs(machine.status.gcodeModes?.wcs)
   const currentWco = machine.status.wco
@@ -160,10 +172,14 @@ async function getParseOptions(): Promise<ParseGCodeOptions> {
     workOffsets[activeWcs] = currentWco
   }
 
-  if (canLoadControllerResources(machine)) {
+  // Only programs that select a work offset need the controller's table. The
+  // preview must not wait on the controller otherwise: a $# request that got
+  // no answer left a phone's preview stuck at 5%.
+  if (canLoadControllerResources(machine) && /G\s*5[4-9]/i.test(text)) {
     try {
       const linearScale = machine.controllerSettings.reportInches ? MM_PER_INCH : 1
-      Object.assign(workOffsets, parseWorkOffsetResponse(await sendCommand('$#'), linearScale))
+      const response = await withTimeout(sendCommand('$#', WORK_OFFSET_QUERY_TIMEOUT_MS), WORK_OFFSET_QUERY_TIMEOUT_MS)
+      Object.assign(workOffsets, parseWorkOffsetResponse(response, linearScale))
       if (activeWcs) {
         workOffsets[activeWcs] = currentWco
       }
@@ -185,7 +201,7 @@ async function buildPreview(
   shouldContinue: () => boolean,
   savedOptions?: ParseGCodeOptions,
 ) {
-  const parseOptions = savedOptions ?? await getParseOptions()
+  const parseOptions = savedOptions ?? await getParseOptions(text)
   if (!shouldContinue()) throw new Error('stale-load')
 
   let lastProgress = -1

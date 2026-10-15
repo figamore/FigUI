@@ -191,7 +191,9 @@ export function installXhrInterceptor(): void {
       },
 
       set(target, prop, value) {
-        if (intercept && prop === 'onload') { storedOnload = value; return true }
+        // uploadFile assigns onload before open(), when interception is not decided yet.
+        if (prop === 'onload') storedOnload = value
+        if (intercept && prop === 'onload') return true
         try { Reflect.set(target, prop, value, target) } catch { /* read-only accessor */ }
         return true
       },

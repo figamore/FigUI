@@ -24,7 +24,7 @@ import type { LucideIcon } from "lucide-react";
 import {
   sendCommand,
   fetchFileContent,
-  saveFileContent,
+  replaceFileContent,
   uploadFirmware,
   getDeviceInfoFast,
 } from "../lib/http";
@@ -748,7 +748,7 @@ async function updateConfigYamlBatch(
         updateYamlInPlace(yaml, settingPath, change.value),
       configContent,
     );
-    await saveFileContent("/", "config.yaml", updatedContent, "local");
+    await replaceFileContent("/", "config.yaml", updatedContent, "local");
   } catch (error) {
     console.warn("Failed to update config.yaml:", error);
     throw error;

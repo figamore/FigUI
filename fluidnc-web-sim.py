@@ -657,7 +657,7 @@ def handle_fs_action(fs_dir, request):
     elif action == 'rename':
         newname = request.args.get('newname', '')
         if newname:
-            try: os.rename(localpath, os.path.join(localdir, newname))
+            try: os.replace(localpath, os.path.join(localdir, newname))
             except: pass
 
     return make_files_list(fs_dir, raw_path, 'Ok')

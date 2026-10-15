@@ -29,6 +29,7 @@ import {
   downloadFile,
   fetchFileContent,
   saveFileContent,
+  replaceFileContent,
 } from "../lib/http";
 import { CodeEditor, isEditable } from "./CodeEditor";
 import { useMachineStore } from "../store";
@@ -92,26 +93,34 @@ function FileRow({
   const [newName, setNewName] = useState(entry.name);
   const [showMenu, setShowMenu] = useState(false);
   const renameRef = useRef<HTMLInputElement>(null);
+  const renameCommitted = useRef(false);
 
   const fullPath = path.endsWith("/") ? path : `${path}/`;
   const fullName = `${fullPath}${entry.name}`;
 
   function startRename() {
     setNewName(entry.name);
+    renameCommitted.current = false;
     setRenaming(true);
     setTimeout(() => renameRef.current?.select(), 0);
   }
 
   async function commitRename() {
+    // Enter, the confirm button and the input's blur can all fire for one
+    // rename; only the first may send it.
+    if (renameCommitted.current) return;
     const trimmed = newName.trim();
     if (!trimmed || trimmed === entry.name) {
       setRenaming(false);
       return;
     }
+    renameCommitted.current = true;
     try {
       await renameFile(fullPath, entry.name, trimmed, fs);
       onRefresh();
-    } catch {}
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Rename failed");
+    }
     setRenaming(false);
   }
 
@@ -122,6 +131,8 @@ function FileRow({
       if (entry.isDir) await deleteDir(fullPath, entry.name, fs);
       else await deleteFile(fullPath, entry.name, fs);
       onRefresh();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Delete failed");
     } finally {
       setDeleting(false);
     }
@@ -270,7 +281,7 @@ function FileRow({
               </span>
             )}
             <div className="hidden group-hover:flex items-center gap-1">
-              {!entry.isDir && isEditable(entry.name) && (
+              {!entry.isDir && isEditable(entry.name, entry.size) && (
                 <button
                   className="p-1.5 rounded text-info hover:bg-info/10 transition-colors"
                   onClick={() => onEdit(fullPath, entry.name)}
@@ -366,7 +377,7 @@ function FileRow({
                   )}
                 </button>
               )}
-              {!entry.isDir && isEditable(entry.name) && (
+              {!entry.isDir && isEditable(entry.name, entry.size) && (
                 <button
                   className="flex items-center gap-4 px-4 py-4 rounded-lg text-xl w-full text-left text-info hover:bg-info/10 transition-colors"
                   onClick={handleMenuEdit}
@@ -834,7 +845,12 @@ export function FileManager({ isTablet }: { isTablet?: boolean }) {
 
   async function handleCreateDir() {
     if (!newDirName.trim()) return;
-    await createDir(path, newDirName.trim(), fs);
+    try {
+      await createDir(path, newDirName.trim(), fs);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Could not create folder");
+      return;
+    }
     setNewDirName("");
     setShowNewDir(false);
     load(path, fs);
@@ -887,14 +903,26 @@ export function FileManager({ isTablet }: { isTablet?: boolean }) {
     ) {
       const extensionIndex = editing.filename.lastIndexOf(".");
       const backupName = `${editing.filename.slice(0, extensionIndex)}_backup${editing.filename.slice(extensionIndex)}`;
-      await saveFileContent(
-        editing.path,
-        backupName,
-        editing.content,
-        editing.fs,
-      );
+      try {
+        await saveFileContent(
+          editing.path,
+          backupName,
+          editing.content,
+          editing.fs,
+        );
+      } catch (e) {
+        // The main file is left untouched when its backup could not be written.
+        throw new Error(
+          `backup ${backupName} could not be written (${e instanceof Error ? e.message : String(e)}), ${editing.filename} was not changed`,
+        );
+      }
     }
-    await saveFileContent(editing.path, editing.filename, content, editing.fs);
+    await replaceFileContent(
+      editing.path,
+      editing.filename,
+      content,
+      editing.fs,
+    );
     setEditing((current) => (current ? { ...current, content } : current));
     load(path, fs);
   }
