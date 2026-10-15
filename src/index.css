@@ -163,6 +163,12 @@ body,
   padding: 0;
 }
 
+/* No pull-to-refresh: a stray downward swipe would reload the UI mid-job. */
+html,
+body {
+  overscroll-behavior-y: contain;
+}
+
 body {
   background-color: var(--bg);
   color: var(--text-primary);
@@ -260,12 +266,13 @@ body {
   text-align: left;
 }
 
-/* iOS Safari touch handling improvements for jog controls */
+/* iOS Safari touch handling improvements for jog controls. touch-action is
+   set on the jog SVGs themselves; here it would make every icon a spot where
+   the page cannot be scrolled. */
 svg path,
 svg rect,
 svg circle,
 svg g {
-  touch-action: none !important;
   -webkit-user-select: none !important;
   user-select: none !important;
   -webkit-touch-callout: none !important;
@@ -273,7 +280,6 @@ svg g {
 
 /* Prevent iOS long-press gestures on jog controls */
 svg {
-  touch-action: none !important;
   -webkit-user-select: none !important;
   user-select: none !important;
   -webkit-touch-callout: none !important;
@@ -762,7 +768,8 @@ textarea {
     max-height: 100%;
     user-select: none;
     -webkit-touch-callout: none;
-    touch-action: none;
+    /* Gaps and empty cells scroll the page; the jog buttons set their own. */
+    touch-action: pan-y;
   }
 
   @supports (height: 1cqh) {
@@ -809,6 +816,12 @@ textarea {
     transition: transform 100ms;
     touch-action: none;
     -webkit-tap-highlight-color: transparent;
+  }
+
+  /* In step mode a drag that starts on a jog button may scroll the page;
+     a held continuous button must not. */
+  .jog-controls-layout--step .jog-cluster-btn {
+    touch-action: manipulation;
   }
 
   @supports (width: 1cqmin) {

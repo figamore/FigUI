@@ -730,7 +730,18 @@ function FeedButton({
   )
 }
 
-function useKeyboardJog(continuous: boolean, canJog: boolean, xyFeed: number, zFeed: number) {
+/** True when the panel's centre is on screen and no dialog or sheet covers it. */
+function isPanelOnTop(panel: HTMLElement | null) {
+  if (!panel) return false
+  const r = panel.getBoundingClientRect()
+  const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)
+  return hit != null && panel.contains(hit)
+}
+
+function useKeyboardJog(
+  continuous: boolean, canJog: boolean, xyFeed: number, zFeed: number,
+  panelRef: React.RefObject<HTMLElement>,
+) {
   const [keyboardJog, setKeyboardJog] = useState(false)
   const [activeKeys, setActiveKeys] = useState<Set<string>>(new Set())
   const pressedKeysRef = useRef<Set<string>>(new Set())
@@ -793,8 +804,10 @@ function useKeyboardJog(continuous: boolean, canJog: boolean, xyFeed: number, zF
 
     function handleKey(e: KeyboardEvent) {
       if (!canJogRef.current) return
+      // Leave browser shortcuts (Ctrl+-, Alt+Left) and form controls alone.
+      if (e.ctrlKey || e.altKey || e.metaKey) return
       const tag = (e.target as HTMLElement).tagName
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement).isContentEditable) return
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (e.target as HTMLElement).isContentEditable) return
 
       let axis = '', sign: 1 | -1 = 1
       switch (e.key) {
@@ -806,6 +819,8 @@ function useKeyboardJog(continuous: boolean, canJog: boolean, xyFeed: number, zF
         case '-':           axis = 'Z'; sign = -1; break
         default: return
       }
+      // Not while a dialog or sheet covers the jog panel, or it is hidden.
+      if (!isPanelOnTop(panelRef.current)) return
       e.preventDefault()
       if (e.repeat) return
       const dir = `${axis}${sign > 0 ? '+' : '-'}`
@@ -863,6 +878,7 @@ function useKeyboardJog(continuous: boolean, canJog: boolean, xyFeed: number, zF
 export function JogPad() {
   const status = useMachineStore(s => s.status)
   const controllerResetPending = useMachineStore(s => s.controllerResetPending)
+  const connected = useMachineStore(s => s.connected)
   const controllerJobStarting = useControllerJobStarting()
   const axes = useMachineStore(s => s.axes)
   const units = useMachineStore(s => s.units)
@@ -879,9 +895,10 @@ export function JogPad() {
   const prevUnitsRef = useRef(units)
 
   const jobActive = status.state === 'Run' || status.state === 'Hold' || controllerJobStarting || controllerResetPending
-  const canJog = (status.state === 'Idle' || status.state === 'Jog') && !controllerJobStarting && !controllerResetPending
+  const canJog = connected && (status.state === 'Idle' || status.state === 'Jog') && !controllerJobStarting && !controllerResetPending
   const jobRunning = useJobRunningWithLinger(jobActive)
-  const { keyboardJog, setKeyboardJog, activeKeys } = useKeyboardJog(continuous, canJog, xyFeed, zFeed)
+  const jogPanelRef = useRef<HTMLDivElement>(null)
+  const { keyboardJog, setKeyboardJog, activeKeys } = useKeyboardJog(continuous, canJog, xyFeed, zFeed, jogPanelRef)
   const zSteps = linearBarSteps(units)
   const xyFeedMax = getJogFeedMax(controllerSettings, 'xy')
   const zFeedMax = getJogFeedMax(controllerSettings, 'z')
@@ -976,7 +993,7 @@ export function JogPad() {
             setCompact(false)
             localStorage.setItem('jog.desktopStyle', 'rose')
           }} />
-        : !jobRunning && <div className="panel flex flex-col">
+        : !jobRunning && <div ref={jogPanelRef} className="panel flex flex-col">
               <div className="panel-header flex items-center justify-between text-lg font-bold">
                 <span>Jog</span>
                 <div className="inline-flex rounded border border-border overflow-hidden">
@@ -1319,6 +1336,12 @@ export function OverridesPanel({ className, isTablet }: { className?: string; is
   )
 }
 
+// Step choice of TabletJogPad, kept as a position in the step list: a units
+// change then maps 1 mm to 0.01 in like the rose rings, not to 1 in. It
+// outlives a remount (the phone Control tab unmounts on tab switch) but not a
+// reload. Continuous is not kept, so a remounted pad always starts in step mode.
+let tabletStepIdx = 1
+
 function CompactRotaryJogControls({ axis, color, feed, step, continuous, disabled }: {
   axis: string; color: string; feed: number; step: number; continuous: boolean; disabled: boolean
 }) {
@@ -1344,6 +1367,7 @@ export function TabletJogPad({
   layout?: 'default' | 'topBand'
 } = {}) {
   const status = useMachineStore(s => s.status)
+  const connected = useMachineStore(s => s.connected)
   const controllerResetPending = useMachineStore(s => s.controllerResetPending)
   const controllerJobStarting = useControllerJobStarting()
   const units = useMachineStore(s => s.units)
@@ -1356,7 +1380,7 @@ export function TabletJogPad({
   const [zFeed, setZFeed]   = useState(() => loadPersistedJogFeed('jog.zFeed', 200))
   const [abcFeed, setAbcFeed] = useState(() => loadPersistedJogFeed('jog.abcFeed', 500))
   const [continuous, setContinuous] = useState(false)
-  const [stepSize, setStepSize] = useState(1)
+  const [stepIdx, setStepIdx] = useState(() => tabletStepIdx)
   const [feedModal, setFeedModal] = useState<'xy' | 'z' | 'abc' | null>(null)
   const [customFeedValue, setCustomFeedValue] = useState('')
   const prevUnitsRef = useRef(units)
@@ -1397,10 +1421,13 @@ export function TabletJogPad({
   }, [abcFeedMax])
 
   const jobActive = status.state === 'Run' || status.state === 'Hold' || controllerJobStarting || controllerResetPending
-  const canJog = (status.state === 'Idle' || status.state === 'Jog') && !controllerJobStarting && !controllerResetPending
+  const canJog = connected && (status.state === 'Idle' || status.state === 'Jog') && !controllerJobStarting && !controllerResetPending
   const jobRunning = useJobRunningWithLinger(jobActive)
   const jogDisabled = !canJog || jobRunning
-  const { keyboardJog, setKeyboardJog } = useKeyboardJog(continuous, canJog, xyFeed, zFeed)
+  const jogControlsRef = useRef<HTMLDivElement>(null)
+  const { keyboardJog, setKeyboardJog } = useKeyboardJog(continuous, canJog, xyFeed, zFeed, jogControlsRef)
+  const steps = linearRingSteps(units)
+  const stepSize = steps[stepIdx]
   const commandStepSize = displayToMm(stepSize, units)
 
   const { start: startYp, stop: stopYp } = useHoldJog('Y', 1, xyFeed, commandStepSize, continuous, jogDisabled)
@@ -1410,7 +1437,6 @@ export function TabletJogPad({
   const { start: startZp, stop: stopZp } = useHoldJog('Z', 1, zFeed, commandStepSize, continuous, jogDisabled)
   const { start: startZm, stop: stopZm } = useHoldJog('Z', -1, zFeed, commandStepSize, continuous, jogDisabled)
 
-  const steps = units === 'in' ? [0.001, 0.01, 0.1, 1] : [0.1, 1, 10, 100]
   const stepBtnClass = topBand
     ? 'flex-1 px-1 py-2 font-bold text-sm transition-colors'
     : 'flex-1 min-w-0 px-1 py-2 font-bold text-sm sm:px-2 sm:text-lg transition-colors'
@@ -1420,10 +1446,6 @@ export function TabletJogPad({
     : topBand
       ? 'h-full min-h-0'
       : 'flex-1 min-h-0'
-
-  useEffect(() => {
-    if (!steps.includes(stepSize)) setStepSize(steps[1])
-  }, [units])
 
   function openFeedModal(axis: 'xy' | 'z' | 'abc') {
     const current = axis === 'xy' ? xyFeed : axis === 'z' ? zFeed : abcFeed
@@ -1462,11 +1484,11 @@ export function TabletJogPad({
           )}
         </div>
         <div className="flex flex-1 items-stretch divide-x divide-border bg-surface">
-          {steps.map(s => (
+          {steps.map((s, i) => (
             <button
               key={s}
               className={`${stepBtnClass} ${!continuous && stepSize === s ? 'bg-accent text-white shadow-inner' : 'bg-transparent text-text-primary hover:bg-elevated'}`}
-              onClick={() => { setContinuous(false); setStepSize(s); }}
+              onClick={() => { setContinuous(false); setStepIdx(i); tabletStepIdx = i }}
             >
               {s}
             </button>
@@ -1481,8 +1503,9 @@ export function TabletJogPad({
       </div>
 
       <div
+        ref={jogControlsRef}
         {...noContextMenu}
-        className={`jog-controls-layout ${rotaryAxes.length > 0 ? 'jog-controls-layout--rotary' : ''} ${topBand ? 'jog-controls-layout--top-band' : ''} ${jogDisabled ? 'opacity-40 pointer-events-none' : ''}`}
+        className={`jog-controls-layout ${rotaryAxes.length > 0 ? 'jog-controls-layout--rotary' : ''} ${topBand ? 'jog-controls-layout--top-band' : ''} ${continuous ? '' : 'jog-controls-layout--step'} ${jogDisabled ? 'opacity-40 pointer-events-none' : ''}`}
         style={{ '--jog-rotary-rows': rotaryAxes.length } as React.CSSProperties}
       >
         {/* Jog controls */}

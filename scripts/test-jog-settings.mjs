@@ -115,9 +115,12 @@ storage.set('jog.abcFeed', '350')
 const renderState = store.getInitialState()
 for (const axes of [3, 4, 5, 6]) {
   for (const layout of ['default', 'topBand']) {
-    store.setState({ axes, units: 'in', status: { ...store.getState().status, state: 'Idle' } })
+    store.setState({ axes, units: 'in', connected: true, status: { ...store.getState().status, state: 'Idle' } })
     Object.assign(renderState, store.getState())
     const html = renderToStaticMarkup(createElement(TabletJogPad, { layout }))
+    // The step is kept as a list position, so the default second step is 0.01 in, not 1 in.
+    assert.equal(/shadow-inner">([^<]+)</.exec(html)?.[1], '0.01')
+    assert.doesNotMatch(html, /disabled="" aria-label="Jog/)
     for (const [index, axis] of ['A', 'B', 'C'].entries()) {
       for (const direction of ['negative', 'positive']) {
         assert.equal(html.includes(`aria-label="Jog ${axis} ${direction}"`), index < axes - 3)
@@ -133,6 +136,10 @@ store.setState({ axes: 6, status: { ...store.getState().status, state: 'Run' } }
 Object.assign(renderState, store.getState())
 const busyHtml = renderToStaticMarkup(createElement(TabletJogPad))
 assert.match(busyHtml, /disabled="" aria-label="Jog A positive"/)
+// An idle machine cannot be jogged while the page is disconnected.
+store.setState({ connected: false, status: { ...store.getState().status, state: 'Idle' } })
+Object.assign(renderState, store.getState())
+assert.match(renderToStaticMarkup(createElement(TabletJogPad)), /disabled="" aria-label="Jog A positive"/)
 // Rotary distances must stay in degrees even with an inch display.
 for (const axis of ['A', 'B', 'C']) assert.equal(axisStepToCommand(1, axis, 'in'), 1)
 assert.equal(axisStepToCommand(1, 'X', 'in'), 25.4)
