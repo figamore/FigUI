@@ -248,7 +248,8 @@ export function connect(host: string): Promise<void> {
     const myGen = generation
 
     let ws: WebSocket
-    const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws'  // ws: from https is mixed content
+    // ws: from https is mixed content. Tests and other non-browser hosts have no location.
+    const scheme = globalThis.location?.protocol === 'https:' ? 'wss' : 'ws'
     const url = new URL(host.includes('/') ? `${scheme}://${host}` : `${scheme}://${host}/`)
     url.searchParams.set('independent_session', '1')
     try {

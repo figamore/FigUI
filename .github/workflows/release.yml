@@ -49,6 +49,9 @@ jobs:
       - name: Test offline firmware packing
         run: npm run test:pack
 
+      - name: Run tests
+        run: npm test
+
       - name: Build ESP32 firmware
         run: npm run build:esp32
 

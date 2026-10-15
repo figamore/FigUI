@@ -12,7 +12,8 @@ export const getBase = () => base
  * Commands and the WebSocket still use the independent session and PAGEID.
  */
 export const uiDir: string | null = (() => {
-  const m = /^\/ui\/[^/]+\//.exec(window.location.pathname)
+  // Tests and other non-browser hosts have no location.
+  const m = /^\/ui\/[^/]+\//.exec(globalThis.location?.pathname ?? '')
   return m ? m[0] : null
 })()
 
