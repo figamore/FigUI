@@ -5,6 +5,7 @@ import { formatJobProgress, formatRuntime, useJobRuntimeEstimate } from '../lib/
 import { useControllerJobStarting } from '../lib/jobState'
 import { sendRealtime, sendRealtimeNow } from '../lib/ws'
 import { clearMachineAlarm } from '../lib/alarm'
+import { useConfirmTap } from '../hooks/useConfirmTap'
 import { useGCodeSenderStore } from '../store/gcodeSender'
 import { SingleBlockNotice, SingleBlockToggle } from './SingleBlockControl'
 import { useJobResume } from '../lib/jobResume'
@@ -21,6 +22,7 @@ export function JobControl() {
   const runtime = useJobRuntimeEstimate(status, model, controllerSettings, loadedPath, fileName)
   const progressPercent = runtime.progressPercent
   const cancelTrackedJob = useGCodeStore(s => s.cancelTrackedJob)
+  const abortConfirm = useConfirmTap()
   const senderPhase = useGCodeSenderStore(s => s.phase)
   const senderActive = ['streaming', 'paused', 'draining'].includes(senderPhase)
   const { stepHold, disabled: resumeDisabled, resume } = useJobResume()
@@ -32,9 +34,11 @@ export function JobControl() {
   const hasSd     = Boolean(sdFilename)
 
   function pause()      { sendRealtime(0x21) }
+  // Two taps instead of confirm(), which would stop the page while it is open.
   function softReset()  {
-    if (!confirm('Abort job and reset?')) return
-    if (sendRealtimeNow(0x18)) cancelTrackedJob('controller')
+    abortConfirm.tap(() => {
+      if (sendRealtimeNow(0x18)) cancelTrackedJob('controller')
+    })
   }
   function clearAlarm() { clearMachineAlarm(status.alarmCode) }
 
@@ -100,7 +104,7 @@ export function JobControl() {
             </button>
             <button className="btn btn-danger-solid job-action gap-1.5 text-sm justify-center flex-1" onClick={softReset}>
               <Square size={13} />
-              Abort
+              {abortConfirm.armed ? 'Tap again to abort' : 'Abort'}
             </button>
           </div>
         ) : (
@@ -119,7 +123,7 @@ export function JobControl() {
 
             <button className="btn btn-danger-solid job-action gap-1.5 text-sm justify-center flex-1" onClick={softReset}>
               <Square size={13} />
-              Abort
+              {abortConfirm.armed ? 'Tap again to abort' : 'Abort'}
             </button>
 
             {(isAlarm || isDoor) && (
