@@ -11,6 +11,7 @@
     "build:studio": "node scripts/build-config-studio.mjs",
     "test:config": "node scripts/test-config-compatibility.mjs",
     "test:jog": "node scripts/test-jog-settings.mjs",
+    "test:plugins-macros": "esbuild scripts/test-plugins-macros.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/figui-test-plugins-macros.mjs && node node_modules/.cache/figui-test-plugins-macros.mjs",
     "test:gcode": "esbuild scripts/test-gcode-preview.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/figui-test-gcode-preview.mjs && node node_modules/.cache/figui-test-gcode-preview.mjs",
     "test:gcode-cache": "esbuild scripts/test-gcode-cache.ts --bundle --packages=external --platform=node --format=esm --outfile=node_modules/.cache/figui-test-gcode-cache.mjs && node node_modules/.cache/figui-test-gcode-cache.mjs",
     "test:stream": "esbuild scripts/test-gcode-stream.ts --bundle --platform=node --format=esm --outfile=/tmp/fluidui-test-gcode-stream.mjs && node /tmp/fluidui-test-gcode-stream.mjs",

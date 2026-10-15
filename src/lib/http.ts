@@ -421,7 +421,7 @@ function colorToClass(color: Macro['color']): string {
     case 'purple': return 'btn btn-purple'
     case 'teal': return 'btn btn-teal'
     case 'accent': return 'btn btn-primary'
-    default: return 'btn-default'
+    default: return 'btn'
   }
 }
 

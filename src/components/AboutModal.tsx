@@ -6,7 +6,9 @@ import { uploadFile, uiDir, putUiFile } from '../lib/http'
 import { CURRENT_VERSION, GITHUB_REPO, DISMISSED_VERSION_KEY, semverGt } from '../lib/updateCheck'
 
 const FIRMWARE_URL = 'https://figamore.github.io/FigUI/firmware/index.html.gz'
-const MARKED_CDN_URL = 'https://cdn.jsdelivr.net/npm/marked/marked.min.js'
+// Pinned with a hash: this script runs with the page's access to the machine.
+const MARKED_CDN_URL = 'https://cdn.jsdelivr.net/npm/marked@15.0.12/marked.min.js'
+const MARKED_SRI = 'sha384-948ahk4ZmxYVYOc+rxN1H2gM1EJ2Duhp7uHtZ4WSLkV4Vtx5MUqnV+l7u9B+jFv+'
 const IS_DEMO = Boolean(import.meta.env.VITE_DEMO_MODE)
 
 type MarkedParser = {
@@ -28,6 +30,8 @@ function loadMarkedFromCdn(): Promise<void> {
   markedLoadPromise = new Promise((resolve, reject) => {
     const script = document.createElement('script')
     script.src = MARKED_CDN_URL
+    script.integrity = MARKED_SRI
+    script.crossOrigin = 'anonymous'
     script.async = true
     script.onload = () => resolve()
     script.onerror = () => reject(new Error('Failed to load markdown renderer'))
@@ -490,7 +494,7 @@ export function AboutModal({ onClose }: Props) {
                       Update to v{latestVersion}
                     </button>
                     <button
-                      className="btn-default self-start text-[13px] py-1.5 px-3"
+                      className="btn btn-ghost self-start text-[13px] py-1.5 px-3"
                       onClick={dismissUpdate}
                     >
                       Dismiss
@@ -541,7 +545,7 @@ export function AboutModal({ onClose }: Props) {
                     {updateError}
                   </span>
                   <button
-                    className="btn-default self-start text-[13px] py-1.5 px-3"
+                    className="btn btn-ghost self-start text-[13px] py-1.5 px-3"
                     onClick={() => setUpdateState('idle')}
                   >
                     Dismiss

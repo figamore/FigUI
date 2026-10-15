@@ -2,6 +2,8 @@ import { listFiles, fetchFileContent, getBase, createDir, deleteFile, deleteDir,
 import type { Plugin, PluginManifest, StoreEntry } from '../types'
 
 const PLUGINS_PATH = '/plugins'
+/** Where the host's saveSettings stores a plugin's settings, inside its folder. */
+const PLUGIN_SETTINGS_FILE = 'settings.json'
 export const PLUGIN_SD_REQUIRED_MESSAGE = 'Plugins can only be installed on SD storage. Please insert an SD card and try again.'
 
 export const STORE_REGISTRY_URL = import.meta.env.DEV
@@ -73,7 +75,10 @@ export async function uploadFolderPlugin(
   const folderName = firstPath.includes('/')
     ? firstPath.split('/')[0]
     : manifest.name.toLowerCase().replace(/[^a-z0-9_-]+/g, '-')
-  const rootFiles = all.filter(f => f.webkitRelativePath.split('/').length <= 2)
+  // plugin.json last, so a cut-off upload does not look like an installed plugin.
+  const rootFiles = all
+    .filter(f => f.webkitRelativePath.split('/').length <= 2)
+    .sort((a, b) => Number(a.name === 'plugin.json') - Number(b.name === 'plugin.json'))
 
   try { await createDir('/', 'plugins', fs) } catch {}
   try { await createDir(PLUGINS_PATH, folderName, fs) } catch {}
@@ -105,28 +110,46 @@ export async function installStorePlugin(
     : ['plugin.json', manifest.entry ?? 'index.html',
        ...(manifest.icon && !manifest.icon.startsWith('http') ? [manifest.icon] : [])]
 
+  const targetDir = `${PLUGINS_PATH}/${entry.id}`
+
+  let existingFiles: string[] = []
+  try {
+    existingFiles = (await listFiles(targetDir, fs)).files.filter(f => !f.isDir).map(f => f.name)
+  } catch {}
+  // settings.json holds what the user saved in the plugin (host saveSettings):
+  // an update keeps it, and the store's copy is only installed when none exists.
+  const keepSettings = existingFiles.includes(PLUGIN_SETTINGS_FILE)
+  // plugin.json goes last: a folder only counts as an installed plugin (and
+  // an update only as done) once every other file has been written.
+  const downloads = [
+    ...files.filter(f => f !== 'plugin.json' && !(keepSettings && f === PLUGIN_SETTINGS_FILE)),
+    'plugin.json',
+  ]
+
+  // Fetch everything first, so a failed download changes nothing on the card.
+  const blobs: Blob[] = []
+  for (const filename of downloads) {
+    const res = await fetch(entry.base + filename)
+    if (!res.ok) throw new Error(`Failed to fetch ${filename}: HTTP ${res.status}`)
+    blobs.push(await res.blob())
+  }
+
   try { await createDir('/', 'plugins', fs) } catch {}
   try { await createDir(PLUGINS_PATH, entry.id, fs) } catch {}
 
-  const targetDir = `${PLUGINS_PATH}/${entry.id}`
+  for (let i = 0; i < downloads.length; i++) {
+    const filename = downloads[i]
+    onProgress(i + 1, downloads.length, filename)
+    await uploadFile(targetDir, new File([blobs[i]], filename), fs)
+  }
 
   if (options.cleanExisting) {
     try {
-      const existing = await listFiles(targetDir, fs)
       const nextFiles = new Set(files)
-      for (const file of existing.files.filter(f => !f.isDir && !nextFiles.has(f.name))) {
-        await deleteFile(targetDir, file.name, fs)
+      for (const name of existingFiles.filter(f => !nextFiles.has(f) && f !== PLUGIN_SETTINGS_FILE)) {
+        await deleteFile(targetDir, name, fs)
       }
     } catch {}
-  }
-
-  for (let i = 0; i < files.length; i++) {
-    const filename = files[i]
-    onProgress(i + 1, files.length, filename)
-    const res = await fetch(entry.base + filename)
-    if (!res.ok) throw new Error(`Failed to fetch ${filename}: HTTP ${res.status}`)
-    const blob = await res.blob()
-    await uploadFile(targetDir, new File([blob], filename), fs)
   }
 }
 

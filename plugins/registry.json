@@ -61,7 +61,7 @@
       "id": "motion-slider",
       "name": "Motion Slider",
       "description": "Interactive 3D motion slider controller with slide, pan, tilt, focus and zoom axes. Capture positions, set timing and play back smooth cinematic moves.",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "author": "Myles (NEWTech Creative)",
       "base": "https://raw.githubusercontent.com/figamore/FigUI/main/plugins/motion-slider/"
     },
