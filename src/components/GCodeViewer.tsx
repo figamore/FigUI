@@ -133,6 +133,8 @@ const PROGRESS_HINT_SLACK_SEGMENTS = 300
 const LARGE_PROGRESS_OVERLAY_SEGMENT_LIMIT = 100_000
 /** Above this many lines, 2D pan and zoom stretch the cached layer until the view settles. */
 const LARGE_2D_LAYER_LINE_LIMIT = 100_000
+/** Opacity of a loaded toolpath while another window or device runs a different file. */
+const STALE_PREVIEW_ALPHA = 0.3
 const STATIC_2D_SETTLE_MS = 150
 /** Share of the view size drawn beyond each edge of the cached 2D layer. */
 const STATIC_2D_LAYER_PAD_RATIO = 0.25
@@ -1135,6 +1137,22 @@ function findLastSegmentAtOrBeforeSourceLine(segments: SegmentTable, sourceLine:
   return result
 }
 
+/**
+ * Whether the SD file FluidNC reports running is the file loaded in the
+ * viewer. A job started from another device may run a different one.
+ */
+export function isRunningLoadedFile(sdFilename: string, loadedPath: string | null, fileName: string | null) {
+  const baseName = (path: string) => path.slice(path.replace(/\\/g, '/').lastIndexOf('/') + 1).toLowerCase()
+  const running = baseName(sdFilename)
+  return (!!fileName && fileName.toLowerCase() === running) || (!!loadedPath && baseName(loadedPath) === running)
+}
+
+/** The path to load the file a status report names. FluidNC reports it with its /sd or /localfs mount. */
+export function runningFilePath(sdFilename: string) {
+  const path = sdFilename.replace(/\\/g, '/')
+  return /^\/(sd|localfs)\//i.test(path) ? path : `/sd/${path.replace(/^\/+/, '')}`
+}
+
 function drawGrid(ctx: CanvasRenderingContext2D, w: number, h: number, t: Transform, units: Units) {
   const mmPerPx = 1 / t.scale
   const displayPerPx = mmToDisplay(mmPerPx, units)
@@ -1393,6 +1411,8 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
   const [senderExecutionProgressPercent, setSenderExecutionProgressPercent] = useState<number | null>(null)
   const showRapidsRef = useRef(true)
   const showToolRef = useRef(true)
+  /** Another window or device runs a different file: the loaded toolpath is only a faint backdrop. */
+  const staleModelRef = useRef(false)
   const hiddenToolsRef = useRef<Set<number>>(new Set())
   const transformRef = useRef<Transform>({ ox: 0, oy: 0, scale: 1 })
   const dragRef = useRef<{ sx: number; sy: number; ox: number; oy: number } | null>(null)
@@ -2043,6 +2063,31 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
   const controllerJobStarting = trackedJobSource === 'controller' && status.state === 'Idle'
   const machineJobActive = status.state === 'Run' || status.state === 'Hold' || senderActive || controllerJobStarting
   const isRunning = machineJobActive || simulationActive
+  // An SD job running a file this page has not loaded: one started from
+  // another window or device. Its preview cannot be fetched meanwhile, as
+  // FluidNC refuses to serve files while the machine moves.
+  const otherJobFile = !simulationActive && !senderActive && machineJobActive && !!status.sdFilename
+    && !isRunningLoadedFile(status.sdFilename, loadedPath, fileName)
+    ? status.sdFilename
+    : null
+  // The notice outlives the job, so the file can be loaded here once the machine stops.
+  const [otherJobNotice, setOtherJobNotice] = useState<string | null>(null)
+  // A job or simulation of the file loaded here ends it.
+  const runningLoadedFile = simulationActive || senderActive || (!!status.sdFilename && !otherJobFile)
+  useEffect(() => {
+    if (otherJobFile) setOtherJobNotice(otherJobFile)
+    else if (runningLoadedFile) setOtherJobNotice(null)
+  }, [otherJobFile, runningLoadedFile])
+  const noticeModelRef = useRef(model)
+  useEffect(() => {
+    if (noticeModelRef.current === model) return
+    noticeModelRef.current = model
+    setOtherJobNotice(null)
+  }, [model])
+  useEffect(() => {
+    staleModelRef.current = !!otherJobFile
+    scheduleRender()
+  }, [otherJobFile])
   const isJobRunning = senderPhase === 'streaming' || senderPhase === 'draining'
     || (status.state === 'Run' && senderPhase !== 'paused') || controllerJobStarting
   const isJobHeld = senderPhase === 'paused' || status.state === 'Hold'
@@ -2460,7 +2505,8 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
       const progress3d = running3d ? progressRef.current : null
       const use3DProgressOverlay = mdl !== null && progress3d !== null && mdl.segments.length <= LARGE_PROGRESS_OVERLAY_SEGMENT_LIMIT
       const wpos3d = showToolRef.current ? (simulationRendering3d ? simulationToolPosRef.current : store.status.wpos) : null
-      const markerGeometry = mdl ? ensureEntryExitMarkerGeometry(mdl) : { vertices: EMPTY_FLOAT32, colors: EMPTY_FLOAT32, triangleVertices: EMPTY_FLOAT32, triangleColors: EMPTY_FLOAT32 }
+      const staleModel = staleModelRef.current
+      const markerGeometry = mdl && !staleModel ? ensureEntryExitMarkerGeometry(mdl) : { vertices: EMPTY_FLOAT32, colors: EMPTY_FLOAT32, triangleVertices: EMPTY_FLOAT32, triangleColors: EMPTY_FLOAT32 }
       const bed3d = getBedEnvelope(store.controllerSettings, store.status)
       const bedGeometry = bed3d ? buildBedLineGeometry(bed3d.width, bed3d.height, bed3d.originX, bed3d.originY) : null
 
@@ -2494,7 +2540,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
         const bedVertexCount = bedGeometry ? bedGeometry.vertices.length / 3 : 0
         const markerVertexCount = markerGeometry.vertices.length / 3
         const toolVertexStart = toolGeometry.vertices.length > 0 ? bedVertexCount + markerVertexCount : mergedVertices.length / 3
-        renderLines(rendererRef.current, cameraRef.current, mergedVertices, mergedColors, toolVertexStart, 3, mergedTriangleVertices, mergedTriangleColors)
+        renderLines(rendererRef.current, cameraRef.current, mergedVertices, mergedColors, toolVertexStart, 3, mergedTriangleVertices, mergedTriangleColors, staleModel ? STALE_PREVIEW_ALPHA : 1)
       } else {
         clearStaticPathGeometryUpload()
         const { vertices, colors, triangleVertices, triangleColors, toolVertexStart } = createVertexData(mdl.segments, progress3d, wpos3d)
@@ -2572,7 +2618,11 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
 
       // Null while a large job's paths are still being prepared.
       const staticPaths = ensureStatic2DPaths(mdl)
-      if (staticPaths) drawStatic2DLayer(ctx, staticPaths, t, w, h, renderLinesRef.current?.count ?? mdl.segments.length)
+      if (staticPaths) {
+        ctx.globalAlpha = staleModelRef.current ? STALE_PREVIEW_ALPHA : 1
+        drawStatic2DLayer(ctx, staticPaths, t, w, h, renderLinesRef.current?.count ?? mdl.segments.length)
+        ctx.globalAlpha = 1
+      }
 
       const use2DProgressOverlay = progress !== null && mdl.segments.length <= LARGE_PROGRESS_OVERLAY_SEGMENT_LIMIT
 
@@ -2684,7 +2734,8 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
       return
     }
 
-    if (isRunning && modelRef.current) {
+    // A job started elsewhere may run another file: do not track it on this one.
+    if (isRunning && modelRef.current && !otherJobFile) {
       // Tracking is cheap at any size; only drawing the completed path is
       // limited to smaller jobs. Program Execution follows this position.
       const freshStart = !prevIsRunningRef.current || model !== prevModelRef.current
@@ -2762,6 +2813,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
     showTool,
     hiddenTools,
     isRunning,
+    otherJobFile,
     senderActive,
     senderAcceptedLine,
     autoFollow,
@@ -3344,6 +3396,46 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
           onPointerUp={onPointerUp}
           onPointerCancel={onPointerUp}
         />
+
+        {otherJobNotice && !loading && (
+          <div className="absolute top-2 inset-x-2 z-30 flex justify-center pointer-events-none">
+            <div className="pointer-events-auto max-w-full flex items-start gap-3 rounded-lg border border-info/40 bg-surface shadow-lg px-3 py-2 text-sm" role="status" aria-live="polite">
+              <div className="min-w-0">
+                <div className="font-semibold text-info [overflow-wrap:anywhere]">
+                  {otherJobFile ? 'Running ' : 'Ran '}
+                  <span className="font-mono">{otherJobNotice.slice(otherJobNotice.replace(/\\/g, '/').lastIndexOf('/') + 1)}</span>
+                  {' from another window or device'}
+                </div>
+                <div className="mt-0.5 text-xs text-text-muted">
+                  {otherJobFile
+                    ? <>Its live preview is shown there. {fileName
+                      ? <>This page shows <span className="font-mono">{fileName}</span>, dimmed.</>
+                      : 'No file is loaded on this page.'}</>
+                    : 'Load it to see it here.'}
+                </div>
+              </div>
+              {!otherJobFile && (
+                <>
+                  <button
+                    className="btn btn-primary shrink-0 px-3 py-1 text-sm"
+                    onClick={() => void loadFile(runningFilePath(otherJobNotice))}
+                    disabled={isRunning}
+                  >
+                    Load
+                  </button>
+                  <button
+                    className="shrink-0 self-center text-text-dim hover:text-text-primary"
+                    onClick={() => setOtherJobNotice(null)}
+                    aria-label="Dismiss message about the job from another window or device"
+                    title="Dismiss"
+                  >
+                    <X size={14} />
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        )}
 
         {isFileDragging && !isRunning && (
           <div className={`absolute inset-3 z-40 flex items-center justify-center rounded-xl border-2 border-dashed pointer-events-none backdrop-blur-sm ${

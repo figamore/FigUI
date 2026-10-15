@@ -13,6 +13,7 @@
     "test:jog": "node scripts/test-jog-settings.mjs",
     "test:gcode": "esbuild scripts/test-gcode-preview.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/figui-test-gcode-preview.mjs && node node_modules/.cache/figui-test-gcode-preview.mjs",
     "test:gcode-cache": "esbuild scripts/test-gcode-cache.ts --bundle --packages=external --platform=node --format=esm --outfile=node_modules/.cache/figui-test-gcode-cache.mjs && node node_modules/.cache/figui-test-gcode-cache.mjs",
+    "test:running-file": "esbuild scripts/test-running-file.ts --bundle --packages=external --platform=node --format=esm --outfile=node_modules/.cache/figui-test-running-file.mjs && node node_modules/.cache/figui-test-running-file.mjs",
     "test:stream": "esbuild scripts/test-gcode-stream.ts --bundle --platform=node --format=esm --outfile=/tmp/fluidui-test-gcode-stream.mjs && node /tmp/fluidui-test-gcode-stream.mjs",
     "test:parser": "esbuild scripts/test-status-parser.ts --bundle --platform=node --format=esm --outfile=/tmp/fluidui-test-status-parser.mjs && node /tmp/fluidui-test-status-parser.mjs",
     "test:webui": "esbuild scripts/test-webui-blocked.tsx --bundle --packages=external --loader:.svg=dataurl --platform=node --format=esm --outfile=node_modules/.cache/figui-test-webui-blocked.mjs && node node_modules/.cache/figui-test-webui-blocked.mjs",

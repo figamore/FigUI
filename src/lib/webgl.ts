@@ -146,9 +146,10 @@ void main() {
 const fragmentShaderSource = `
 precision mediump float;
 varying vec4 v_color;
+uniform float u_alpha;
 
 void main() {
-  gl_FragColor = v_color;
+  gl_FragColor = vec4(v_color.rgb, v_color.a * u_alpha);
 }
 `
 
@@ -165,6 +166,7 @@ export interface WebGLRenderer {
   colorLocation: number
   projectionMatrixLocation: WebGLUniformLocation
   viewMatrixLocation: WebGLUniformLocation
+  alphaLocation: WebGLUniformLocation
   staticVertexCount: number
 }
 
@@ -193,6 +195,7 @@ export function createRenderer(canvas: HTMLCanvasElement): WebGLRenderer | null 
   const colorLocation = gl.getAttribLocation(program, 'a_color')
   const projectionMatrixLocation = gl.getUniformLocation(program, 'u_projectionMatrix')!
   const viewMatrixLocation = gl.getUniformLocation(program, 'u_viewMatrix')!
+  const alphaLocation = gl.getUniformLocation(program, 'u_alpha')!
 
   // Create buffers
   const staticPositionBuffer = gl.createBuffer()!
@@ -221,6 +224,7 @@ export function createRenderer(canvas: HTMLCanvasElement): WebGLRenderer | null 
     colorLocation,
     projectionMatrixLocation,
     viewMatrixLocation,
+    alphaLocation,
     staticVertexCount: 0,
   }
 }
@@ -269,6 +273,8 @@ export function renderLines(
   toolLineWidth = 3,
   triangleVertices?: Float32Array,
   triangleColors?: Float32Array,
+  /** Opacity of the uploaded toolpath; the tool and other dynamic lines stay opaque. */
+  staticAlpha = 1,
 ) {
   const { gl } = renderer
 
@@ -285,9 +291,11 @@ export function renderLines(
 
   if (renderer.staticVertexCount > 0) {
     bindLineBuffers(renderer, renderer.staticPositionBuffer, renderer.staticColorBuffer, true)
+    gl.uniform1f(renderer.alphaLocation, staticAlpha)
     gl.lineWidth(1)
     gl.drawArrays(gl.LINES, 0, renderer.staticVertexCount)
   }
+  gl.uniform1f(renderer.alphaLocation, 1)
 
   if (triangleVertices && triangleColors && triangleVertices.length > 0) {
     gl.depthMask(false)
