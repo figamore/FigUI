@@ -167,6 +167,7 @@ function AppContent() {
   const backoffMs = useRef(0)
   const cachedWsHost = useRef<string | null>(null)
   const cachedHostFailures = useRef(0)
+  const stableConnectionTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [showReconnectOverlay, setShowReconnectOverlay] = useState(false)
   const restartSawDisconnect = useRef(false)
   const [startupErrors, setStartupErrors] = useState<string[]>([])
@@ -249,9 +250,17 @@ function AppContent() {
       return { wsHost: cachedWsHost.current, info: null }
     }
 
-    const raw  = cachedWsHost.current === null && cachedHostFailures.current > 0
-      ? await getDeviceInfoFast()
-      : await getDeviceInfo()
+    let raw: string
+    try {
+      raw = cachedHostFailures.current > 0
+        ? await getDeviceInfoFast()
+        : await getDeviceInfo()
+    } catch (e) {
+      // FluidNC can refuse [ESP800] while a job runs. Keep retrying the last
+      // host that worked rather than locking the page out until the job ends.
+      if (cachedWsHost.current) return { wsHost: cachedWsHost.current, info: null }
+      throw e
+    }
     const info = parseESP800(raw)
     const asyncMode = info['WebCommunication']?.trim() === 'Asynchronous'
     const wsPort = info['WebSocketPort']?.trim() || '80'
@@ -294,7 +303,6 @@ function AppContent() {
         return true
       } catch (e) {
         cachedHostFailures.current++
-        if (cachedHostFailures.current >= 3) cachedWsHost.current = null
         if (phase !== 'ready') {
           setErrMsg(e instanceof Error ? e.message : 'Connection failed')
           setWebUIBlocked(e instanceof WebUIBlockedError)
@@ -344,8 +352,21 @@ function AppContent() {
         clearTimeout(reconnectTimer.current)
         reconnectTimer.current = null
       }
-      backoffMs.current = 0
+      // Clear the backoff only once the connection has stayed up. A controller
+      // that accepts the socket and closes it again (low on memory) must not be
+      // reconnected, and sent the startup queries, every 300 ms.
+      if (stableConnectionTimer.current) clearTimeout(stableConnectionTimer.current)
+      stableConnectionTimer.current = setTimeout(() => {
+        stableConnectionTimer.current = null
+        backoffMs.current = 0
+      }, 10_000)
     } else {
+      if (stableConnectionTimer.current) {
+        // The connection dropped soon after it opened.
+        clearTimeout(stableConnectionTimer.current)
+        stableConnectionTimer.current = null
+        backoffMs.current = backoffMs.current === 0 ? 1000 : Math.min(backoffMs.current * 2, 30000)
+      }
       setStartupPending(false)
       if (!reconnectTimer.current) {
         // Respect existing backoff so rapid connect/drop loops slow down.
@@ -378,6 +399,15 @@ function AppContent() {
       return canContinue()
     }, setStartupPending)
   }, [connected, phase, setMacros, setStartupPending])
+
+  // After the first connect failed, keep retrying with backoff, and leave the
+  // error screen as soon as any attempt (also one from kick()) gets through.
+  useEffect(() => {
+    if (phase !== 'error') return
+    if (connected) setPhase('ready')
+    else if (!reconnectTimer.current) scheduleReconnect()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connected, phase])
 
   useEffect(() => {
     if (!restarting) {
