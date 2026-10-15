@@ -45,7 +45,10 @@ class FakeBroadcastChannel {
 const testDocument = new TestDocument()
 Object.assign(globalThis, {
   document: testDocument,
-  window: Object.assign(new EventTarget(), { BroadcastChannel: FakeBroadcastChannel }),
+  window: Object.assign(new EventTarget(), {
+    BroadcastChannel: FakeBroadcastChannel,
+    location: { pathname: '/', protocol: 'http:' },
+  }),
   localStorage: new MemoryStorage(),
   sessionStorage: new MemoryStorage(),
   requestAnimationFrame: (callback: FrameRequestCallback) => setTimeout(() => callback(Date.now()), 0),
@@ -425,6 +428,42 @@ socket.receive('ok\n')
 socket.machineState = 'Idle'
 useMachineStore.getState().updateStatus({ state: 'Idle' })
 await waitFor(() => useGCodeSenderStore.getState().phase === 'completed', 'legacy fallback stream did not complete')
+
+// A controller error ends the stream as that error; Abort ends it as an abort.
+socket.supportsReportInterval = true
+const sender = () => useGCodeSenderStore.getState()
+const wasSent = (command: string) => socket.sent
+  .some(item => typeof item === 'string' && item.split('\n').some(line => line.trim() === command))
+const realtimeCount = (byte: number) => socket.sent
+  .filter(item => item instanceof Uint8Array && item.length === 1 && item[0] === byte).length
+const setMachineState = (state: 'Idle' | 'Run') => {
+  socket.machineState = state
+  useMachineStore.getState().updateStatus({ state })
+}
+
+sender().dismiss()
+assert.equal(sender().start('G1 X130 F100\nG1 X131 F100', 'error.gcode'), true)
+await waitFor(() => wasSent('G1 X131 F100'), 'error test blocks were not sent')
+setMachineState('Run')
+const resetsBeforeError = realtimeCount(0x18)
+socket.receive('error:20\n')
+assert.equal(realtimeCount(0x18), resetsBeforeError + 1, 'a controller error must soft-reset the stream')
+setMachineState('Idle')
+await waitFor(() => ['error', 'aborted'].includes(sender().phase), 'controller error did not end the stream')
+assert.equal(sender().phase, 'error', 'the reset sent after an error must not turn it into a plain abort')
+assert.equal(sender().error, 'File line 1: error:20')
+assert.equal(socket.reportInterval, 750, 'error cleanup must restore the exact controller report interval')
+
+sender().dismiss()
+assert.equal(sender().start('G1 X150 F100\nG1 X151 F100', 'abort.gcode'), true)
+await waitFor(() => wasSent('G1 X150 F100'), 'abort test block was not sent')
+setMachineState('Run')
+const resetsBeforeAbort = realtimeCount(0x18)
+sender().abort()
+assert.equal(realtimeCount(0x18), resetsBeforeAbort + 1, 'abort must soft-reset the controller')
+setMachineState('Idle')
+await waitFor(() => sender().phase === 'aborted', 'abort did not end the stream')
+assert.equal(socket.reportInterval, 750, 'abort cleanup must restore the exact controller report interval')
 
 socket.singleBlock = true
 socket.machineState = 'Hold:0'

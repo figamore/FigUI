@@ -51,7 +51,7 @@ export function TabletAccordion({
   const hasManualATC = useMachineStore(s => s.controllerSettings.hasManualATC === true)
   const status = useMachineStore(s => s.status)
   const pendingBlock = useSingleBlockStore(s => s.pendingBlock)
-  const isProgramRunning = (status.state === 'Run' || status.state === 'Hold')
+  const isProgramRunning = (status.state === 'Run' || status.state === 'Hold' || status.state === 'Door')
     && (!!status.sdFilename || status.plannerLineNumber != null || !!pendingBlock)
 
   const landscapeTabs = useMemo(

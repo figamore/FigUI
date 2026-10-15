@@ -238,6 +238,8 @@ interface Store {
   controllerResetPending: boolean
   startupPending: boolean
   status: MachineStatus
+  /** Counts updates that carried a controller state, so a stale state kept across a reconnect can be told apart from a fresh one. */
+  statusReportCount: number
   espInfo: ESPInfo | null
   controllerSettings: ControllerSettings
   controllerConfigSettings: FluidNCSetting[] | null
@@ -293,6 +295,7 @@ export const useMachineStore = create<Store>((set) => ({
   controllerResetPending: false,
   startupPending: false,
   status: DEFAULT_STATUS,
+  statusReportCount: 0,
   espInfo: null,
   controllerSettings: {},
   controllerConfigSettings: null,
@@ -346,6 +349,8 @@ export const useMachineStore = create<Store>((set) => ({
         countDefinedAxes(merged.wpos),
       )
 
+      const statusReportCount = s.state !== undefined ? state.statusReportCount + 1 : state.statusReportCount
+
       const detectedSettings: Partial<ControllerSettings> = {}
       const xRange = inferMachineRangeFromPosition(merged.mpos.x, state.controllerSettings.maxTravelX)
       const yRange = inferMachineRangeFromPosition(merged.mpos.y, state.controllerSettings.maxTravelY)
@@ -381,13 +386,14 @@ export const useMachineStore = create<Store>((set) => ({
       return Object.keys(detectedSettings).length > 0
         ? {
             status: merged,
+            statusReportCount,
             axes: detectedAxes,
             controllerSettings: {
               ...state.controllerSettings,
               ...detectedSettings,
             },
           }
-        : { status: merged, axes: detectedAxes }
+        : { status: merged, statusReportCount, axes: detectedAxes }
     }),
 
   setEspInfo: (espInfo) =>

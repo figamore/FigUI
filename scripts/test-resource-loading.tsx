@@ -20,6 +20,8 @@ const { setBase } = await import('../src/lib/http')
 const { FileManager } = await import('../src/components/FileManager')
 const { PluginLauncher } = await import('../src/components/PluginLauncher')
 const { App } = await import('../src/App')
+// App renders the controller job tracker beside AppContent; AppContent is the last child.
+const appContent = () => [App().props.children].flat().at(-1).type
 const { connect, disconnect } = await import('../src/lib/ws')
 setBase('http://fluidnc.local')
 
@@ -197,7 +199,7 @@ try {
   const restored: string[] = []
   const restoreRunningFile = useGCodeStore.getState().restoreRunningFile
   useGCodeStore.setState({ restoreRunningFile: async path => { restored.push(path) } })
-  const runningApp = panel((App().props.children as any).type, effect => effect.toString().includes('restoreRunningFile'))
+  const runningApp = panel(appContent(), effect => effect.toString().includes('restoreRunningFile'))
   ready(false)
   useMachineStore.setState({ statusReceived: false })
   runningApp.render()
@@ -230,7 +232,7 @@ try {
   Object.assign(globalThis, { WebSocket: Socket })
   await connect('fluidnc.local')
   useMachineStore.getState().setStartupPending(false)
-  const app = panel((App().props.children as any).type, effect => effect.toString().includes('Configuration error'))
+  const app = panel(appContent(), effect => effect.toString().includes('Configuration error'))
   app.render()
   const firstError = '[MSG:ERR: Configuration error: first]'
   Socket.instance.onmessage?.({ data: `${firstError}\nok\n` })

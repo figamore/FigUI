@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import { AlertTriangle, ChevronDown, FileCode2, Info, Navigation, Target, Wrench } from '../icons'
 import { useMachineStore } from '../store'
 import { useGCodeStore } from '../store/gcode'
@@ -104,15 +104,39 @@ function buildProgram(text: string): Program {
   return program
 }
 
+/**
+ * Calls onUserScroll when the user drags or wheels the listing, so following
+ * the executing line stops instead of snapping their scroll back. The follow
+ * effect's own scrollTop writes raise neither event.
+ */
+function useUserScroll(ref: RefObject<HTMLElement>, mounted: boolean, onUserScroll?: () => void) {
+  const callbackRef = useRef(onUserScroll)
+  callbackRef.current = onUserScroll
+  useEffect(() => {
+    const element = ref.current
+    if (!element || !mounted) return
+    const handle = () => callbackRef.current?.()
+    // Passive, so listening never delays the scroll itself.
+    element.addEventListener('touchmove', handle, { passive: true })
+    element.addEventListener('wheel', handle, { passive: true })
+    return () => {
+      element.removeEventListener('touchmove', handle)
+      element.removeEventListener('wheel', handle)
+    }
+  }, [ref, mounted])
+}
+
 /** Renders only the visible lines so multi-million-line programs stay responsive. */
-function VirtualProgramView({ program, physicalLine, isEstimated, isPending, follow }: {
+function VirtualProgramView({ program, physicalLine, isEstimated, isPending, follow, onUserScroll }: {
   program: Program
   physicalLine: number | null
   isEstimated: boolean
   isPending: boolean
   follow: boolean
+  onUserScroll?: () => void
 }) {
   const scrollRef = useRef<HTMLDivElement>(null)
+  useUserScroll(scrollRef, true, onUserScroll)
   const [scrollTop, setScrollTop] = useState(0)
   const [viewportHeight, setViewportHeight] = useState(0)
   const contentHeight = program.totalLines * LINE_HEIGHT + PADDING_Y * 2
@@ -205,6 +229,8 @@ export function ProgramExecutionPanel({ isTablet, initiallyOpen = false, accordi
         : runningName.toLowerCase() === loadedName.toLowerCase())
   )
   const program = useMemo(() => buildProgram(sourceMatchesJob ? sourceText! : ''), [sourceMatchesJob, sourceText])
+  const stopFollowing = () => setFollow(false)
+  useUserScroll(programRef, contentOpen && sourceMatchesJob && !program.virtual, stopFollowing)
   const reportedN = status.plannerLineNumber
   const senderActive = senderPhase === 'streaming' || senderPhase === 'paused' || senderPhase === 'draining'
   const senderMode = senderPhase !== 'idle'
@@ -351,7 +377,7 @@ export function ProgramExecutionPanel({ isTablet, initiallyOpen = false, accordi
       {contentOpen && (sourceMatchesJob ? (
         <div className="relative flex-1 min-h-0 overflow-hidden bg-surface font-mono text-[13px]">
           {program.virtual ? (
-            <VirtualProgramView program={program} physicalLine={physicalLine} isEstimated={isEstimated} isPending={!!pendingStep} follow={follow} />
+            <VirtualProgramView program={program} physicalLine={physicalLine} isEstimated={isEstimated} isPending={!!pendingStep} follow={follow} onUserScroll={stopFollowing} />
           ) : <>
             <div
               ref={highlightRef}
@@ -408,7 +434,7 @@ export function ProbeOrProgramPanel({ isTablet }: { isTablet?: boolean }) {
   const hasProbingInput = Boolean(reportedHasProbe || reportedHasToolsetter)
   const senderPhase = useGCodeSenderStore(s => s.phase)
   const senderActive = senderPhase === 'streaming' || senderPhase === 'paused' || senderPhase === 'draining'
-  const isProgramRunning = (status.state === 'Run' || status.state === 'Hold')
+  const isProgramRunning = (status.state === 'Run' || status.state === 'Hold' || status.state === 'Door')
     && (!!status.sdFilename || status.plannerLineNumber != null || !!pendingBlock)
   if (isProgramRunning || senderActive) return <ProgramExecutionPanel isTablet={isTablet} />
   return <ProbeAndManualATCPanel

@@ -86,7 +86,9 @@ let endWasSynchronized = false
 let previousReportInterval: number | null = null
 let autoReportChanged = false
 let finishing = false
+let resettingAfterError = false
 let wakeLock: { release: () => Promise<void> } | null = null
+let wakeLockPending = false
 
 function stripComments(raw: string) {
   // Most lines of large generated files carry no comment at all.
@@ -208,12 +210,31 @@ function recordAcknowledgment(block: StreamBlock, publishImmediately = false) {
   }
 }
 
+/**
+ * Keeps the screen on while a job (local stream or SD run) is tracked, or an
+ * untracked stream such as framing runs. Browsers only offer this on secure
+ * pages (HTTPS, localhost), not on plain HTTP.
+ */
+function jobKeepsScreenOn() {
+  return !!useGCodeStore.getState().trackedJob
+    || ['streaming', 'paused', 'draining'].includes(useGCodeSenderStore.getState().phase)
+}
+
 async function acquireWakeLock() {
-  if (wakeLock || document.visibilityState !== 'visible') return
+  if (wakeLock || wakeLockPending || document.visibilityState !== 'visible') return
   const nav = navigator as Navigator & {
     wakeLock?: { request: (type: 'screen') => Promise<{ release: () => Promise<void> }> }
   }
-  try { wakeLock = await nav.wakeLock?.request('screen') ?? null } catch { /* unsupported or denied */ }
+  if (!nav.wakeLock) return
+  wakeLockPending = true
+  try {
+    const lock = await nav.wakeLock.request('screen')
+    // The job may have ended, or the page been hidden, while the request was pending.
+    if (jobKeepsScreenOn() && document.visibilityState === 'visible') wakeLock = lock
+    else void lock.release().catch(() => undefined)
+  } catch { /* denied */ } finally {
+    wakeLockPending = false
+  }
 }
 
 function releaseWakeLock() {
@@ -244,7 +265,6 @@ function finalizeFinish(request: FinishRequest) {
   previousReportInterval = null
   autoReportChanged = false
   releaseExclusiveTraffic()
-  releaseWakeLock()
   finishing = false
   useGCodeSenderStore.setState(request)
 }
@@ -514,7 +534,6 @@ export const useGCodeSenderStore = create<SenderState>((set, get) => ({
         : null,
       error: null,
     })
-    void acquireWakeLock()
     // Stop new response-producing UI traffic, then wait until anything already
     // queued or on the wire has settled before claiming the FIFO response lane.
     const preparingSince = Date.now()
@@ -600,13 +619,17 @@ onLine(line => {
     pump()
   } else if (line === 'error' || line.startsWith('error:') || line.startsWith('ALARM:') || line.includes('[MSG:ERR')) {
     const sourceLine = pendingBlocks[0]?.block.sourceLine
+    // The reset re-enters through onSoftReset; keep it from finishing the job
+    // as a plain abort before the error below is recorded.
+    resettingAfterError = true
     sendRealtimeNow(0x18)
+    resettingAfterError = false
     finish('error', `${sourceLine ? `File line ${sourceLine}: ` : ''}${line}`)
   }
 })
 
 onSoftReset(() => {
-  if (ownsExclusiveTraffic) finish('aborted')
+  if (ownsExclusiveTraffic && !resettingAfterError) finish('aborted')
 })
 
 onSessionTaken(() => {
@@ -659,11 +682,14 @@ window.addEventListener('pagehide', () => {
   if (['streaming', 'paused', 'draining'].includes(phase)) sendRealtimeNow(0x21)
 })
 
+function syncWakeLock() {
+  if (jobKeepsScreenOn()) void acquireWakeLock()
+  else releaseWakeLock()
+}
+useGCodeStore.subscribe(syncWakeLock)
+useGCodeSenderStore.subscribe(syncWakeLock)
+
 document.addEventListener('visibilitychange', () => {
-  const phase = useGCodeSenderStore.getState().phase
-  if (document.visibilityState !== 'visible') {
-    releaseWakeLock()
-  } else if (['streaming', 'paused', 'draining'].includes(phase)) {
-    void acquireWakeLock()
-  }
+  if (document.visibilityState !== 'visible') releaseWakeLock()
+  else syncWakeLock()
 })
