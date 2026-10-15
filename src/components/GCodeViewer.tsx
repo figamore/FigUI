@@ -138,6 +138,8 @@ const STATIC_2D_SETTLE_MS = 150
 const STATIC_2D_LAYER_PAD_RATIO = 0.25
 const FOLLOW_EDGE_MARGIN_PX = 40
 const FOLLOW_EDGE_MARGIN_RATIO = 0.1
+/** A 2D drag longer than this while a job runs turns Follow off, so the view stays where it was dragged. */
+const FOLLOW_PAN_RELEASE_PX = 8
 const FOLLOW_MODE_KEY = 'gcode.followMode'
 const EMPTY_FLOAT32 = new Float32Array(0)
 const WHEEL_ZOOM_SENSITIVITY = 0.0012
@@ -166,6 +168,21 @@ const ENTRY_MARKER_LINE = [0.13, 0.77, 0.37, 1.0] as const
 const ENTRY_MARKER_FILL = [0.13, 0.77, 0.37, 0.26] as const
 const EXIT_MARKER_LINE = [0.94, 0.27, 0.27, 1.0] as const
 const EXIT_MARKER_FILL = [0.94, 0.27, 0.27, 0.26] as const
+
+/**
+ * zustand's useShallow for a selector that returns a flat object of the same
+ * keys, without the Map, Set and iterable handling this one does not need.
+ */
+function useShallow<S, T extends object>(selector: (state: S) => T) {
+  const prev = useRef<T>()
+  return (state: S) => {
+    const next = selector(state)
+    const last = prev.current as Record<string, unknown> | undefined
+    return last && Object.entries(next).every(([key, value]) => Object.is(last[key], value))
+      ? prev.current!
+      : (prev.current = next)
+  }
+}
 
 function getAxisEnvelopeOrigin(wco: number, maxTravel: number, homingDirInvert: number, bit: number) {
   return -wco - ((homingDirInvert & bit) ? 0 : maxTravel)
@@ -1396,6 +1413,8 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
   const hiddenToolsRef = useRef<Set<number>>(new Set())
   const transformRef = useRef<Transform>({ ox: 0, oy: 0, scale: 1 })
   const dragRef = useRef<{ sx: number; sy: number; ox: number; oy: number } | null>(null)
+  // Follow was turned off by panning during a job (not by the Follow button); the next job turns it back on.
+  const followReleasedByPanRef = useRef(false)
   const activePointersRef = useRef<Map<number, { x: number; y: number; dragMode: DragMode }>>(new Map())
   const lastPinchDistRef = useRef<number | null>(null)
   const animRef = useRef(0)
@@ -1440,6 +1459,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
   const [dragMode, setDragMode] = useState<DragMode>('orbit')
   const [hoveredViewTarget, setHoveredViewTarget] = useState<string | null>(null)
   const rendererRef = useRef<WebGLRenderer | null>(null)
+  const webglContextLostRef = useRef(false)
   const cameraRef = useRef<Camera>({
     position: { x: 100, y: 100, z: 100 },
     target: { x: 0, y: 0, z: 0 },
@@ -1511,7 +1531,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
 
   function initWebGLRenderer() {
     const canvas = webglCanvasRef.current
-    if (!canvas) return
+    if (!canvas || webglContextLostRef.current) return
 
     rendererRef.current = null
     const renderer = createRenderer(canvas)
@@ -1938,6 +1958,8 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
    * into place and stroked again once the view settles.
    */
   function drawStatic2DLayer(ctx: CanvasRenderingContext2D, paths: Static2DPaths, t: Transform, w: number, h: number, lineCount: number) {
+    // A hidden viewer has no size; a zero-sized layer canvas cannot be drawn.
+    if (w < 1 || h < 1) return
     const dpr = window.devicePixelRatio || 1
     const showRapids = showRapidsRef.current
     const hiddenTools = hiddenToolsRef.current
@@ -2001,7 +2023,22 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
     return cached.path
   }
 
-  const status = useMachineStore(s => s.status)
+  // Only the fields the viewer uses: modal-state [GC:] reports, which arrive at
+  // every laser M4/M5 change during a job, must not re-render the whole viewer.
+  // Draw code reads the rest from getState().
+  const status = useMachineStore(useShallow(s => ({
+    state: s.status.state,
+    wpos: s.status.wpos,
+    wco: s.status.wco,
+    feed: s.status.feed,
+    feedOverride: s.status.feedOverride,
+    rapidOverride: s.status.rapidOverride,
+    spindleOverride: s.status.spindleOverride,
+    sdFilename: s.status.sdFilename,
+    sdPercent: s.status.sdPercent,
+    pinState: s.status.pinState,
+    holdComplete: s.status.holdComplete,
+  })))
   const connected = useMachineStore(s => s.connected)
   const controllerResetPending = useMachineStore(s => s.controllerResetPending)
   const controllerSettings = useMachineStore(s => s.controllerSettings)
@@ -2240,7 +2277,8 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
       }
       const modelW = bMaxX - bMinX || 1
       const modelH = bMaxY - bMinY || 1
-      const pad = 40
+      // Shrink the margin on a very small viewer so the scale never goes to zero or negative.
+      const pad = Math.min(40, w / 4, h / 4)
       const scale = Math.min((w - pad * 2) / modelW, (h - pad * 2) / modelH)
       const cx = (bMinX + bMaxX) / 2
       const cy = (bMinY + bMaxY) / 2
@@ -2643,6 +2681,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
     setFollowMode(mode)
     localStorage.setItem(FOLLOW_MODE_KEY, mode)
     setShowFollowMenu(false)
+    followReleasedByPanRef.current = false
     setAutoFollow(true)
     centerOnRunningTool()
   }
@@ -2747,10 +2786,15 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
         ? segmentAt(trackedModel.segments, trackedProgress.segmentIndex)?.sourceLine ?? null
         : null,
     )
+    if (isRunning && !prevIsRunningRef.current && followReleasedByPanRef.current) {
+      followReleasedByPanRef.current = false
+      setAutoFollow(true)
+    }
     prevIsRunningRef.current = isRunning
     prevModelRef.current = model
 
-    if (isRunning && autoFollow && showTool) {
+    // Leave the view alone while a 2D drag is in progress; the drag rebuilds the offset from where it started.
+    if (isRunning && autoFollow && showTool && !dragRef.current) {
       if (followMode === 'center') centerViewOn(status.wpos.x, status.wpos.y)
       else ensureToolVisible(status.wpos.x, status.wpos.y)
     }
@@ -2834,6 +2878,29 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
     })
     ro.observe(container)
     return () => ro.disconnect()
+  }, [])
+
+  useEffect(() => {
+    const canvas = webglCanvasRef.current
+    if (!canvas) return
+    // The browser only restores a lost context when the loss is preventDefault()ed.
+    // The next 3D render then builds a new renderer and uploads the paths again.
+    const onContextLost = (e: Event) => {
+      e.preventDefault()
+      webglContextLostRef.current = true
+      rendererRef.current = null
+      uploadedPathGeometryRef.current = null
+    }
+    const onContextRestored = () => {
+      webglContextLostRef.current = false
+      scheduleRender()
+    }
+    canvas.addEventListener('webglcontextlost', onContextLost)
+    canvas.addEventListener('webglcontextrestored', onContextRestored)
+    return () => {
+      canvas.removeEventListener('webglcontextlost', onContextLost)
+      canvas.removeEventListener('webglcontextrestored', onContextRestored)
+    }
   }, [])
 
   useEffect(() => {
@@ -2952,6 +3019,10 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
         const t = transformRef.current
         t.ox = d.ox + (e.clientX - d.sx)
         t.oy = d.oy + (e.clientY - d.sy)
+        if (isRunning && autoFollow && Math.hypot(e.clientX - d.sx, e.clientY - d.sy) > FOLLOW_PAN_RELEASE_PX) {
+          followReleasedByPanRef.current = true
+          setAutoFollow(false)
+        }
         scheduleRender()
       }
     }
@@ -3267,6 +3338,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
                 className={`${btnCls} rounded-r-none ${isTablet ? 'pr-1' : 'pr-0.5'} ${autoFollow ? 'text-info bg-info/10' : 'text-text-dim bg-elevated hover:text-text-primary'}`}
                 onClick={() => {
                   const follow = !autoFollow
+                  followReleasedByPanRef.current = false
                   setAutoFollow(follow)
                   if (follow) centerOnRunningTool()
                 }}
@@ -3550,7 +3622,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
                 </div>
                 <button
                   type="button"
-                  className={`h-8 rounded border px-2.5 text-sm font-semibold ${simulationPaused ? 'border-ok/40 bg-ok/10 text-ok' : 'border-warning/40 bg-warning/10 text-warning'} disabled:opacity-50`}
+                  className={`h-8 rounded border px-2.5 text-sm font-semibold ${simulationPaused ? 'border-ok/40 bg-ok/10 text-ok' : 'border-warn/40 bg-warn/10 text-warn'} disabled:opacity-50`}
                   onClick={simulationPaused ? resumeSimulation : pauseSimulation}
                   disabled={simulationPhase === 'completed'}
                   title={simulationPaused ? 'Resume preview simulation' : 'Pause preview simulation'}
@@ -3824,12 +3896,12 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
               </button>
             )}
             {senderNotice && (
-              <div className="mt-2 text-[11px] text-warning">{senderNotice}</div>
+              <div className="mt-2 text-[11px] text-warn">{senderNotice}</div>
             )}
           </div>
         )}
         {senderPhase === 'streaming' && senderNotice && (
-          <div className="rounded border border-warning/30 bg-warning/5 px-3 py-2 text-[11px] text-warning">
+          <div className="rounded border border-warn/30 bg-warn/5 px-3 py-2 text-[11px] text-warn">
             {senderNotice}
           </div>
         )}
@@ -4081,7 +4153,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
                 />
               </label>
 
-              <div className="rounded border border-warning/35 bg-warning/10 px-3 py-2 text-sm leading-relaxed text-warning">
+              <div className="rounded border border-warn/35 bg-warn/10 px-3 py-2 text-sm leading-relaxed text-warn">
                 Check Z zero first. Safe travel height must clear clamps and stock.
               </div>
 

@@ -171,7 +171,8 @@ export interface WebGLRenderer {
 export function createRenderer(canvas: HTMLCanvasElement): WebGLRenderer | null {
   const gl = canvas.getContext('webgl') as WebGLRenderingContext | null ||
              canvas.getContext('experimental-webgl') as WebGLRenderingContext | null
-  if (!gl) return null
+  // A lost context returns null from every create call, which the code below does not expect.
+  if (!gl || gl.isContextLost()) return null
 
   // Create shaders
   const vertexShader = gl.createShader(gl.VERTEX_SHADER)!

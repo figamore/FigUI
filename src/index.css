@@ -1061,45 +1061,68 @@ textarea {
     color: #6f42c1;
   }
 
-  /* Dark theme overrides */
-  .dark .hl-comment {
+  /* Dark theme overrides. Each dark theme sets only its own class on <html>,
+     and :is() is too new for the chrome61 CSS target, so all three are listed. */
+  .dark .hl-comment,
+  .anthracite-dark .hl-comment,
+  .midnight-dark .hl-comment {
     color: #6b7394;
   }
-  .dark .hl-gcode {
+  .dark .hl-gcode,
+  .anthracite-dark .hl-gcode,
+  .midnight-dark .hl-gcode {
     color: #f97583;
     font-weight: 600;
   }
-  .dark .hl-mcode {
+  .dark .hl-mcode,
+  .anthracite-dark .hl-mcode,
+  .midnight-dark .hl-mcode {
     color: #b392f0;
     font-weight: 600;
   }
-  .dark .hl-coord {
+  .dark .hl-coord,
+  .anthracite-dark .hl-coord,
+  .midnight-dark .hl-coord {
     color: #79b8ff;
     font-weight: 600;
   }
-  .dark .hl-number {
+  .dark .hl-number,
+  .anthracite-dark .hl-number,
+  .midnight-dark .hl-number {
     color: #79b8ff;
   }
-  .dark .hl-feed {
+  .dark .hl-feed,
+  .anthracite-dark .hl-feed,
+  .midnight-dark .hl-feed {
     color: #ffab70;
     font-weight: 600;
   }
-  .dark .hl-line-num {
+  .dark .hl-line-num,
+  .anthracite-dark .hl-line-num,
+  .midnight-dark .hl-line-num {
     color: #6b7394;
   }
 
-  .dark .hl-key {
+  .dark .hl-key,
+  .anthracite-dark .hl-key,
+  .midnight-dark .hl-key {
     color: #f97583;
     font-weight: 500;
   }
-  .dark .hl-string {
+  .dark .hl-string,
+  .anthracite-dark .hl-string,
+  .midnight-dark .hl-string {
     color: #9ecbff;
   }
-  .dark .hl-bool {
+  .dark .hl-bool,
+  .anthracite-dark .hl-bool,
+  .midnight-dark .hl-bool {
     color: #79b8ff;
     font-weight: 600;
   }
-  .dark .hl-anchor {
+  .dark .hl-anchor,
+  .anthracite-dark .hl-anchor,
+  .midnight-dark .hl-anchor {
     color: #b392f0;
   }
 
@@ -1115,10 +1138,14 @@ textarea {
     color: #000;
     outline: 2px solid rgba(255, 165, 0, 0.9);
   }
-  .dark .hl-search {
+  .dark .hl-search,
+  .anthracite-dark .hl-search,
+  .midnight-dark .hl-search {
     background: rgba(255, 200, 50, 0.2);
   }
-  .dark .hl-search-active {
+  .dark .hl-search-active,
+  .anthracite-dark .hl-search-active,
+  .midnight-dark .hl-search-active {
     background: rgba(255, 165, 0, 0.55);
     color: #fff;
     outline-color: rgba(255, 165, 0, 0.7);

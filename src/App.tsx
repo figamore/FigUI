@@ -600,7 +600,7 @@ function AppContent() {
         : 'landscape:h-[100svh] landscape:overflow-hidden'
     }`}>
       {restarting ? (
-        <div className="fixed md:absolute inset-0 z-[120] bg-[var(--bg)]/80 backdrop-blur-sm
+        <div className="fixed md:absolute inset-0 z-[120] bg-[color-mix(in_srgb,var(--bg)_80%,transparent)] backdrop-blur-sm
                         flex flex-col items-center justify-center gap-3">
           <RefreshCw size={24} className="text-accent animate-spin" />
           <span className="text-text-primary text-base font-medium">Restarting controller…</span>
@@ -608,7 +608,7 @@ function AppContent() {
           {streamRecoveryNotice}
         </div>
       ) : showReconnectOverlay && (
-        <div className="fixed md:absolute inset-0 z-[120] bg-[var(--bg)]/80 backdrop-blur-sm
+        <div className="fixed md:absolute inset-0 z-[120] bg-[color-mix(in_srgb,var(--bg)_80%,transparent)] backdrop-blur-sm
                         flex flex-col items-center justify-center gap-3">
           <RefreshCw size={24} className="text-accent animate-spin" />
           <span className="text-text-muted text-base">Reconnecting…</span>

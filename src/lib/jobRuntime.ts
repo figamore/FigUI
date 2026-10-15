@@ -507,7 +507,7 @@ function getBasename(path: string): string {
   return idx >= 0 ? normalized.slice(idx + 1) : normalized
 }
 
-function fileMatchesJob(status: MachineStatus, loadedPath: string | null, fileName: string | null) {
+function fileMatchesJob(status: Pick<MachineStatus, 'sdFilename'>, loadedPath: string | null, fileName: string | null) {
   const jobFile = status.sdFilename
   if (!jobFile) return false
 
@@ -601,7 +601,7 @@ function getTimelinePosition(
 }
 
 export function useJobRuntimeEstimate(
-  status: MachineStatus,
+  status: Pick<MachineStatus, 'state' | 'sdFilename' | 'sdPercent' | 'feedOverride' | 'rapidOverride'>,
   model: GCodeModel | null,
   controllerSettings: ControllerSettings,
   loadedPath: string | null,

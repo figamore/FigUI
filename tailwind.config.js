@@ -1,3 +1,13 @@
+// Tailwind cannot apply an opacity modifier (bg-surface/80) to a plain var()
+// color and silently emits no rule. Plain classes keep the variable; an
+// opacity modifier mixes it with transparent.
+const themeColor = name => ({ opacityVariable, opacityValue }) => {
+  if (opacityVariable || opacityValue === undefined) return `var(--${name})`
+  const alpha = Number(opacityValue)
+  const amount = Number.isFinite(alpha) ? `${Math.round(alpha * 1000) / 10}%` : `calc(${opacityValue} * 100%)`
+  return `color-mix(in srgb, var(--${name}) ${amount}, transparent)`
+}
+
 /** @type {import('tailwindcss').Config} */
 export default {
   content: ['./index.html', './src/**/*.{ts,tsx}', '!./src/components/ConfigStudio.tsx', '!./src/config-studio.tsx'],
@@ -18,15 +28,15 @@ export default {
         mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Consolas', 'Liberation Mono', 'monospace'],
       },
       colors: {
-        surface: 'var(--surface)',
-        elevated: 'var(--elevated)',
-        border: 'var(--border)',
-        'border-strong': 'var(--border-strong)',
+        surface: themeColor('surface'),
+        elevated: themeColor('elevated'),
+        border: themeColor('border'),
+        'border-strong': themeColor('border-strong'),
         accent: 'rgb(var(--accent-rgb) / <alpha-value>)',
-        'accent-hover': 'var(--accent-hover)',
-        'text-primary': 'var(--text-primary)',
-        'text-muted': 'var(--text-muted)',
-        'text-dim': 'var(--text-dim)',
+        'accent-hover': themeColor('accent-hover'),
+        'text-primary': themeColor('text-primary'),
+        'text-muted': themeColor('text-muted'),
+        'text-dim': themeColor('text-dim'),
         ok: 'rgb(var(--ok-rgb) / <alpha-value>)',
         danger: 'rgb(var(--danger-rgb) / <alpha-value>)',
         warn: 'rgb(var(--warn-rgb) / <alpha-value>)',
