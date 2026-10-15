@@ -8,8 +8,41 @@ export type ConfigIssue = {
 };
 const PIN =
   /^(?:NO_PIN|void|(?:(?:gpio|i2so|uart_channel\d+|pinext[0-9])\.\d+)(?::(?:high|low|pu|pd|ds[0-3]))*)$/i;
+const MACRO_KEY =
+  /^(?:startup_line\d+|macro\d+|after_(?:homing|reset|unlock)|m6_macro)$/i;
 
-export function validateFluidConfig(source: string): ConfigIssue[] {
+/**
+ * Where a trailing comment starts in the text after a key's colon, or -1.
+ * Follows FluidNC's Tokenizer: a `#` after whitespace and outside quotes.
+ * Macro values keep their `#`, which older firmware passes through.
+ */
+export function yamlCommentStart(key: string, rest: string): number {
+  if (MACRO_KEY.test(key.trim())) return -1;
+  let quote = "";
+  for (let i = 0; i < rest.length; i++) {
+    const ch = rest[i];
+    if (quote) {
+      if (ch === quote) quote = "";
+    } else if (ch === '"' || ch === "'") quote = ch;
+    else if (ch === "#" && i > 0 && /\s/.test(rest[i - 1])) return i;
+  }
+  return -1;
+}
+
+/** FluidNC v4.1.0 added inline comments; older releases read them as part of the value. */
+function supportsInlineComments(firmwareVersion?: string | null) {
+  const match = firmwareVersion?.match(/v(\d+)\.(\d+)\.\d+/);
+  if (!match) return false;
+  const major = Number(match[1]),
+    minor = Number(match[2]);
+  return major > 4 || (major === 4 && minor >= 1);
+}
+
+export function validateFluidConfig(
+  source: string,
+  firmwareVersion?: string | null,
+): ConfigIssue[] {
+  const inlineComments = supportsInlineComments(firmwareVersion);
   const issues: ConfigIssue[] = [],
     lines = source.split(/\r\n|\n|\r/);
   const stack: { indent: number; key: string }[] = [],
@@ -49,7 +82,11 @@ export function validateFluidConfig(source: string): ConfigIssue[] {
     }
     const indent = match[1].length,
       key = match[2].trim(),
-      rawValue = (match[3] ?? "").trim(),
+      rest = raw.slice(raw.indexOf(":") + 1),
+      commentAt = yamlCommentStart(key, rest),
+      rawValue = (
+        inlineComments && commentAt >= 0 ? rest.slice(0, commentAt) : rest
+      ).trim(),
       value = rawValue.replace(/^(['"])(.*)\1$/, "$2");
     while (stack.length && stack[stack.length - 1].indent >= indent)
       stack.pop();
@@ -101,12 +138,12 @@ export function validateFluidConfig(source: string): ConfigIssue[] {
         message:
           "Invalid UART mode; expected data bits, parity, and stop bits (for example 8N1).",
       });
-    if (!macroValue && !fullyQuoted && /\s+#/.test(rawValue))
+    if (!inlineComments && commentAt >= 0)
       issues.push({
         severity: "error",
         line,
         path,
-        message: "Inline comments are not supported by FluidNC.",
+        message: "Inline comments need FluidNC v4.1 or newer.",
       });
     if (
       !macroValue &&
@@ -276,7 +313,9 @@ function parseBlockYaml(
     while (stack.length > 1 && stack[stack.length - 1].indent >= indent)
       stack.pop();
     const key = match[2].trim();
-    const token = (match[3] ?? "").trim();
+    const rest = raw.slice(raw.indexOf(":") + 1),
+      commentAt = yamlCommentStart(key, rest);
+    const token = (commentAt >= 0 ? rest.slice(0, commentAt) : rest).trim();
     const parent = stack[stack.length - 1];
     const path = parent.path ? `${parent.path}.${key}` : key;
     if (token) {
@@ -477,7 +516,7 @@ export async function validateFluidConfigForSave(
   source: string,
   firmwareVersion?: string | null,
 ): Promise<ConfigIssue[]> {
-  const localIssues = validateFluidConfig(source);
+  const localIssues = validateFluidConfig(source, firmwareVersion);
   if (localIssues.some((issue) => issue.severity === "error"))
     return localIssues;
 

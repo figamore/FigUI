@@ -9,6 +9,8 @@ import {
   suspendBackgroundTraffic,
 } from '../lib/ws'
 import { parseLimitSnapshotLine } from '../lib/fluidncReports'
+import { useControllerJobStarting } from '../lib/jobState'
+import { useGCodeSenderStore } from '../store/gcodeSender'
 
 const AXIS_ORDER = ['x', 'y', 'z', 'a', 'b', 'c', 'u', 'v', 'w']
 
@@ -141,6 +143,14 @@ function LimitTile({ active, label, detail }: {
 
 export function LimitsTab({ settings }: Props) {
   const connected = useMachineStore(state => state.connected)
+  // FluidNC refuses $limits during a job, and the '!' that ends the monitor
+  // would then pause the job instead. A streamed job can report Idle between
+  // moves, so the sender phase is checked too.
+  const senderPhase = useGCodeSenderStore(s => s.phase)
+  const controllerJobStarting = useControllerJobStarting()
+  const machineIdle = useMachineStore(state =>
+    (state.status.state === 'Idle' || state.status.state === 'Alarm') && !state.status.sdFilename
+  ) && senderPhase !== 'streaming' && senderPhase !== 'paused' && senderPhase !== 'draining' && !controllerJobStarting
   const [snapshot, setSnapshot] = useState<LimitSnapshot>(EMPTY_SNAPSHOT)
   const [phase, setPhase] = useState<'starting' | 'live' | 'error'>('starting')
   const [error, setError] = useState('')
@@ -163,7 +173,15 @@ export function LimitsTab({ settings }: Props) {
       return
     }
 
+    if (!machineIdle) {
+      setPhase('error')
+      setError('The limit monitor is available when the machine is idle.')
+      return
+    }
+
     suspendBackgroundTraffic()
+    let limitsSent = false
+    let replyTimedOut = false
 
     const markLive = () => {
       recognizedResponseRef.current = true
@@ -214,13 +232,15 @@ export function LimitsTab({ settings }: Props) {
       })
     })
 
-    if (!isSocketOpen() || !sendRaw('$limits')) {
+    limitsSent = isSocketOpen() && sendRaw('$limits')
+    if (!limitsSent) {
       setPhase('error')
       setError('Could not start the limit monitor.')
     }
 
     const responseTimeout = window.setTimeout(() => {
       if (recognizedResponseRef.current) return
+      replyTimedOut = true
       setPhase('error')
       setError('FluidNC did not respond to $limits. The machine may need to be idle.')
     }, 5000)
@@ -228,10 +248,13 @@ export function LimitsTab({ settings }: Props) {
     return () => {
       window.clearTimeout(responseTimeout)
       unsubscribe()
-      const exitQueued = isSocketOpen() ? sendRaw('!') : false
+      // '!' ends the monitor loop. Send it only when the loop may be running:
+      // $limits was sent and either answered or still within its reply window.
+      const exitNeeded = limitsSent && (recognizedResponseRef.current || !replyTimedOut)
+      const exitQueued = exitNeeded && isSocketOpen() ? sendRaw('!') : false
       window.setTimeout(resumeBackgroundTraffic, exitQueued ? 150 : 0)
     }
-  }, [connected, session])
+  }, [connected, machineIdle, session])
 
   const axes = useMemo(() => {
     const found = new Set<string>()

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { X, Download, CheckCircle2, AlertCircle, ArrowUp, RefreshCw, Heart } from 'lucide-react'
 import fluidncLogo from '../assets/fluidnc-logo.svg'
 import { useMachineStore } from '../store'
+import { useGCodeSenderStore } from '../store/gcodeSender'
 import { uploadFile, uiDir, putUiFile } from '../lib/http'
 import { CURRENT_VERSION, GITHUB_REPO, DISMISSED_VERSION_KEY, semverGt } from '../lib/updateCheck'
 
@@ -35,6 +36,14 @@ function loadMarkedFromCdn(): Promise<void> {
   })
 
   return markedLoadPromise
+}
+
+// Writing the web UI to flash mid-job only adds load to the controller.
+const UPDATE_AFTER_JOB = 'A job is running. Update after it has finished.'
+
+function jobActive(state: string, sdFilename: string | undefined, senderPhase: string) {
+  return state === 'Run' || state === 'Hold' || Boolean(sdFilename) ||
+    senderPhase === 'streaming' || senderPhase === 'paused' || senderPhase === 'draining'
 }
 
 type UpdateState = 'idle' | 'checking' | 'up-to-date' | 'available' | 'downloading' | 'uploading' | 'done' | 'error'
@@ -241,6 +250,10 @@ export function AboutModal({ onClose }: Props) {
   const espInfo = useMachineStore(s => s.espInfo)
   const pendingUpdateVersion = useMachineStore(s => s.pendingUpdateVersion)
   const setPendingUpdateVersion = useMachineStore(s => s.setPendingUpdateVersion)
+  const machineState = useMachineStore(s => s.status.state)
+  const sdFilename = useMachineStore(s => s.status.sdFilename)
+  const senderPhase = useGCodeSenderStore(s => s.phase)
+  const updateBlocked = jobActive(machineState, sdFilename, senderPhase)
 
   const [updateState, setUpdateState] = useState<UpdateState>(
     () => pendingUpdateVersion ? 'available' : 'idle'
@@ -324,6 +337,12 @@ export function AboutModal({ onClose }: Props) {
       const dlRes = await fetch(FIRMWARE_URL)
       if (!dlRes.ok) throw new Error(`Download failed: ${dlRes.status}`)
       downloadedBuffer.current = await dlRes.arrayBuffer()
+
+      // A job may have started while the file was downloading.
+      const { status } = useMachineStore.getState()
+      if (jobActive(status.state, status.sdFilename, useGCodeSenderStore.getState().phase)) {
+        throw new Error(UPDATE_AFTER_JOB)
+      }
 
       setUpdateState('uploading')
       setUploadProgress(0)
@@ -483,8 +502,10 @@ export function AboutModal({ onClose }: Props) {
                   )}
                   <div className="flex items-center gap-2">
                     <button
-                      className="btn-primary self-start flex items-center gap-1.5 text-[13px] py-1.5 px-3"
+                      className="btn-primary self-start flex items-center gap-1.5 text-[13px] py-1.5 px-3 disabled:opacity-50 disabled:cursor-not-allowed"
                       onClick={performUpdate}
+                      disabled={updateBlocked}
+                      title={updateBlocked ? 'Update after the running job has finished' : undefined}
                     >
                       <ArrowUp size={13} />
                       Update to v{latestVersion}
@@ -496,6 +517,9 @@ export function AboutModal({ onClose }: Props) {
                       Dismiss
                     </button>
                   </div>
+                  {updateBlocked && (
+                    <span className="text-[11px] text-text-dim">{UPDATE_AFTER_JOB}</span>
+                  )}
                 </div>
               )}
 
