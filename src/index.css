@@ -843,6 +843,11 @@ textarea {
     }
   }
 
+  /* The fine toggle sits in the empty corner; smaller text keeps it apart from the jog buttons. */
+  .jog-cluster .jog-cluster-btn--fine {
+    font-size: clamp(0.6875rem, 6cqmin, 1rem);
+  }
+
   .jog-cluster-stop {
     display: flex;
     align-items: center;
