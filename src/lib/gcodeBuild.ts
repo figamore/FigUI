@@ -351,6 +351,62 @@ export function buildStatic2DPaths(lines: RenderLines): Built2DPaths {
   return builder.finish()
 }
 
+/** Places where the tool plunges straight down at a feed rate: drilled holes. */
+export interface PlungePoints {
+  count: number
+  /** x, y per hole. */
+  xy: Float64Array
+  /** The last plunge segment of each hole, ascending. Pecks at one spot are one hole. */
+  segments: Int32Array
+  tools: Int32Array
+}
+
+const MAX_PLUNGE_POINTS = 20_000
+const SAME_XY_MM = 1e-6
+
+/**
+ * A plunge has no length in XY, so the 2D view draws nothing for it. These
+ * points let it mark drilled holes the way the 3D view shows them.
+ */
+export function findPlungePoints(segments: SegmentTable): PlungePoints {
+  const { px, py, pz } = segments
+  const xy: number[] = []
+  const holeSegments: number[] = []
+  const tools: number[] = []
+  for (let index = 0; index < segments.length; index++) {
+    if (segments.moveCode(index) !== MOVE_FEED || segments.isArc(index) || !(pz[index + 1] < pz[index])) continue
+    const x = px[index], y = py[index]
+    if (Math.abs(px[index + 1] - x) > SAME_XY_MM || Math.abs(py[index + 1] - y) > SAME_XY_MM) continue
+    const last = holeSegments.length - 1
+    if (last >= 0 && Math.abs(xy[2 * last] - x) <= SAME_XY_MM && Math.abs(xy[2 * last + 1] - y) <= SAME_XY_MM) {
+      holeSegments[last] = index
+      continue
+    }
+    if (holeSegments.length >= MAX_PLUNGE_POINTS) break
+    xy.push(x, y)
+    holeSegments.push(index)
+    tools.push(segments.tools[index])
+  }
+  return {
+    count: holeSegments.length,
+    xy: Float64Array.from(xy),
+    segments: Int32Array.from(holeSegments),
+    tools: Int32Array.from(tools),
+  }
+}
+
+/** How many holes are finished once execution has reached `segmentIndex`. */
+export function completedPlungeCount(points: PlungePoints, segmentIndex: number) {
+  let low = 0
+  let high = points.count
+  while (low < high) {
+    const middle = (low + high) >> 1
+    if (points.segments[middle] < segmentIndex) low = middle + 1
+    else high = middle
+  }
+  return low
+}
+
 export interface Built3DGeometry {
   vertices: Float32Array
   /** RGBA bytes per vertex, uploaded as normalized unsigned bytes. */
