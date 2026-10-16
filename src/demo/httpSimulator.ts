@@ -1,4 +1,5 @@
 import { listDir, diskStats, getFile, setFile, deleteEntry, renameEntry } from './fileSystem'
+import { handleTextCommand } from './machine'
 
 const ESP800 = [
   'FW version:FluidNC v4.0.0-sim',
@@ -55,7 +56,7 @@ function fileListResponse(dirPrefix: string, path: string): Response {
   }), 'application/json')
 }
 
-function handleCommand(params: URLSearchParams): Response {
+async function handleCommand(params: URLSearchParams): Promise<Response> {
   const plain = params.get('cmd') ?? params.get('plain') ?? ''
   if (plain === '[ESP800]') return ok(ESP800)
   if (plain === '[ESP800]json=yes') return ok(JSON.stringify({ data: {
@@ -64,7 +65,15 @@ function handleCommand(params: URLSearchParams): Response {
     Authentication: 'Disabled', Axisletters: 'XYZ',
   } }), 'application/json')
   if (plain === '[ESP400]') return ok(ESP400, 'application/json')
-  return ok('ok')
+  // Route controller commands ($SS, $$, …) through the simulated machine so
+  // startup queries see the same response lines as real FluidNC.
+  const lines: string[] = []
+  const completed = await handleTextCommand(plain, msg => {
+    for (const line of msg.split('\n')) if (line.trim()) lines.push(line)
+  })
+  // A command interrupted by soft reset reports no ack instead of success.
+  if (!completed) return ok('')
+  return ok(lines.length > 0 ? lines.join('\n') + '\n' : 'ok')
 }
 
 function handleFsAction(
@@ -116,7 +125,7 @@ export function installFetchInterceptor(): void {
     const p   = url.pathname
     const m   = (init?.method ?? 'GET').toUpperCase()
 
-    if (p === '/command' || p === '/command_silent') return handleCommand(url.searchParams)
+    if (p === '/command' || p === '/command_silent') return await handleCommand(url.searchParams)
 
     if (p === '/upload') {
       const fd = m === 'POST' && init?.body instanceof FormData ? init.body : null

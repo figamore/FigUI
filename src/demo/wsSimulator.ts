@@ -1,4 +1,4 @@
-import { statusReport, handleRealtime, handleTextCommand } from './machine'
+import { statusReport, handleRealtime, handleTextCommand, getProbeGeneration } from './machine'
 
 // Replaces window.WebSocket in demo mode — no network, pure in-browser simulation
 export class FakeWebSocket extends EventTarget {
@@ -69,9 +69,23 @@ export class FakeWebSocket extends EventTarget {
     }
   }
 
+  private commandQueue: Promise<unknown> = Promise.resolve()
+
   private _handleText(text: string) {
+    // Serialize lines in arrival order: handleTextCommand sleeps to simulate
+    // motion, so dispatching concurrently could interleave moves with a
+    // pending PRB report from an earlier command in the same payload.
     for (const line of text.split('\n')) {
-      if (line.trim()) handleTextCommand(line, (msg) => this._emit(msg))
+      if (!line.trim()) continue
+      // Snapshot the generation at enqueue time: a soft reset that lands
+      // while this line waits in the queue must discard it at dispatch.
+      const queuedGeneration = getProbeGeneration()
+      this.commandQueue = this.commandQueue
+        .then(() => {
+          if (this.readyState !== 1) return
+          return handleTextCommand(line, (msg) => this._emit(msg), queuedGeneration)
+        })
+        .catch(() => { /* keep the queue alive if one command fails */ })
     }
   }
 
