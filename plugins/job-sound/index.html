@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Job Sound</title>
+<style>
+  * { box-sizing: border-box }
+  body {
+    margin: 0; padding: 16px;
+    background: var(--bg, #0c1018); color: var(--text-primary, #e2e6f4);
+    font: 15px/1.4 ui-sans-serif, system-ui, sans-serif;
+  }
+  main { max-width: 440px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px }
+  h1 { margin: 0; font-size: 18px }
+  .row { display: flex; align-items: center; gap: 10px }
+  .row > span:first-child { width: 64px; color: var(--text-muted, #8b93a7); font-weight: 600 }
+  .seg { display: inline-flex; padding: 2px; border-radius: 8px; background: var(--elevated, #1a2030); border: 1px solid var(--border, #2a3142) }
+  button {
+    min-height: 40px; padding: 8px 14px; border-radius: 8px; cursor: pointer; font: inherit;
+    color: var(--text-primary, #e2e6f4); background: var(--elevated, #1a2030); border: 1px solid var(--border, #2a3142);
+  }
+  .seg button { min-height: 34px; border-color: transparent; background: transparent; color: var(--text-muted, #8b93a7) }
+  .seg button[aria-pressed="true"] { background: var(--surface, #121722); border-color: var(--border, #2a3142); color: var(--text-primary, #e2e6f4) }
+  button:hover { border-color: var(--border-strong, #3a4458) }
+  input[type=range] { flex: 1; accent-color: var(--accent, #f0a030) }
+  #volumeValue { width: 44px; text-align: right; font-family: ui-monospace, monospace }
+  #state { font-weight: 600 }
+  p { margin: 0; font-size: 13px; color: var(--text-muted, #8b93a7) }
+  #blocked { padding: 8px 10px; border-radius: 8px; color: var(--warn, #f59e0b); background: rgb(var(--warn-rgb, 245 158 11) / .1); border: 1px solid rgb(var(--warn-rgb, 245 158 11) / .3) }
+  [hidden] { display: none !important }
+</style>
+</head>
+<body>
+<main>
+  <h1>Job sound</h1>
+  <div id="state" role="status">Waiting for a job</div>
+  <div class="row">
+    <span>Sound</span>
+    <div class="seg"><button id="off" aria-pressed="false">Off</button><button id="on" aria-pressed="true">On</button></div>
+    <button id="test" title="Play the job finished sound">Test</button>
+  </div>
+  <div class="row">
+    <span>Volume</span>
+    <input id="volume" type="range" min="0" max="100" step="5" value="100" aria-label="Volume">
+    <span id="volumeValue">100%</span>
+  </div>
+  <p id="blocked">Click or tap in this window once: the browser plays sound only after that.</p>
+  <p id="last" hidden></p>
+  <p>A chime when a job finishes; an alarm when it stops early (alarm, reset, error, or a lost connection). It plays only while this window is open: closing it or leaving the Plugins tab stops it. A job without an SD file counts once it has run for 30 s.</p>
+</main>
+<script>
+// Job-end sounds synthesized with Web Audio. A job is followed from the
+// status reports: Run, Hold or Door, or an SD: field, starts it; Idle without
+// the SD: field ends it with a chime. An alarm, a controller reset, an error
+// reply, or a lost connection after which the job is no longer running ends
+// it with the alarm sound.
+const MIN_JOB_MS = 30000      // shorter runs without an SD file: probe moves, macros, single lines
+const END_CONFIRM_MS = 2000   // FluidNC reports Idle between laser M5/M3 pairs in a streamed job
+
+const ui = Object.fromEntries(['state', 'off', 'on', 'test', 'volume', 'volumeValue', 'blocked', 'last'].map(id => [id, document.getElementById(id)]))
+
+const chime = start => [
+  { frequency: 523.25, start, length: 0.25 },
+  { frequency: 659.25, start: start + 0.18, length: 0.25 },
+  { frequency: 783.99, start: start + 0.36, length: 0.5 },
+]
+const PATTERNS = {
+  // A rising chime played three times, so it carries over fans and extraction.
+  finished: { wave: 'sine', peak: 0.4, notes: [0, 1.2, 2.4].flatMap(chime) },
+  // An alternating two-tone alarm for a job that did not run to its end.
+  warning: {
+    wave: 'square',
+    peak: 0.15,
+    notes: [0, 0.5, 1, 1.5, 2, 2.5].map((start, index) => ({ frequency: index % 2 ? 660 : 880, start, length: 0.4 })),
+  },
+}
+
+let seq = 0
+const pending = new Map()
+function call(method, params = {}) {
+  return new Promise((resolve, reject) => {
+    const id = String(++seq)
+    const timer = setTimeout(() => { pending.delete(id); reject(new Error('no response from FigUI')) }, 10000)
+    pending.set(id, { resolve, reject, timer })
+    window.parent.postMessage({ type: 'fluid-request', id, method, params }, '*')
+  })
+}
+
+const settings = { enabled: true, volume: 100 }
+let job = null                // { startedAt, sd, file, lost, failed }
+let endTimer = 0
+let context = null
+
+function audioContext() {
+  const Context = window.AudioContext ?? window.webkitAudioContext
+  if (!Context) return null
+  if (!context) {
+    context = new Context()
+    context.onstatechange = render
+  }
+  return context
+}
+
+// Browsers start audio only after a user gesture in this window.
+async function play(kind) {
+  const ctx = audioContext()
+  if (!ctx || !(settings.volume > 0)) return false
+  // resume() stays pending until a gesture allows it; do not queue a late sound.
+  if (ctx.state !== 'running') await Promise.race([ctx.resume().catch(() => {}), new Promise(r => setTimeout(r, 500))])
+  if (ctx.state !== 'running') return false
+  const { wave, peak, notes } = PATTERNS[kind]
+  const top = peak * settings.volume / 100
+  const now = ctx.currentTime + 0.05
+  for (const { frequency, start, length } of notes) {
+    const oscillator = ctx.createOscillator()
+    const gain = ctx.createGain()
+    oscillator.type = wave
+    oscillator.frequency.value = frequency
+    gain.gain.setValueAtTime(0.0001, now + start)
+    gain.gain.exponentialRampToValueAtTime(top, now + start + 0.02)
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + start + length)
+    oscillator.connect(gain).connect(ctx.destination)
+    oscillator.start(now + start)
+    oscillator.stop(now + start + length + 0.05)
+  }
+  return true
+}
+
+function prepareAudio() {
+  audioContext()?.resume().catch(() => {})
+}
+
+const running = s => s.state === 'Run' || s.state === 'Hold' || s.state === 'Door' || s.sdPercent != null
+
+function onStatus(s) {
+  if (!s) return
+  if (s.state === 'Unknown') {
+    // A new connection: judge the job by the first report that follows.
+    if (job) job.lost = true
+  } else if (running(s)) {
+    clearTimeout(endTimer)
+    endTimer = 0
+    job ??= { startedAt: Date.now(), sd: false, file: '', lost: false }
+    if (s.sdPercent != null) {
+      job.sd = true
+      job.file = s.sdFilename ?? job.file
+    }
+    job.lost = false
+  } else if (job) {
+    if (s.state === 'Alarm' || job.lost) end('warning')
+    else if (!endTimer) endTimer = setTimeout(() => end('finished'), END_CONFIRM_MS)
+  }
+  render()
+}
+
+function end(kind) {
+  clearTimeout(endTimer)
+  endTimer = 0
+  const ended = job
+  job = null
+  render()
+  if (!ended || (!ended.sd && Date.now() - ended.startedAt < MIN_JOB_MS)) return
+  if (ended.failed) kind = 'warning'
+  const what = `${kind === 'finished' ? 'Job finished' : ended.lost ? 'Job end not confirmed (connection lost)' : 'Job interrupted'} at ${new Date().toLocaleTimeString()}`
+  ui.last.hidden = false
+  ui.last.textContent = what
+  if (!settings.enabled) return
+  play(kind).then(played => {
+    if (!played) ui.last.textContent = `${what}; no sound (${settings.volume > 0 ? 'click in this window once' : 'volume is 0'})`
+  })
+}
+
+function render() {
+  ui.state.textContent = !job ? 'Waiting for a job'
+    : job.lost ? 'Connection lost during the job'
+    : job.file ? `Job running: ${job.file.split('/').pop()}` : 'Job running'
+  ui.off.setAttribute('aria-pressed', String(!settings.enabled))
+  ui.on.setAttribute('aria-pressed', String(settings.enabled))
+  ui.volume.value = String(settings.volume)
+  ui.volumeValue.textContent = `${settings.volume}%`
+  ui.blocked.hidden = context?.state === 'running'
+}
+
+function save() {
+  call('saveSettings', { data: { enabled: settings.enabled, volume: settings.volume } }).catch(() => {})
+}
+
+window.addEventListener('message', e => {
+  if (e.source !== window.parent) return
+  const msg = e.data
+  if (msg?.type === 'fluid-response') {
+    const p = pending.get(msg.id)
+    if (!p) return
+    pending.delete(msg.id)
+    clearTimeout(p.timer)
+    msg.error ? p.reject(new Error(msg.error)) : p.resolve(msg.result)
+  } else if (msg?.type === 'fluid-event' && msg.event === 'status') {
+    onStatus(msg.data)
+  } else if (msg?.type === 'fluid-event' && msg.event === 'line' && job) {
+    // FluidNC's greeting after a reset ends any job; an error ends a file job
+    // and FigUI's stream.
+    const line = String(msg.data)
+    if (line.startsWith('Grbl ') && line.includes('[FluidNC')) end('warning')
+    else if (line === 'error' || line.startsWith('error:') || line.includes('[MSG:ERR')) job.failed = true
+  }
+})
+
+ui.off.addEventListener('click', () => { settings.enabled = false; render(); save() })
+ui.on.addEventListener('click', () => { settings.enabled = true; render(); save() })
+ui.test.addEventListener('click', () => { play('finished') })
+ui.volume.addEventListener('input', () => { settings.volume = Number(ui.volume.value); render() })
+ui.volume.addEventListener('change', save)
+window.addEventListener('pointerdown', prepareAudio)
+window.addEventListener('keydown', prepareAudio)
+
+async function init() {
+  render()
+  try {
+    await Promise.all([call('subscribe', { event: 'status' }), call('subscribe', { event: 'line' })])
+    const [s, saved] = await Promise.all([call('getStatus'), call('getSettings').catch(() => null)])
+    if (typeof saved?.enabled === 'boolean') settings.enabled = saved.enabled
+    const volume = Number(saved?.volume)
+    if (saved?.volume != null && volume >= 0 && volume <= 100) settings.volume = volume
+    // A job already running when the window opens counts whatever its length.
+    if (s && running(s)) job = { startedAt: 0, sd: false, file: '', lost: false }
+    onStatus(s)
+  } catch (err) {
+    ui.state.textContent = err.message
+  }
+}
+init()
+</script>
+</body>
+</html>

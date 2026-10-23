@@ -1,0 +1,8 @@
+{
+  "name": "Job Sound",
+  "description": "Plays a chime when a job finishes and an alarm when it is interrupted, while its window is open.",
+  "version": "1.0.0",
+  "entry": "index.html",
+  "icon": "icon.png",
+  "layout": "default"
+}

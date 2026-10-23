@@ -96,6 +96,14 @@
       "version": "1.0.0",
       "author": "i-draw-monkeys",
       "base": "https://raw.githubusercontent.com/figamore/FigUI/main/plugins/wallflower/"
+    },
+    {
+      "id": "job-sound",
+      "name": "Job Sound",
+      "description": "Plays a chime when a job finishes and an alarm when it is interrupted, while its window is open.",
+      "version": "1.0.0",
+      "author": "ErkanGench",
+      "base": "https://raw.githubusercontent.com/figamore/FigUI/main/plugins/job-sound/"
     }
   ]
 }
