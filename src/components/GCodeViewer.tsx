@@ -14,6 +14,7 @@ import { RestartFromLineDialog } from './RestartFromLineDialog'
 import { useGCodeSenderStore } from '../store/gcodeSender'
 import { useSingleBlockStore } from '../store/singleBlock'
 import { SingleBlockNotice, SingleBlockToggle } from './SingleBlockControl'
+import { useConfirmTap } from '../hooks/useConfirmTap'
 import { GCODE_ACCEPT_ATTRIBUTE, isGCodeFileName } from '../lib/gcodeFiles'
 import { controllerRunCommand, isRunningFile, runningFilePath } from '../lib/controllerFiles'
 import { buildFramingGCode, getFramingRequiredTravelZ, programMovesZ, type FramingMode } from '../lib/gcodeOutline'
@@ -2124,6 +2125,11 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
   const isJobRunning = senderPhase === 'streaming' || senderPhase === 'draining'
     || (status.state === 'Run' && senderPhase !== 'paused') || controllerJobStarting
   const isJobHeld = senderPhase === 'paused' || status.state === 'Hold'
+  const abortConfirm = useConfirmTap()
+  const disarmAbort = abortConfirm.disarm
+  useEffect(() => {
+    if (!isJobRunning && !isJobHeld) disarmAbort()
+  }, [isJobRunning, isJobHeld, disarmAbort])
 
   // $SD/Run is only queued when Start is pressed. If the controller refuses the
   // file (moved, renamed, card not mounted) it stays Idle and never reports the
@@ -4225,15 +4231,16 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
           {(isJobRunning || isJobHeld) && (
             <button
               className={`btn btn-danger-solid gap-1.5 job-action ${isTablet ? 'text-base' : 'text-sm'} justify-center flex-1`}
-              onClick={() => {
+              onClick={() => abortConfirm.tap(() => {
                 if (senderActive) abortSender()
                 else {
                   if (sendRealtimeNow(0x18)) cancelTrackedJob('controller')
                 }
-              }}
+              })}
+              title={abortConfirm.armed ? undefined : 'Tap twice to abort the job with a controller reset'}
             >
               <Square size={isTablet ? 18 : 13} />
-              Abort
+              {abortConfirm.armed ? 'Tap again to abort' : 'Abort'}
             </button>
           )}
         </div>

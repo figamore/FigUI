@@ -16,6 +16,7 @@
     "test:plugins-macros": "esbuild scripts/test-plugins-macros.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/figui-test-plugins-macros.mjs && node node_modules/.cache/figui-test-plugins-macros.mjs",
     "test:gcode-parser": "esbuild scripts/test-gcode-parser.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/figui-test-gcode-parser.mjs && node node_modules/.cache/figui-test-gcode-parser.mjs",
     "test:gcode-arcs": "esbuild scripts/test-gcode-arcs.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/figui-test-gcode-arcs.mjs && node node_modules/.cache/figui-test-gcode-arcs.mjs",
+    "test:probe-absolute-mode": "esbuild scripts/test-probe-absolute-mode.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/figui-test-probe-absolute-mode.mjs && node node_modules/.cache/figui-test-probe-absolute-mode.mjs",
     "test:gcode": "esbuild scripts/test-gcode-preview.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/figui-test-gcode-preview.mjs && node node_modules/.cache/figui-test-gcode-preview.mjs",
     "test:gcode-restart": "esbuild scripts/test-gcode-restart.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/figui-test-gcode-restart.mjs && node node_modules/.cache/figui-test-gcode-restart.mjs",
     "test:gcode-cache": "esbuild scripts/test-gcode-cache.ts --bundle --packages=external --platform=node --format=esm --outfile=node_modules/.cache/figui-test-gcode-cache.mjs && node node_modules/.cache/figui-test-gcode-cache.mjs",
