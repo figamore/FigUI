@@ -18,6 +18,7 @@
     "test:gcode-arcs": "esbuild scripts/test-gcode-arcs.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/figui-test-gcode-arcs.mjs && node node_modules/.cache/figui-test-gcode-arcs.mjs",
     "test:gcode": "esbuild scripts/test-gcode-preview.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/figui-test-gcode-preview.mjs && node node_modules/.cache/figui-test-gcode-preview.mjs",
     "test:gcode-restart": "esbuild scripts/test-gcode-restart.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/figui-test-gcode-restart.mjs && node node_modules/.cache/figui-test-gcode-restart.mjs",
+    "test:fine-jog": "esbuild scripts/test-fine-jog.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/figui-test-fine-jog.mjs && node node_modules/.cache/figui-test-fine-jog.mjs",
     "test:gcode-cache": "esbuild scripts/test-gcode-cache.ts --bundle --packages=external --platform=node --format=esm --outfile=node_modules/.cache/figui-test-gcode-cache.mjs && node node_modules/.cache/figui-test-gcode-cache.mjs",
     "test:stream": "esbuild scripts/test-gcode-stream.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/figui-test-gcode-stream.mjs && node node_modules/.cache/figui-test-gcode-stream.mjs",
     "test:job-guards": "esbuild scripts/test-job-guards.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/figui-test-job-guards.mjs && node node_modules/.cache/figui-test-job-guards.mjs",

@@ -108,6 +108,30 @@ function linearBarSteps(units: Units): readonly number[] {
   return units === 'in' ? [1, 0.1, 0.01] : [10, 1, 0.1]
 }
 
+/** Fine jog swaps the 0.1 mm step for 0.01 mm. Inch steps already go down to 0.001 in. */
+function withFineStep(steps: readonly number[], units: Units, fine: boolean): readonly number[] {
+  if (!fine || units === 'in') return steps
+  return steps.map(step => step === 0.1 ? 0.01 : step)
+}
+
+function FineJogButton({ fine, onToggle, className }: { fine: boolean; onToggle: () => void; className: string }) {
+  return (
+    <button
+      type="button"
+      aria-pressed={fine}
+      title={fine ? 'Fine jog ON: the 0.1 mm step moves 0.01 mm' : 'Fine jog: make the 0.1 mm step 0.01 mm'}
+      onClick={onToggle}
+      className={`${className} font-bold transition-all ${
+        fine
+          ? '!bg-accent/15 !border-accent/50 !text-accent'
+          : 'text-text-muted hover:text-text-primary'
+      }`}
+    >
+      Fine
+    </button>
+  )
+}
+
 function linearFeedPresets(units: Units): readonly number[] {
   if (units === 'in') return IN_FEED_PRESETS.map(preset => displayToMm(preset, 'in'))
   return MM_FEED_PRESETS
@@ -321,16 +345,17 @@ const DIRS = [
 ]
 
 
-function JogRose({ xyFeed, continuous, disabled, isJogging, activeKeys, units }: {
+function JogRose({ xyFeed, continuous, disabled, isJogging, activeKeys, units, fine }: {
   xyFeed: number; continuous: boolean; disabled: boolean; isJogging: boolean
   activeKeys?: Set<string>
   units: Units
+  fine: boolean
 }) {
   const [hover, setHover] = useState<string | null>(null)
   const [centerHover, setCenterHover] = useState(false)
   const outerR = RADII[RADII.length - 1]
   const centerR = RADII[0]
-  const ringSteps = linearRingSteps(units)
+  const ringSteps = withFineStep(linearRingSteps(units), units, fine)
 
   const hoverAxis = hover && !hover.startsWith('c:') ? hover[0] : null
   const firstActiveAxis = activeKeys && activeKeys.size > 0 ? [...activeKeys][0][0] : null
@@ -386,7 +411,7 @@ function JogRose({ xyFeed, continuous, disabled, isJogging, activeKeys, units }:
         const a2 = 3 * Math.PI / 4
         const x1 = midR * Math.cos(a1), y1 = midR * Math.sin(a1) + 6
         const x2 = midR * Math.cos(a2), y2 = midR * Math.sin(a2) + 2
-        const label = formatDisplayNumber(step, units === 'in' ? 3 : 1)
+        const label = formatDisplayNumber(step, 3)
         const fs = i === 0 ? 7 : 9
         return (
           <g key={step} pointerEvents="none">
@@ -899,6 +924,8 @@ export function JogPad() {
   const units = useMachineStore(s => s.units)
   const controllerSettings = useMachineStore(s => s.controllerSettings)
   const setActiveStepJog = useMachineStore(s => s.setActiveStepJog)
+  const fineJog = useMachineStore(s => s.fineJog)
+  const setFineJog = useMachineStore(s => s.setFineJog)
   const [spindleTarget, setSpindleTarget] = useState(24000)
   const [selectedSpindlePreset, setSelectedSpindlePreset] = useState<number | null>(null)
   const [spindleOverrideState, setSpindleOverrideState] = useState<'on' | 'off' | null>(null)
@@ -914,7 +941,7 @@ export function JogPad() {
   const jobRunning = useJobRunningWithLinger(jobActive)
   const jogPanelRef = useRef<HTMLDivElement>(null)
   const { keyboardJog, setKeyboardJog, activeKeys } = useKeyboardJog(continuous, canJog, xyFeed, zFeed, jogPanelRef)
-  const zSteps = linearBarSteps(units)
+  const zSteps = withFineStep(linearBarSteps(units), units, fineJog)
   const xyFeedMax = getJogFeedMax(controllerSettings, 'xy')
   const zFeedMax = getJogFeedMax(controllerSettings, 'z')
   const abcFeedMax = getJogFeedMax(controllerSettings, 'abc', axes)
@@ -1048,9 +1075,13 @@ export function JogPad() {
                       </svg>
                     </button>
                   )}
+                  {!continuous && units === 'mm' && (
+                    <FineJogButton fine={fineJog} onToggle={() => setFineJog(!fineJog)}
+                      className="absolute top-0 left-0 h-7 px-2 rounded border border-border text-base" />
+                  )}
                   <JogRose xyFeed={xyFeed} continuous={continuous} disabled={!canJog}
                     isJogging={status.state === 'Jog'}
-                    activeKeys={activeKeys} units={units} />
+                    activeKeys={activeKeys} units={units} fine={fineJog} />
                   <AxisBar axis="Z" color="var(--info)" steps={zSteps} feed={zFeed}
                     continuous={continuous} disabled={!canJog} activeKeys={activeKeys} units={units} />
                 </div>
@@ -1411,6 +1442,8 @@ export function TabletJogPad({
   const [abcFeed, setAbcFeed] = useState(() => loadPersistedJogFeed('jog.abcFeed', 500))
   const [continuous, setContinuous] = useState(false)
   const [stepIdx, setStepIdx] = useState(() => tabletStepIdx)
+  const fineJog = useMachineStore(s => s.fineJog)
+  const setFineJog = useMachineStore(s => s.setFineJog)
   const [feedModal, setFeedModal] = useState<'xy' | 'z' | 'abc' | null>(null)
   const [customFeedValue, setCustomFeedValue] = useState('')
   const prevUnitsRef = useRef(units)
@@ -1456,9 +1489,16 @@ export function TabletJogPad({
   const jogDisabled = !canJog || jobRunning
   const jogControlsRef = useRef<HTMLDivElement>(null)
   const { keyboardJog, setKeyboardJog } = useKeyboardJog(continuous, canJog, xyFeed, zFeed, jogControlsRef)
-  const steps = linearRingSteps(units)
+  // Fine only swaps the first step, so the remembered index still fits.
+  const steps = withFineStep(linearRingSteps(units), units, fineJog)
   const stepSize = steps[stepIdx]
   const commandStepSize = displayToMm(stepSize, units)
+
+  function toggleFineJog() {
+    // Turning fine on selects the fine step, so the next tap moves 0.01 mm.
+    if (!fineJog) { setStepIdx(0); tabletStepIdx = 0 }
+    setFineJog(!fineJog)
+  }
 
   const { start: startYp, stop: stopYp } = useHoldJog('Y', 1, xyFeed, commandStepSize, continuous, jogDisabled)
   const { start: startYm, stop: stopYm } = useHoldJog('Y', -1, xyFeed, commandStepSize, continuous, jogDisabled)
@@ -1566,7 +1606,9 @@ export function TabletJogPad({
             </button>
           )}
           <div className={jogClusterClass}>
-            <div aria-hidden="true" />
+            {!continuous && units === 'mm'
+              ? <FineJogButton fine={fineJog} onToggle={toggleFineJog} className="jog-cluster-btn jog-cluster-btn--fine" />
+              : <div aria-hidden="true" />}
             <button {...tabletJogPointerHandlers(startYp, stopYp, continuous)} className="jog-cluster-btn text-ok">Y+</button>
             <div aria-hidden="true" />
             <button {...tabletJogPointerHandlers(startZp, stopZp, continuous)} className="jog-cluster-btn text-info">Z+</button>
