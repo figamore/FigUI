@@ -3745,6 +3745,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
                 {!simulationActive && !senderActive && runtime.source === 'sd' && (
                   <span className="text-[11px] font-mono text-text-muted tabular-nums" title="File progress reported by FluidNC">
                     File {formatJobProgress(displayedProgressPercent, runtime.source)}
+                    {runtime.remainingSeconds != null && <>, Remain ~{formatRuntime(runtime.remainingSeconds)}</>}
                   </span>
                 )}
               </div>

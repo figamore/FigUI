@@ -26,6 +26,7 @@ export interface JobRuntimeEstimate {
   source: 'estimated' | 'sd' | 'none'
   progressPercent: number | null
   elapsedSeconds: number | null
+  /** For 'sd' an approximation from the SD byte rate, null until it has moved enough to measure. */
   remainingSeconds: number | null
   totalSeconds: number | null
 }
@@ -283,19 +284,18 @@ export function distributeFixedDelays(model: GCodeModel, target: Float64Array, s
   return [trailing, total] as const
 }
 
-function getStopsBeforeSegments(model: GCodeModel, settings: ControllerSettings) {
+function getStopsBeforeSegments(model: GCodeModel) {
   const stops = new Uint8Array(model.segments.length)
   let segmentIndex = 0
-  const delays = [...(model.fixedDelays ?? [])]
-  const spinupSeconds = (settings.spindleSpinupMs ?? 0) / 1000
-  const spindownSeconds = (settings.spindleSpindownMs ?? 0) / 1000
-  for (const [sourceLine, state] of model.spindleTransitions ?? []) {
-    const seconds = state === 'on' ? spinupSeconds : spindownSeconds
-    if (Number.isFinite(seconds) && seconds > 0) delays.push([sourceLine, seconds])
+  const stopLines: number[] = []
+  for (const [sourceLine, seconds] of model.fixedDelays ?? []) {
+    if (Number.isFinite(seconds) && seconds > 0) stopLines.push(sourceLine)
   }
-  delays.sort((a, b) => a[0] - b[0])
-  for (const [sourceLine, seconds] of delays) {
-    if (!Number.isFinite(seconds) || seconds <= 0) continue
+  // FluidNC syncs the planner on every spindle state change, even in laser
+  // mode, so motion stops there with or without a spin-up delay.
+  for (const [sourceLine] of model.spindleTransitions ?? []) stopLines.push(sourceLine)
+  stopLines.sort((a, b) => a - b)
+  for (const sourceLine of stopLines) {
     if (model.timingEndLine != null && sourceLine > model.timingEndLine) continue
     while (segmentIndex < model.segments.length
       && model.segments.sourceLine(segmentIndex) < sourceLine) segmentIndex++
@@ -337,7 +337,7 @@ export function buildJobTimingEstimate(
   const junctionLimit = new Float64Array(count).fill(Number.NaN)
   const vEntry = new Float64Array(count)
   const vExit = new Float64Array(count)
-  const stopsBefore = getStopsBeforeSegments(model, settings)
+  const stopsBefore = getStopsBeforeSegments(model)
   const lineFractions = { x: 0, y: 0, z: 0 }
   let previous = -1
   let previousExitX = 0, previousExitY = 0, previousExitZ = 0
@@ -601,6 +601,39 @@ function getTimelinePosition(
   }
 }
 
+/** Run-time integration for one job, shared by every view that shows it. */
+interface JobClock {
+  activeRunStartedAt: number | null
+  accumulatedRunMs: number
+  nominalCompletedSec: number
+  lastSampleMs: number | null
+  lastSampleScale: number
+  /** SD jobs without a matching preview: the point the byte-rate estimate is measured from. */
+  sdRefRunMs: number
+  sdRefPercent: number | null
+  sdRefFeed: number
+}
+
+// Keyed by job, so a view that mounts mid-job (the mobile Control tab mounts
+// on every visit) continues the job's clock instead of starting from zero.
+const jobClocks = new Map<string, JobClock>()
+
+function integrateUpTo(clock: JobClock, nowMs: number) {
+  if (clock.lastSampleMs === null) {
+    clock.lastSampleMs = nowMs
+    return
+  }
+  const dtMs = nowMs - clock.lastSampleMs
+  if (dtMs > 0) {
+    clock.nominalCompletedSec += (dtMs / 1000) * clock.lastSampleScale
+  }
+  clock.lastSampleMs = nowMs
+}
+
+function runMsAt(clock: JobClock, nowMs: number) {
+  return clock.accumulatedRunMs + (clock.activeRunStartedAt != null ? Math.max(0, nowMs - clock.activeRunStartedAt) : 0)
+}
+
 export function useJobRuntimeEstimate(
   status: MachineStatus,
   model: GCodeModel | null,
@@ -609,7 +642,8 @@ export function useJobRuntimeEstimate(
   fileName: string | null,
   localJob?: LocalJobRuntimeContext,
 ): JobRuntimeEstimate {
-  const controllerJobActive = status.state === 'Run' || status.state === 'Hold'
+  // A safety door holds the job; it does not end it.
+  const controllerJobActive = status.state === 'Run' || status.state === 'Hold' || status.state === 'Door'
   const localJobActive = localJob?.active === true
   const isJobActive = controllerJobActive || localJobActive
   const matchesJob = !!model && (localJobActive || (controllerJobActive && fileMatchesJob(status, loadedPath, fileName)))
@@ -617,16 +651,10 @@ export function useJobRuntimeEstimate(
     ? localJobActive
       ? `local|${localJob.key}`
       : status.sdFilename ? `${status.sdFilename}|${loadedPath ?? ''}|${fileName ?? ''}` : null
-    : null
+    : controllerJobActive && !localJobActive && status.sdFilename ? `sd|${status.sdFilename}` : null
+  const sdPercentKnown = status.sdPercent != null
 
-  // Wall-time tracking
-  const activeRunStartedAtRef = useRef<number | null>(null)
-  const accumulatedRunMsRef = useRef(0)
-  const activeJobKeyRef = useRef<string | null>(null)
-
-  const nominalCompletedSecRef = useRef(0)
-  const lastSampleMsRef = useRef<number | null>(null)
-  const lastSampleScaleRef = useRef(1)
+  const observedJobKeyRef = useRef<string | null>(null)
 
   const [clockNowMs, setClockNowMs] = useState(() => Date.now())
 
@@ -652,67 +680,67 @@ export function useJobRuntimeEstimate(
       .nominalSecondsPerActualSecond
   }
 
-  const integrateUpTo = (nowMs: number) => {
-    if (lastSampleMsRef.current === null) {
-      lastSampleMsRef.current = nowMs
-      return
-    }
-    const dtMs = nowMs - lastSampleMsRef.current
-    if (dtMs > 0) {
-      nominalCompletedSecRef.current += (dtMs / 1000) * lastSampleScaleRef.current
-    }
-    lastSampleMsRef.current = nowMs
-  }
-
   useEffect(() => {
-    if (!jobKey) {
-      activeRunStartedAtRef.current = null
-      accumulatedRunMsRef.current = 0
-      activeJobKeyRef.current = null
-      nominalCompletedSecRef.current = 0
-      lastSampleMsRef.current = null
-      lastSampleScaleRef.current = 1
-      return
-    }
+    const previousJobKey = observedJobKeyRef.current
+    observedJobKeyRef.current = jobKey
+    // The job this view followed has ended or changed.
+    if (previousJobKey && previousJobKey !== jobKey) jobClocks.delete(previousJobKey)
+    if (!jobKey) return
 
     const now = Date.now()
-    if (activeJobKeyRef.current !== jobKey) {
-      activeJobKeyRef.current = jobKey
-      accumulatedRunMsRef.current = 0
-      nominalCompletedSecRef.current = 0
-      activeRunStartedAtRef.current = status.state === 'Run' ? now : null
-      lastSampleMsRef.current = status.state === 'Run' ? now : null
-      lastSampleScaleRef.current = scaleAtNominalTime(0)
+    const clock = jobClocks.get(jobKey)
+    if (!clock) {
+      jobClocks.set(jobKey, {
+        activeRunStartedAt: status.state === 'Run' ? now : null,
+        accumulatedRunMs: 0,
+        nominalCompletedSec: 0,
+        lastSampleMs: status.state === 'Run' ? now : null,
+        lastSampleScale: scaleAtNominalTime(0),
+        sdRefRunMs: 0,
+        sdRefPercent: status.sdPercent ?? null,
+        sdRefFeed: status.feedOverride,
+      })
       return
     }
 
     if (status.state === 'Run') {
-      if (activeRunStartedAtRef.current === null) {
-        activeRunStartedAtRef.current = now
-        lastSampleMsRef.current = now
-        lastSampleScaleRef.current = scaleAtNominalTime(nominalCompletedSecRef.current)
+      if (clock.activeRunStartedAt === null) {
+        clock.activeRunStartedAt = now
+        clock.lastSampleMs = now
+        clock.lastSampleScale = scaleAtNominalTime(clock.nominalCompletedSec)
       } else {
         // Integrate using the previous override first, then use the new one
         // from this exact point in the job onward.
-        integrateUpTo(now)
-        lastSampleScaleRef.current = scaleAtNominalTime(nominalCompletedSecRef.current)
+        integrateUpTo(clock, now)
+        clock.lastSampleScale = scaleAtNominalTime(clock.nominalCompletedSec)
       }
-    } else if (activeRunStartedAtRef.current !== null) {
+    } else if (clock.activeRunStartedAt !== null) {
 
-      accumulatedRunMsRef.current += now - activeRunStartedAtRef.current
-      integrateUpTo(now)
-      activeRunStartedAtRef.current = null
-      lastSampleMsRef.current = null
+      clock.accumulatedRunMs += now - clock.activeRunStartedAt
+      integrateUpTo(clock, now)
+      clock.activeRunStartedAt = null
+      clock.lastSampleMs = null
     }
-  }, [jobKey, status.state, timingEstimate, overriddenTimingEstimate, status.feedOverride, status.rapidOverride])
+
+    // A feed override changes the byte rate; measure it again from here.
+    if (!timingEstimate && status.sdPercent != null
+      && (clock.sdRefPercent == null || clock.sdRefFeed !== status.feedOverride)) {
+      clock.sdRefRunMs = runMsAt(clock, now)
+      clock.sdRefPercent = status.sdPercent
+      clock.sdRefFeed = status.feedOverride
+    }
+  }, [jobKey, status.state, timingEstimate, overriddenTimingEstimate, status.feedOverride, status.rapidOverride, sdPercentKnown])
 
   useEffect(() => {
     if (!jobKey || status.state !== 'Run') return
 
     const timer = window.setInterval(() => {
       const now = Date.now()
-      integrateUpTo(now)
-      lastSampleScaleRef.current = scaleAtNominalTime(nominalCompletedSecRef.current)
+      const clock = jobClocks.get(jobKey)
+      if (clock) {
+        integrateUpTo(clock, now)
+        clock.lastSampleScale = scaleAtNominalTime(clock.nominalCompletedSec)
+      }
       setClockNowMs(now)
     }, 250)
 
@@ -728,34 +756,50 @@ export function useJobRuntimeEstimate(
     if (localJobActive) {
       return { source: 'none', progressPercent: null, elapsedSeconds: null, remainingSeconds: null, totalSeconds: null }
     }
+    // No preview to time the program against: extrapolate the SD byte progress
+    // over the run time watched so far. Raster files stream at a near-steady
+    // byte rate; mixed files do not, so this is only shown as approximate.
+    const percent = status.sdPercent ?? 0
+    const clock = jobKey ? jobClocks.get(jobKey) : undefined
+    let remainingSeconds: number | null = null
+    if (clock?.sdRefPercent != null) {
+      const gained = percent - clock.sdRefPercent
+      const runMs = runMsAt(clock, clockNowMs) - clock.sdRefRunMs
+      if (gained >= 1 && runMs > 0) remainingSeconds = (runMs / 1000) * Math.max(0, 100 - percent) / gained
+    }
     return {
       source: 'sd',
-      progressPercent: status.sdPercent ?? 0,
+      progressPercent: percent,
       elapsedSeconds: null,
-      remainingSeconds: null,
+      remainingSeconds,
       totalSeconds: null,
     }
   }
 
-  const elapsedRunMs = accumulatedRunMsRef.current + (
-    activeRunStartedAtRef.current !== null ? Math.max(0, clockNowMs - activeRunStartedAtRef.current) : 0
+  const clock = jobKey ? jobClocks.get(jobKey) : undefined
+  const elapsedRunMs = (clock?.accumulatedRunMs ?? 0) + (
+    clock?.activeRunStartedAt != null ? Math.max(0, clockNowMs - clock.activeRunStartedAt) : 0
   )
   const elapsedSeconds = elapsedRunMs / 1000
 
-  const sinceLastSampleMs = (lastSampleMsRef.current !== null && status.state === 'Run')
-    ? Math.max(0, clockNowMs - lastSampleMsRef.current)
+  const sinceLastSampleMs = (clock?.lastSampleMs != null && status.state === 'Run')
+    ? Math.max(0, clockNowMs - clock.lastSampleMs)
     : 0
-  const nominalCompletedSec = nominalCompletedSecRef.current
-    + (sinceLastSampleMs / 1000) * lastSampleScaleRef.current
+  const nominalCompletedSec = (clock?.nominalCompletedSec ?? 0)
+    + (sinceLastSampleMs / 1000) * (clock?.lastSampleScale ?? 1)
   const timelinePosition = overriddenTimingEstimate
     ? getTimelinePosition(timingEstimate, overriddenTimingEstimate, nominalCompletedSec)
     : { overriddenElapsedSeconds: nominalCompletedSec, nominalSecondsPerActualSecond: 1 }
-  const remainingSeconds = Math.max(0, (overriddenTimingEstimate?.totalSeconds ?? timingEstimate.totalSeconds)
+  // The estimate is a lower bound (controller sync latency is not modelled).
+  // Once it has run out while the job is still going, the time left is unknown
+  // rather than zero, and the bar stops short of 100% until the job ends.
+  const estimateUsedUp = nominalCompletedSec >= timingEstimate.totalSeconds
+  const remainingSeconds = estimateUsedUp ? null : Math.max(0, (overriddenTimingEstimate?.totalSeconds ?? timingEstimate.totalSeconds)
     - timelinePosition.overriddenElapsedSeconds)
-  const totalSeconds = elapsedSeconds + remainingSeconds
+  const totalSeconds = remainingSeconds == null ? null : elapsedSeconds + remainingSeconds
 
   const progressPercent = timingEstimate.totalSeconds > 0
-    ? clamp01(nominalCompletedSec / timingEstimate.totalSeconds) * 100
+    ? Math.min(99, clamp01(nominalCompletedSec / timingEstimate.totalSeconds) * 100)
     : 0
 
   return {

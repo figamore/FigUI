@@ -71,6 +71,14 @@ export function JobControl() {
                 <span>Total {formatRuntime(runtime.totalSeconds)}</span>
               </div>
             )}
+            {runtime.source === 'sd' && progressPercent != null && (
+              <div className="flex justify-between text-xs font-mono text-text-muted tabular-nums">
+                <span>{progressPercent.toFixed(1)}%</span>
+                {runtime.remainingSeconds != null && (
+                  <span title="Estimated from SD file progress">Remain ~{formatRuntime(runtime.remainingSeconds)}</span>
+                )}
+              </div>
+            )}
           </div>
         )}
 
