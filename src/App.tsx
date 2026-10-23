@@ -14,7 +14,7 @@ import { CURRENT_VERSION, GITHUB_REPO, DISMISSED_VERSION_KEY, semverGt } from '.
 import { startWatchdog, stopWatchdog } from './lib/jogWatchdog'
 import { Header } from './components/Header'
 import { DRO } from './components/DRO'
-import { TabletJogPad } from './components/JogPad'
+import { OverridesPanel, SpindlePanel, TabletJogPad } from './components/JogPad'
 import { ProbeOrProgramPanel } from './components/ProgramExecutionPanel'
 
 import { GCodeViewer } from './components/GCodeViewer'
@@ -26,7 +26,7 @@ import { AboutModal } from './components/AboutModal'
 import { JobControl } from './components/JobControl'
 import { WebUIBlocked } from './components/WebUIBlocked'
 import { PluginLauncher } from './components/PluginLauncher'
-import { WifiOff, RefreshCw, Crosshair, Monitor, FolderOpen, TerminalSquare, AlertTriangle } from 'lucide-react'
+import { WifiOff, RefreshCw, Crosshair, Monitor, FolderOpen, TerminalSquare, AlertTriangle, ChevronDown, ChevronRight } from 'lucide-react'
 import type { Plugin, Position, SidebarTab, ActiveLayout } from './types'
 import { getEffectiveLayout } from './types'
 import { PluginFrame } from './components/PluginFrame'
@@ -77,6 +77,42 @@ export function App() {
       <ControllerJobTracker />
       <AppContent />
     </ViewportProvider>
+  )
+}
+
+// Kept across Control tab switches, which unmount the panel.
+let phoneSpindleOverridesOpen = false
+
+/** The tablet's Spindle and Overrides tabs, folded into the phone Control tab. */
+function PhoneSpindleOverrides() {
+  const hasSpindle = useMachineStore(s => Boolean(s.controllerSettings.spindleMax))
+  const [open, setOpen] = useState(phoneSpindleOverridesOpen)
+
+  return (
+    <div className="panel flex flex-col">
+      <button
+        className={`panel-header text-left font-bold cursor-pointer flex justify-between items-center text-xl py-3 ${open ? 'border-b border-border' : ''}`}
+        onClick={() => {
+          phoneSpindleOverridesOpen = !open
+          setOpen(!open)
+        }}
+        aria-expanded={open}
+      >
+        <span className="uppercase tracking-wide">{hasSpindle ? 'Spindle & Overrides' : 'Overrides'}</span>
+        {open ? <ChevronDown size={22} /> : <ChevronRight size={22} />}
+      </button>
+      {open && (
+        <div className="flex flex-col">
+          {hasSpindle && (
+            <>
+              <SpindlePanel className="border-none shadow-none p-0" isTablet />
+              <div className="h-px bg-border w-full my-1" />
+            </>
+          )}
+          <OverridesPanel className="border-none shadow-none p-0" isTablet />
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -359,6 +395,17 @@ function AppContent() {
     else if (layout === 'full') setFullPlugin(plugin)
     else if (layout === 'jog') setJogPlugin(plugin)
   }, [activeLayout])
+
+  // The phone layout has no workspace or controls slot; those open as a modal.
+  const handlePhoneLaunchPanel = useCallback((plugin: Plugin) => {
+    const layout = getEffectiveLayout(plugin.manifest, 'mobile')
+    if (layout === 'full') setFullPlugin(plugin)
+    else if (layout === 'jog') {
+      setJogPlugin(plugin)
+      setMobilePanel('control')
+    } else return false
+    return true
+  }, [])
 
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const inFlightPromise = useRef<Promise<boolean> | null>(null)
@@ -821,7 +868,10 @@ function AppContent() {
 
   return (
     <div className={`flex flex-col min-h-[100svh] md:h-[100svh] md:overflow-hidden bg-[var(--bg)] relative ${
-      compactLandscapeScroll
+      // The phone layout scrolls the page in landscape too, as it does in portrait.
+      activeLayout === 'mobile'
+        ? ''
+        : compactLandscapeScroll
         ? 'landscape:h-auto landscape:min-h-[100svh] landscape:overflow-y-auto'
         : 'landscape:h-[100svh] landscape:overflow-hidden'
     }`}>
@@ -845,7 +895,7 @@ function AppContent() {
       <Header
         onSettingsClick={() => setSettingsOpen(true)}
         onAboutClick={() => setAboutOpen(true)}
-        sticky={compactLandscapeScroll}
+        sticky={compactLandscapeScroll || activeLayout === 'mobile'}
       />
 
       <ManualATCPrompt />
@@ -862,15 +912,16 @@ function AppContent() {
       {!fullPlugin && activeLayout === 'mobile' && <div className="flex flex-col">
         {mobilePanel === 'control' && (
           <div className="flex flex-col gap-3 p-3 pb-20">
-            <DRO />
+            <DRO isPhone />
             <JobControl />
             {jogPlugin ? (
               <div className="panel flex flex-col h-[60vh] overflow-hidden">
                 <PluginFrame plugin={jogPlugin} onClose={() => setJogPlugin(null)} inline />
               </div>
             ) : (
-              <TabletJogPad />
+              <TabletJogPad hideDuringJob />
             )}
+            <PhoneSpindleOverrides />
             <ProbeOrProgramPanel />
           </div>
         )}
@@ -886,7 +937,7 @@ function AppContent() {
               <div className="flex-1 min-h-0 overflow-hidden">
                 {sidebarTab === 'files'   && <FileManager isTablet />}
                 {sidebarTab === 'macros'  && <Macros />}
-                {sidebarTab === 'plugins' && <PluginLauncher />}
+                {sidebarTab === 'plugins' && <PluginLauncher onLaunchPanel={handlePhoneLaunchPanel} activeLayout={activeLayout} />}
               </div>
             </div>
           </div>

@@ -35,7 +35,12 @@ export function useResizeHandle(
     window.addEventListener('mouseup', onUp)
   }, [direction])
 
+  const touchActiveRef = useRef(false)
+
   const onTouchStart = useCallback((e: React.TouchEvent) => {
+    // A second finger on the handle must not add a second set of listeners.
+    if (touchActiveRef.current) return
+    touchActiveRef.current = true
     let lastPos = direction === 'horizontal' ? e.touches[0].clientX : e.touches[0].clientY
     onDragStartRef.current?.()
 
@@ -47,14 +52,20 @@ export function useResizeHandle(
       if (delta !== 0) onDeltaRef.current(delta)
     }
 
+    // touchcancel (system back gesture, notification shade, call overlay) ends
+    // the drag too; otherwise the non-passive touchmove listener would outlive
+    // it and block scrolling on the next touch.
     const onEnd = () => {
+      touchActiveRef.current = false
       onDragEndRef.current?.()
       window.removeEventListener('touchmove', onMove)
       window.removeEventListener('touchend', onEnd)
+      window.removeEventListener('touchcancel', onEnd)
     }
 
     window.addEventListener('touchmove', onMove, { passive: false })
     window.addEventListener('touchend', onEnd)
+    window.addEventListener('touchcancel', onEnd)
   }, [direction])
 
   return { onMouseDown, onTouchStart }
