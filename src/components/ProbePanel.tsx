@@ -17,8 +17,9 @@ type Axis = 'X' | 'Y' | 'Z'
 type Side = 'negative' | 'positive'
 type CycleId = 'z-surface' | 'x-negative' | 'x-positive' | 'y-negative' | 'y-positive'
   | 'x-center' | 'y-center' | 'bore-center' | 'rectangle-center'
+  | 'edge-center-x' | 'edge-center-y'
 
-interface RunningCycle { id: CycleId; phase: string; first?: number }
+interface RunningCycle { id: CycleId; phase: string; first?: number; oks?: number }
 type ProbeStepState = 'idle' | 'pending' | 'active' | 'completed'
 
 const PROBE_ALARM_MESSAGES: Record<number, string> = {
@@ -43,6 +44,8 @@ const CYCLES: Array<{ id: CycleId; label: string; short: string; group: 'edge' |
   { id: 'y-center', label: 'Y center', short: 'Y ⊕', group: 'center' },
   { id: 'bore-center', label: 'Bore center', short: '○ ⊕', group: 'center' },
   { id: 'rectangle-center', label: 'Rectangle center', short: '▭ ⊕', group: 'center' },
+  { id: 'edge-center-x', label: 'Edge Center X', short: '⊏⊕⊐', group: 'center' },
+  { id: 'edge-center-y', label: 'Edge Center Y', short: '⊏⊕⊐', group: 'center' },
 ]
 
 const CYCLE_INSTRUCTIONS: Record<CycleId, string> = {
@@ -55,6 +58,8 @@ const CYCLE_INSTRUCTIONS: Record<CycleId, string> = {
   'y-center': 'Start between the opposing Y faces near center, with both faces within the configured travel.',
   'bore-center': 'Start inside the bore near center. The cycle touches X−/X+, centers X, then touches Y−/Y+ and sets X0 Y0.',
   'rectangle-center': 'Start inside the feature near center. The cycle touches X−/X+, centers X, then touches Y−/Y+ and sets X0 Y0.',
+  'edge-center-x': 'Start OUTSIDE the X− edge of the workpiece at probing height, with clear +X travel. The cycle probes both edges and sets X0 at the midpoint. Set Z lift to clear the tallest obstruction on the cross-over path.',
+  'edge-center-y': 'Start OUTSIDE the Y− edge of the workpiece at probing height, with clear +Y travel. The cycle probes both edges and sets Y0 at the midpoint. Set Z lift to clear the tallest obstruction on the cross-over path.',
 }
 
 const TOOLSETTER_ONLY_HINT = 'Only a toolsetter is configured. Only Z-height setting is available; X/Y and center probing require a probe input.'
@@ -284,6 +289,141 @@ interface ParamRowProps {
   min?: number; isTablet?: boolean
 }
 
+// Schematic for the edge-center cycle — SIDE VIEW (probe axis horizontal,
+// Z vertical), styled after the x-center/y-center graphics: hatched workpiece
+// block with ok-green probed faces, the shared TopProbe icon outside each
+// face, dashed shafts with solid accent arrowheads, numbered SequenceBadges
+// tracking the e1 → e2 progress, and the Z-lift cross-over drawn literally as
+// an up → across → down polyline. Corner axis markers match the probe panel
+// conventions (Z up, probe axis horizontal).
+function EdgeCenterGraphic({
+  axis,
+  phase,
+  held,
+  cycleCompleted,
+}: {
+  axis: 'X' | 'Y'
+  phase: string | null
+  held?: boolean
+  cycleCompleted?: boolean
+}) {
+  const id = `ec${axis}`
+  // Phase → active step badge (1 = edge 1, 2 = edge 2 + cross-over).
+  const currentStep = phase
+    ? phase === 'e1-fast' || phase === 'e1-slow' ? 1 : 2
+    : null
+
+  function stepState(step: number): ProbeStepState {
+    if (cycleCompleted) return 'completed'
+    if (currentStep == null) return 'idle'
+    if (step < currentStep) return 'completed'
+    if (step === currentStep) return 'active'
+    return 'pending'
+  }
+
+  // Both axes share one side-view layout: horizontal = probe axis (X or Y),
+  // vertical = Z. Workpiece block (36,52)-(84,100); probes at probing height
+  // y=76 outside the two faces; cross-over lane at y=40 (12 above the block).
+  const probeY = 76
+  // Dashed shafts + solid triangle heads, mirroring the x-center arrows; the
+  // head apex stops 2 units short of each face.
+  const shafts = 'M28 76 H31 M92 76 H89'
+  const heads = 'M34 76 L29 73 V79Z M86 76 L91 73 V79Z'
+  // Z-lift cross-over: lift, traverse over the block, descend to probing
+  // height — one arrowhead at the landing end.
+  const xover = 'M16 62 V40 H104 V62'
+
+  const TopProbe = ({ x, y }: { x: number; y: number }) => <g>
+    <circle cx={x} cy={y} r="10" fill={`url(#probeMetal${id})`} stroke="var(--text-muted)" strokeWidth="1.2" />
+    <circle cx={x} cy={y} r="6.5" fill="var(--surface)" stroke="var(--border-strong)" />
+    <circle cx={x} cy={y} r="2.7" fill="var(--accent)" />
+    <path d={`M${x - 4} ${y - 4} L${x + 4} ${y + 4} M${x + 4} ${y - 4} L${x - 4} ${y + 4}`}
+      stroke="var(--text-dim)" strokeWidth=".7" />
+  </g>
+
+  const SequenceBadge = ({ x, y, value }: { x: number; y: number; value: number }) => {
+    const state = stepState(value)
+    const color = state === 'completed'
+      ? 'var(--ok)'
+      : state === 'pending' ? 'var(--text-dim)' : 'var(--accent)'
+    const fill = state === 'completed'
+      ? 'rgb(var(--ok-rgb) / .16)'
+      : state === 'active' ? 'rgb(var(--accent-rgb) / .14)' : 'var(--surface)'
+    return <g>
+      {state === 'active' && !held && <circle className="probe-step-pulse" cx={x} cy={y} r="9.5" fill="none" stroke="var(--accent)" strokeWidth="1.4" />}
+      {state === 'active' && held && <circle cx={x} cy={y} r="9.5" fill="none" stroke="var(--warn)" strokeWidth="1" opacity=".45" />}
+      <circle cx={x} cy={y} r="7.5" fill={fill} stroke={color} strokeWidth={state === 'active' ? 2 : 1.4} />
+      <text x={x} y={y + 3.5} textAnchor="middle" fill={color} fontSize="10" fontWeight="800">{value}</text>
+    </g>
+  }
+
+  return (
+    <svg viewBox="0 0 120 120" className="w-full h-full" role="img" aria-label={`Edge-center ${axis} diagram (side view)`}>
+      <defs>
+        <marker id={`ecXover-${id}`} markerWidth="6" markerHeight="6" refX="4.5" refY="3" orient="auto">
+          <path d="M0 0 L6 3 L0 6Z" fill="var(--text-dim)" />
+        </marker>
+        <marker id={`ecAxisX-${id}`} markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto">
+          <path d="M0 0 L5 2.5 L0 5Z" fill="#ef4444" />
+        </marker>
+        <marker id={`ecAxisY-${id}`} markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto">
+          <path d="M0 0 L5 2.5 L0 5Z" fill="#22c55e" />
+        </marker>
+        <marker id={`ecAxisZ-${id}`} markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto">
+          <path d="M0 0 L5 2.5 L0 5Z" fill="#3b82f6" />
+        </marker>
+        <linearGradient id={`probeMetal${id}`} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="var(--surface)" />
+          <stop offset=".48" stopColor="var(--border-strong)" />
+          <stop offset="1" stopColor="var(--elevated)" />
+        </linearGradient>
+        <linearGradient id={`probePart${id}`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="var(--elevated)" />
+          <stop offset="1" stopColor="var(--border)" />
+        </linearGradient>
+        <pattern id={`probeHatch${id}`} width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+          <rect width="6" height="6" fill={`url(#probePart${id})`} />
+          <path d="M0 0 V6" stroke="var(--border-strong)" strokeWidth="1" opacity=".45" />
+        </pattern>
+      </defs>
+      <rect x="1" y="1" width="118" height="118" rx="8" fill="rgb(var(--accent-rgb) / .035)" stroke="var(--border)" />
+
+      {/* Z-lift caption + cross-over polyline above the block. */}
+      <text x="60" y="16" textAnchor="middle" fill="var(--text-dim)" fontSize="7" fontWeight="700">Z LIFT</text>
+      <path d={xover} stroke="var(--text-dim)" strokeWidth="1.2" strokeDasharray="3 3" markerEnd={`url(#ecXover-${id})`} />
+
+      {/* Workpiece block: hatch = material; ok-green lines mark the two probed faces. */}
+      <rect x="36" y="52" width="48" height="48" fill={`url(#probeHatch${id})`} stroke="var(--border-strong)" />
+      <path d="M36 52 V100 M84 52 V100" stroke="var(--ok)" strokeWidth="1.8" />
+
+      {/* Midpoint datum: halo + cross (as the bore-center center mark) with the
+          {axis}0 label, matching the single-edge zero labels. */}
+      <circle cx="60" cy={probeY} r="9" fill="var(--surface)" />
+      <path d={`M53 ${probeY} H67 M60 ${probeY - 7} V${probeY + 7}`} stroke={cycleCompleted ? 'var(--ok)' : 'var(--accent)'} strokeWidth=".8" />
+      <text x="67" y={probeY - 7} fill="var(--ok)" fontSize="8.5" fontWeight="700">{axis}0</text>
+
+      {/* Probes outside both faces + probe-direction arrows. */}
+      <path d={shafts} stroke="var(--accent)" strokeWidth="2" strokeDasharray="3 2" />
+      <path d={heads} fill="var(--accent)" />
+      <TopProbe x={16} y={probeY} />
+      <TopProbe x={104} y={probeY} />
+
+      {/* Step badges flanking the Z LIFT caption, above the cross-over lane. */}
+      <SequenceBadge x={28} y={28} value={1} />
+      <SequenceBadge x={92} y={28} value={2} />
+
+      {/* Start caption centered beneath the block. */}
+      <text x="60" y="110" textAnchor="middle" fill="var(--text-dim)" fontSize="7" fontWeight="700">−{axis} START</text>
+
+      {/* Corner axis markers (side view): probe axis horizontal, Z vertical. */}
+      <path d="M12 112 H26" stroke={axis === 'X' ? '#ef4444' : '#22c55e'} strokeWidth="1.2" markerEnd={`url(#ecAxis${axis}-${id})`} />
+      <path d="M12 112 V98" stroke="#3b82f6" strokeWidth="1.2" markerEnd={`url(#ecAxisZ-${id})`} />
+      <text x="30" y="115" fill="var(--text-dim)" fontSize="8">{axis}+</text>
+      <text x="2" y="95" fill="var(--text-dim)" fontSize="8">Z+</text>
+    </svg>
+  )
+}
+
 function ParamRow({ label, value, onChange, unit, min = 0, isTablet }: ParamRowProps) {
   const [draftValue, setDraftValue] = useState(() => String(value))
 
@@ -335,6 +475,10 @@ export function ProbePanel({ isTablet, embedded = false }: { isTablet?: boolean;
   const [retract, setRetract] = usePersisted('probe.retract', 3)
   const [plateThick, setPlateThick] = usePersisted('probe.plate', 0)
   const [probeDiameter, setProbeDiameter] = usePersisted('probe.diameter', 4)
+  // Edge-center probing parameters (persisted in mm)
+  const [edgeWorkSize, setEdgeWorkSize] = usePersisted('probe.edgeWorkSize', 50)
+  const [edgeZLift, setEdgeZLift] = usePersisted('probe.edgeZLift', 5)
+  const [slowFeed, setSlowFeed] = usePersisted('probe.slowFeed', 20)
   const status = useMachineStore(s => s.status)
   const units = useMachineStore(s => s.units)
   const connected = useMachineStore(s => s.connected)
@@ -373,17 +517,26 @@ export function ProbePanel({ isTablet, embedded = false }: { isTablet?: boolean;
     resumeBackgroundTraffic()
   }
 
-  function armTimeout() {
+  function armTimeout(ms = 90_000) {
     if (timeoutRef.current) clearTimeout(timeoutRef.current)
     timeoutRef.current = setTimeout(() => {
       restoreBackgroundTraffic()
       updateRun(null)
       setMessage('No probe contact report received. Check the probe and controller state.')
-    }, 90_000)
+    }, ms)
   }
 
   function probe(axis: Axis, side: Side, distance = maxTravel) {
     sendRaw(`G21 G91 G38.2 F${number(probeFeed)} ${moveWord(axis, side, distance)}`)
+    armTimeout()
+  }
+
+  // Edge-center: the guarded descent has ended — send the edge-2 fast
+  // probe toward −axis and advance to the e2-fast phase.
+  function beginEdge2Probe(axis: Axis) {
+    sendRaw(`G21 G91 G38.2 F${number(probeFeed)} ${moveWord(axis, 'negative', maxTravel)}`)
+    updateRun({ ...runningRef.current!, phase: 'e2-fast' })
+    setMessage(`Edge 2/2 — probing ${axis}−…`)
     armTimeout()
   }
 
@@ -431,6 +584,32 @@ export function ProbePanel({ isTablet, embedded = false }: { isTablet?: boolean;
       return
     }
 
+    // No-contact G38.3 report ([PRB:…:0]) — parseProbePoint only parses
+    // contact reports, so handle it before the early-return below.
+    const ecNoContact = active.id.match(/^edge-center-([xy])$/)
+    if (ecNoContact && active.phase === 'descend' && /^\[PRB:[^:\]]*:0\]$/i.test(line)) {
+      beginEdge2Probe(ecNoContact[1].toUpperCase() as Axis)
+      return
+    }
+
+    // Edge-center zeroing: count down the queued-move acks, then send the
+    // work-zero command last and only declare success on its own ack. An
+    // error or alarm for any of these is caught by the handlers above.
+    if (ecNoContact && (active.phase === 'zeroing' || active.phase === 'zeroed')) {
+      if (!/^ok$/i.test(line)) return
+      const axis = ecNoContact[1].toUpperCase() as Axis
+      if (active.phase === 'zeroing') {
+        const oks = (active.oks ?? 1) - 1
+        if (oks > 0) { updateRun({ ...active, oks }); armTimeout(); return }
+        sendRaw(`G10 L20 P0 ${axis}0`)
+        updateRun({ ...active, phase: 'zeroed' })
+        armTimeout()
+        return
+      }
+      finish(`${axis} center found and ${axis} work zero set.`, true)
+      return
+    }
+
     const point = parseProbePoint(line)
     if (!point) return
     const radius = probeDiameter / 2
@@ -460,6 +639,65 @@ export function ProbePanel({ isTablet, embedded = false }: { isTablet?: boolean;
       return
     }
 
+    const ecMatch = active.id.match(/^edge-center-([xy])$/)
+    if (ecMatch) {
+      const axis = ecMatch[1].toUpperCase() as Axis
+      const value = axisValue(point, axis)
+      if (active.phase === 'e1-fast' || active.phase === 'e2-fast') {
+        // Fast hit — back off and re-probe slowly for precision.
+        const away: Side = active.phase === 'e1-fast' ? 'negative' : 'positive'
+        sendRaw(`G21 G91 G0 ${moveWord(axis, away, retract)}`)
+        sendRaw(`G21 G91 G38.2 F${number(slowFeed)} ${moveWord(axis, active.phase === 'e1-fast' ? 'positive' : 'negative', retract * 2)}`)
+        updateRun({ ...active, phase: active.phase === 'e1-fast' ? 'e1-slow' : 'e2-slow' })
+        armTimeout()
+        return
+      }
+      if (active.phase === 'e1-slow') {
+        // Edge 1 captured — clear the tip, lift, cross over, descend.
+        sendRaw('G4 P0.15')
+        sendRaw(`G21 G91 G0 ${moveWord(axis, 'negative', retract)}`)
+        sendRaw(`G21 G91 G0 Z${number(edgeZLift)}`)
+        sendRaw(`G21 G91 G0 ${axis}${number(edgeWorkSize + retract * 2)}`)
+        // One guarded descent for the full lift distance: a rapid drop would
+        // strike a higher far-side surface before the probe move can stop.
+        sendRaw(`G21 G91 G38.3 F${number(slowFeed)} Z${number(-edgeZLift)}`)
+        updateRun({ ...active, phase: 'descend', first: value })
+        setMessage('Edge 1 captured. Crossing over — descending to edge 2…')
+        // The guarded descent runs the full lift at slow feed, which can
+        // exceed the default window (e.g. 40 mm at 20 mm/min = 120 s).
+        armTimeout(90_000 + (edgeZLift / slowFeed) * 60_000)
+        return
+      }
+      if (active.phase === 'descend') {
+        // Only the no-contact (:0) report advances the cycle (handled above);
+        // parseProbePoint only parses contact reports, so reaching here means
+        // the guarded G38.3 descent hit an obstruction before probing height.
+        // Continuing from this Z would probe edge 2 from an invalid position.
+        sendRaw('G90')
+        finish('Edge-center crossing blocked — the guided descent contacted an obstruction before reaching probing height. Clear the cross-over path and retry.')
+        return
+      }
+      if (active.phase === 'e2-slow') {
+        // Both edges captured — lift clear, move to the midpoint, then zero
+        // as the final observed command (G4, retract, lift, G90, G53 move).
+        sendRaw('G4 P0.15')
+        sendRaw(`G21 G91 G0 ${moveWord(axis, 'positive', retract)}`)
+        sendRaw(`G21 G91 G0 Z${number(edgeZLift)}`)
+        sendRaw('G90')
+        if (active.first == null) { finish('Edge-center cycle lost the first edge position — aborted.'); return }
+        const midpoint = number((active.first + value) / 2)
+        sendRaw(`G90 G53 G0 ${axis}${midpoint}`)
+        // 6 acks before the G10: the slow probe's own ok (sent after its
+        // PRB report) plus G4, retract, Z lift, G90 and the G53 move.
+        updateRun({ ...active, phase: 'zeroing', oks: 6 })
+        setMessage(`Both ${axis} edges captured — moving to the midpoint…`)
+        armTimeout()
+        return
+      }
+      finish('Edge-center cycle in an unexpected phase — aborted.')
+      return
+    }
+
     const axis = active.phase.startsWith('x-') ? 'X' : 'Y'
     if (active.phase.endsWith('negative')) {
       const first = axisValue(point, axis)
@@ -477,7 +715,7 @@ export function ProbePanel({ isTablet, embedded = false }: { isTablet?: boolean;
     const second = axisValue(point, axis)
     const bothAxes = active.id === 'bore-center' || active.id === 'rectangle-center'
     finishAxisCenter(axis, active.first!, second, bothAxes && axis === 'X')
-  }), [completeReferenceSetup, hasManualATC, maxTravel, plateThick, probeDiameter, probeFeed, retract])
+  }), [completeReferenceSetup, hasManualATC, maxTravel, edgeWorkSize, edgeZLift, slowFeed, plateThick, probeDiameter, probeFeed, retract])
 
   useEffect(() => onSoftReset(() => {
     if (!runningRef.current) return
@@ -517,12 +755,32 @@ export function ProbePanel({ isTablet, embedded = false }: { isTablet?: boolean;
       setMessage('Could not reset the tool-change reference before probing.')
       return
     }
+    // The slow precision pass must not run faster than the seek pass.
+    if (isEdgeCenter && slowFeed > probeFeed) {
+      setMessage('Slow feed must not exceed the probe feed — the precision pass must stay the slower pass.')
+      return
+    }
+    if (isEdgeCenter) {
+      if (edgeWorkSize <= 0 || edgeZLift <= 0 || slowFeed <= 0) {
+        setMessage('Work size, Z lift and slow feed must be positive.')
+        return
+      }
+      if (retract * 2 > maxTravel) {
+        setMessage('Retract must be at most half of max travel so the slow pass can reach the surface.')
+        return
+      }
+    }
     pauseBackgroundTraffic()
     const edge = selected.match(/^([xy])-(negative|positive)$/)
     if (selected === 'z-surface') {
       updateRun({ id: selected, phase: 'z-negative' })
       setMessage('Probing Z− toward the work surface…')
       probe('Z', 'negative')
+    } else if (isEdgeCenter) {
+      const axis: Axis = selected === 'edge-center-y' ? 'Y' : 'X'
+      updateRun({ id: selected, phase: 'e1-fast' })
+      setMessage(`Edge 1/2 — probing ${axis}+…`)
+      probe(axis, 'positive')
     } else if (edge) {
       const axis = edge[1].toUpperCase() as Axis
       const side = edge[2] as Side
@@ -561,7 +819,8 @@ export function ProbePanel({ isTablet, embedded = false }: { isTablet?: boolean;
   }
 
   const selectedCycle = CYCLES.find(c => c.id === selected)!
-  const usesDiameter = selected !== 'z-surface'
+  const isEdgeCenter = selected === 'edge-center-x' || selected === 'edge-center-y'
+  const usesDiameter = selected !== 'z-surface' && !isEdgeCenter
   const selectedCycleUnavailable = toolsetterOnly && selected !== 'z-surface'
   const canRunSelectedCycle = canProbe && !selectedCycleUnavailable
 
@@ -592,7 +851,7 @@ export function ProbePanel({ isTablet, embedded = false }: { isTablet?: boolean;
         </div>
         <div>
           <div className="text-[13px] font-bold uppercase tracking-[.12em] text-text-dim mb-2">Center finding</div>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             {CYCLES.filter(c => c.group === 'center').map(c => <button key={c.id} onClick={() => selectCycle(c.id)}
               disabled={!!running || toolsetterOnly}
               title={toolsetterOnly ? TOOLSETTER_ONLY_HINT : c.label}
@@ -604,12 +863,21 @@ export function ProbePanel({ isTablet, embedded = false }: { isTablet?: boolean;
 
         <div className={`grid grid-cols-1 gap-4 ${isTablet ? 'sm:grid-cols-[220px_1fr]' : 'sm:grid-cols-[150px_1fr]'}`}>
           <div className={`mx-auto w-full ${isTablet ? 'h-[220px] max-w-[220px]' : 'h-[220px] max-w-[220px] sm:h-[150px] sm:max-w-[150px]'}`}>
-            <ProbeGraphic
-              cycle={selected}
-              running={running}
-              held={probeHeld}
-              cycleCompleted={completedCycle === selected}
-            />
+            {isEdgeCenter ? (
+              <EdgeCenterGraphic
+                axis={selected === 'edge-center-x' ? 'X' : 'Y'}
+                phase={running && running.id === selected ? running.phase : null}
+                held={probeHeld}
+                cycleCompleted={completedCycle === selected}
+              />
+            ) : (
+              <ProbeGraphic
+                cycle={selected}
+                running={running}
+                held={probeHeld}
+                cycleCompleted={completedCycle === selected}
+              />
+            )}
           </div>
           <div className={`rounded-md border border-border bg-elevated/30 p-3 ${isTablet ? 'space-y-4' : 'space-y-2'}`}>
             <ParamRow isTablet={isTablet} label="Probe feed" value={toDisplayInput(probeFeed, units, units === 'in' ? 2 : 0)}
@@ -620,8 +888,16 @@ export function ProbePanel({ isTablet, embedded = false }: { isTablet?: boolean;
               onChange={v => setRetract(displayToMm(v, units))} unit={linearUnitLabel(units)} min={units === 'in' ? .01 : .5} />
             {usesDiameter && <ParamRow isTablet={isTablet} label="Probe diameter" value={toDisplayInput(probeDiameter, units, units === 'in' ? 4 : 2)}
               onChange={v => setProbeDiameter(displayToMm(v, units))} unit={linearUnitLabel(units)} min={0} />}
-            {!usesDiameter && <ParamRow isTablet={isTablet} label="Plate thickness" value={toDisplayInput(plateThick, units, units === 'in' ? 4 : 2)}
+            {selected === 'z-surface' && <ParamRow isTablet={isTablet} label="Plate thickness" value={toDisplayInput(plateThick, units, units === 'in' ? 4 : 2)}
               onChange={v => setPlateThick(displayToMm(v, units))} unit={linearUnitLabel(units)} min={0} />}
+            {isEdgeCenter && <>
+              <ParamRow isTablet={isTablet} label="Work size" value={toDisplayInput(edgeWorkSize, units, units === 'in' ? 3 : 1)}
+                onChange={v => setEdgeWorkSize(displayToMm(v, units))} unit={linearUnitLabel(units)} min={units === 'in' ? .1 : 1} />
+              <ParamRow isTablet={isTablet} label="Z lift" value={toDisplayInput(edgeZLift, units, units === 'in' ? 4 : 2)}
+                onChange={v => setEdgeZLift(displayToMm(v, units))} unit={linearUnitLabel(units)} min={units === 'in' ? .01 : .5} />
+              <ParamRow isTablet={isTablet} label="Slow feed" value={toDisplayInput(slowFeed, units, units === 'in' ? 2 : 0)}
+                onChange={v => setSlowFeed(displayToMm(v, units))} unit={feedUnitLabel(units)} min={units === 'in' ? .1 : 1} />
+            </>}
           </div>
         </div>
 
