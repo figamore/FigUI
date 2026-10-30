@@ -51,6 +51,7 @@ export function ResizeHandle({
           className="resize-handle__btn"
           onClick={e => { e.stopPropagation(); onCollapseToggle() }}
           onMouseDown={e => e.stopPropagation()}
+          onTouchStart={e => e.stopPropagation()}
           tabIndex={-1}
           aria-label={collapsed ? 'Expand panel' : 'Collapse panel'}
         >

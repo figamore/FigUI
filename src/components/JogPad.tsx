@@ -1423,9 +1423,12 @@ function CompactRotaryJogControls({ axis, color, feed, step, continuous, disable
 export function TabletJogPad({
   onSwitchStyle,
   layout = 'default',
+  hideDuringJob = false,
 }: {
   onSwitchStyle?: () => void
   layout?: 'default' | 'topBand'
+  /** Hide the pad (keeping its state) while a job runs, as the desktop rose does. */
+  hideDuringJob?: boolean
 } = {}) {
   const status = useMachineStore(s => s.status)
   const connected = useMachineStore(s => s.connected)
@@ -1539,7 +1542,7 @@ export function TabletJogPad({
 
   return (
     <>
-    <div className={`tablet-jog-pad panel w-full min-w-0 flex flex-col portrait:flex-none portrait:h-[440px] ${jogPadRootClass}`}>
+    <div className={`tablet-jog-pad panel w-full min-w-0 ${hideDuringJob && jobRunning ? 'hidden' : 'flex'} flex-col portrait:flex-none portrait:h-[440px] ${jogPadRootClass}`}>
       <div className="panel-header flex flex-row items-stretch justify-between shrink-0 !p-0 border-b border-border overflow-hidden">
         <div className={`flex flex-col items-center justify-center border-r border-border shrink-0 gap-2 font-bold tracking-wider ${topBand ? 'w-12 py-1.5 text-sm' : 'w-16 max-sm:w-12 py-2 text-lg'}`}>
           JOG
@@ -1654,11 +1657,12 @@ export function TabletJogPad({
     {/* Feed preset modal */}
     {feedModal && (
       <div
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+        className="fixed inset-0 z-50 flex justify-center overflow-y-auto overscroll-contain p-4 bg-black/50 backdrop-blur-sm"
         onClick={() => setFeedModal(null)}
       >
+        {/* my-auto, not items-center: a card taller than the screen starts at the top and scrolls */}
         <div
-          className="bg-surface border border-border rounded-2xl shadow-2xl p-8 w-[min(480px,calc(100vw-2rem))]"
+          className="my-auto bg-surface border border-border rounded-2xl shadow-2xl p-5 sm:p-8 w-[min(480px,calc(100vw-2rem))]"
           onClick={e => e.stopPropagation()}
         >
           <div className="flex items-center justify-between mb-6">
@@ -1679,7 +1683,7 @@ export function TabletJogPad({
                     else setAbcFeed(preset)
                     setFeedModal(null)
                   }}
-                  className={`btn py-6 text-3xl font-mono justify-center ${
+                  className={`btn py-4 sm:py-6 text-2xl sm:text-3xl font-mono justify-center ${
                     active
                       ? 'bg-accent/20 border-accent/60 text-accent'
                       : 'btn-ghost'
