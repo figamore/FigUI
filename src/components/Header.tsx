@@ -8,6 +8,7 @@ import { useControllerJobStarting } from '../lib/jobState'
 import { sendRealtime } from '../lib/ws'
 import { alarmClearActionTitle, clearMachineAlarm } from '../lib/alarm'
 import { runMacro, MACRO_BTN_CLASS } from '../lib/macros'
+import { useConfirmTap } from '../hooks/useConfirmTap'
 import { useState, useEffect, useMemo } from 'react'
 
 const HEADER_ICON_MAP: Record<string, LucideIcon> = {
@@ -45,6 +46,7 @@ export function Header({ onSettingsClick, onAboutClick, isTablet, sticky }: Prop
   const headerProgressPercent = runtime.progressPercent ?? 0
   const pinnedMacros = useMemo(() => macros.filter(m => m.pinned), [macros])
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const resetConfirm = useConfirmTap()
 
   useEffect(() => {
     const handler = () => setIsFullscreen(!!document.fullscreenElement)
@@ -60,8 +62,9 @@ export function Header({ onSettingsClick, onAboutClick, isTablet, sticky }: Prop
     }
   }
 
+  // Two taps instead of confirm(), which would stop the page while it is open.
   function handleSoftReset() {
-    if (confirm('Send soft reset (Ctrl+X)?')) sendRealtime(0x18)
+    resetConfirm.tap(() => sendRealtime(0x18))
   }
 
   return (
@@ -147,11 +150,11 @@ export function Header({ onSettingsClick, onAboutClick, isTablet, sticky }: Prop
         )}
 
         <button
-          className={`btn-ghost ${isTablet ? 'px-3 py-2' : 'px-2 py-1.5'} text-base`}
+          className={`btn-ghost ${isTablet ? 'px-3 py-2' : 'px-2 py-1.5'} text-base ${resetConfirm.armed ? 'text-danger' : ''}`}
           onClick={handleSoftReset}
-          title="Soft Reset"
+          title={resetConfirm.armed ? 'Tap again to send soft reset (Ctrl+X)' : 'Soft Reset'}
         >
-          RST
+          {resetConfirm.armed ? 'Reset?' : 'RST'}
         </button>
 
         <button

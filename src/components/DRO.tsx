@@ -13,6 +13,7 @@ import { sendAxisPosition, type AxisPositionAction, type AxisPositionMode } from
 import { AxisPositionDialog } from './AxisPositionDialog'
 import type { Units } from '../types'
 import { useIsPortrait } from '../lib/viewport'
+import { useConfirmTap } from '../hooks/useConfirmTap'
 
 const ALARM_MESSAGES: Record<number, string> = {
   1: 'Hard limit triggered',
@@ -167,6 +168,16 @@ export function DRO({
   const isHomeAllPending = pendingAxisAction?.kind === 'home' && pendingAxisAction.axis === HOME_ALL_ACTION_AXIS
   const shouldHideMotionControls = isJobActive && pendingAxisAction === null
   const areAxisButtonsDisabled = pendingAxisAction !== null
+  // Zeroing overwrites the work offset with no way back, so it takes a second
+  // tap on the same button; a slip from go-to-zero or Home only arms it, and
+  // the buttons never move while it is armed.
+  const { armed: zeroArmed, tap: tapZero, disarm: disarmZero } = useConfirmTap()
+  const [zeroTarget, setZeroTarget] = useState<string | null>(null)
+  const armedZeroTarget = zeroArmed ? zeroTarget : null
+
+  useEffect(() => {
+    if (shouldHideMotionControls || areAxisButtonsDisabled) disarmZero()
+  }, [shouldHideMotionControls, areAxisButtonsDisabled, disarmZero])
   const axisEntryDisabled = !connected || !statusReceived || status.state !== 'Idle' || isJobActive
     || controllerResetPending || !!status.sdFilename || areAxisButtonsDisabled || trackedJob || senderBusy || atcBusy
 
@@ -224,6 +235,11 @@ export function DRO({
   }
   function zeroAxis(axis: string) { setWorkZero(`G10 L20 P0 ${axis}0`, axis === 'Z') }
   function zeroAll() { setWorkZero(`G10 L20 P0 ${visibleAxes.map(a => `${a}0`).join(' ')}`, visibleAxes.includes('Z')) }
+  function confirmZero(target: string, action: () => void) {
+    if (zeroTarget !== target) disarmZero()
+    setZeroTarget(target)
+    tapZero(action)
+  }
   function goToZero(axis: string) {
     const [feedKey, fallbackFeed] = jogFeedKeyForAxis(axis)
     const feed = loadPersistedJogFeed(feedKey, fallbackFeed)
@@ -408,16 +424,18 @@ export function DRO({
             )}
             {!shouldHideMotionControls && (
               <button
-                className={`shrink-0 flex items-center justify-center rounded-sm
-                           border border-border text-text-muted font-bold
-                           hover:text-accent hover:border-accent/50 hover:bg-accent/5
+                className={`shrink-0 flex items-center justify-center rounded-sm border font-bold
                            disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:text-text-muted disabled:hover:border-border disabled:hover:bg-transparent
-                           transition-all duration-100 ${tabletBtnSize} ${isTablet ? 'text-xl' : 'text-base'}`}
-                onClick={() => zeroAxis(ax)}
-                title={`Zero ${ax}`}
+                           transition-all duration-100 ${tabletBtnSize} ${
+                  armedZeroTarget === ax
+                    ? `border-warn text-warn bg-warn/15 ${isTablet ? 'text-lg' : 'text-sm'}`
+                    : `border-border text-text-muted hover:text-accent hover:border-accent/50 hover:bg-accent/5 ${isTablet ? 'text-xl' : 'text-base'}`
+                }`}
+                onClick={() => confirmZero(ax, () => zeroAxis(ax))}
+                title={armedZeroTarget === ax ? `Tap again to zero ${ax}` : `Zero ${ax}`}
                 disabled={areAxisButtonsDisabled}
               >
-                Z
+                {armedZeroTarget === ax ? 'OK?' : '⊙'}
               </button>
             )}
             {!shouldHideMotionControls && (
@@ -483,19 +501,20 @@ export function DRO({
         {!shouldHideMotionControls && !isHomeAllPending && (
           <button
             className={`btn btn-warn flex-1 font-bold ${tabletActionBtnClass}`}
-            onClick={zeroAll}
-            title="Set current position as work zero for all axes"
+            onClick={() => confirmZero('all', zeroAll)}
+            title={armedZeroTarget === 'all' ? 'Tap again to zero all axes' : 'Set current position as work zero for all axes'}
             disabled={areAxisButtonsDisabled}
           >
-            ⊙ Zero All
+            {armedZeroTarget === 'all' ? 'Zero all?' : '⊙ Zero All'}
           </button>
         )}
+        {/* Stays in place while Zero All is armed so the row never shifts under a second tap. */}
         {!shouldHideMotionControls && !isHomeAllPending && (
           <button
             className={`btn btn-ghost flex-1 font-bold flex items-center justify-center gap-1.5 ${tabletActionBtnClass}`}
             onClick={homeAll}
             title="Home all axes"
-            disabled={areAxisButtonsDisabled}
+            disabled={areAxisButtonsDisabled || armedZeroTarget === 'all'}
           >
             <Home size={isTablet && isPortrait ? 24 : topBandLayout ? 18 : isTablet ? 20 : 12} />
             Home All
