@@ -2,7 +2,13 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      // iOS still allows pinch zoom with maximum-scale=1, which there only stops
+      // the automatic zoom when a small input gets focus.
+      if (/iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1))
+        document.querySelector('meta[name=viewport]').content += ', maximum-scale=1'
+    </script>
     <title>FluidNC</title>
     <link rel="icon" type="image/png" href="/favicon.png" />
   </head>
