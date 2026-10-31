@@ -1,5 +1,5 @@
 import { useRef, useEffect, useLayoutEffect, useState, useCallback } from 'react'
-import { Eye, Axis3D, Maximize2, Crosshair, Navigation, Play, Pause, Square, CloudDrizzle, Waves, PowerOff, Box, Zap, Orbit, Hand, ListStart, RotateCcw, FilePlus, X, AlertTriangle, Maximize, ChevronDown, Wrench, StepForward } from 'lucide-react'
+import { Eye, Circle, Axis3D, Maximize2, Crosshair, Navigation, Play, Pause, Square, CloudDrizzle, Waves, PowerOff, Box, Zap, Orbit, Hand, ListStart, RotateCcw, FilePlus, X, AlertTriangle, Maximize, ChevronDown, Wrench, StepForward } from 'lucide-react'
 import { MOVE_FEED, MOVE_RAPID, NO_TOOL, type GCodeModel, type Segment, type SegmentTable } from '../lib/gcode'
 import { useMachineStore } from '../store'
 import { useGCodeStore } from '../store/gcode'
@@ -15,7 +15,7 @@ import { useGCodeSenderStore } from '../store/gcodeSender'
 import { useSingleBlockStore } from '../store/singleBlock'
 import { SingleBlockNotice, SingleBlockToggle } from './SingleBlockControl'
 import { GCODE_ACCEPT_ATTRIBUTE, isGCodeFileName } from '../lib/gcodeFiles'
-import { controllerRunCommand, isRunningFile, runningFilePath } from '../lib/controllerFiles'
+import { controllerRunCommand, isConfigMacro, isRunningFile, runningFilePath } from '../lib/controllerFiles'
 import { buildFramingGCode, getFramingRequiredTravelZ, programMovesZ, type FramingMode } from '../lib/gcodeOutline'
 import { parseDecimalInput } from '../lib/numberInput'
 
@@ -134,7 +134,7 @@ const PROGRESS_RELOCK_MISSES = 4
 const PROGRESS_HINT_SLACK_SEGMENTS = 300
 const LARGE_PROGRESS_OVERLAY_SEGMENT_LIMIT = 100_000
 const PLUNGE_MARKER_RADIUS_PX = 3
-/** Above this many lines, 2D pan and zoom stretch the cached layer until the view settles. */
+/** Above this many lines, 2D pan and zoom briefly stretch the cached layer between sharp redraws. */
 const LARGE_2D_LAYER_LINE_LIMIT = 100_000
 /** Opacity of a loaded toolpath while another window or device runs a different file. */
 const STALE_PREVIEW_ALPHA = 0.3
@@ -257,7 +257,8 @@ interface Static2DLayer {
   pad: number
   showRapids: boolean
   hiddenTools: Set<number>
-  /** Set once panning or zooming pauses, so the next render strokes it sharply again. */
+  showPlunges: boolean
+  /** Set after a short delay so continuous animation cannot postpone the sharp redraw. */
   settled: boolean
 }
 
@@ -528,6 +529,7 @@ function strokeStatic2DPaths(
   t: Transform,
   showRapids: boolean,
   hiddenTools: Set<number>,
+  showPlunges: boolean,
 ) {
   if (paths.toolPaths?.length) {
     for (const toolPaths of paths.toolPaths) {
@@ -545,7 +547,7 @@ function strokeStatic2DPaths(
       strokeModelPath(ctx, paths.rapidPath, t, RAPID_COLOR, 0.5, [4, 3])
     }
   }
-  drawPlungeMarkers(ctx, paths.plunges, 0, paths.plunges.count, t, hiddenTools, null)
+  if (showPlunges) drawPlungeMarkers(ctx, paths.plunges, 0, paths.plunges.count, t, hiddenTools, null)
 }
 
 /**
@@ -1450,6 +1452,8 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
   const sdUploadPath = useGCodeStore(s => s.sdUploadPath)
   const showRapids = useGCodeStore(s => s.showRapids)
   const setShowRapids = useGCodeStore(s => s.setShowRapids)
+  const showPlunges = useGCodeStore(s => s.showPlunges)
+  const setShowPlunges = useGCodeStore(s => s.setShowPlunges)
   const storePaths2D = useGCodeStore(s => s.paths2D)
   const storeGeometry3D = useGCodeStore(s => s.geometry3D)
   const storeRenderLines = useGCodeStore(s => s.renderLines)
@@ -1473,6 +1477,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
   const [fileDragStatus, setFileDragStatus] = useState<'idle' | 'valid' | 'invalid' | 'unknown'>('idle')
   const [senderExecutionProgressPercent, setSenderExecutionProgressPercent] = useState<number | null>(null)
   const showRapidsRef = useRef(true)
+  const showPlungesRef = useRef(showPlunges)
   const showToolRef = useRef(true)
   /** Another window or device runs a different file: the loaded toolpath is only a faint backdrop. */
   const staleModelRef = useRef(false)
@@ -2014,18 +2019,19 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
    * time would starve the page. The layer extends past the view, so panning
    * within that margin (dragging, Follow) reuses it at full sharpness. While a
    * large layer is zoomed or panned further, the cached image is stretched
-   * into place and stroked again once the view settles.
+   * into place and stroked again after a short delay.
    */
   function drawStatic2DLayer(ctx: CanvasRenderingContext2D, paths: Static2DPaths, t: Transform, w: number, h: number, lineCount: number) {
     // A hidden viewer has no size; a zero-sized layer canvas cannot be drawn.
     if (w < 1 || h < 1) return
     const dpr = window.devicePixelRatio || 1
     const showRapids = showRapidsRef.current
+    const showPlunges = showPlungesRef.current
     const hiddenTools = hiddenToolsRef.current
     const layer = static2DLayerRef.current
 
     if (layer && layer.paths === paths && layer.w === w && layer.h === h && layer.dpr === dpr
-      && layer.showRapids === showRapids && layer.hiddenTools === hiddenTools) {
+      && layer.showRapids === showRapids && layer.hiddenTools === hiddenTools && layer.showPlunges === showPlunges) {
       const { pad } = layer
       if (layer.scale === t.scale) {
         // Whole device pixels keep the reused image sharp.
@@ -2039,24 +2045,30 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
       if (!layer.settled && lineCount > LARGE_2D_LAYER_LINE_LIMIT) {
         const k = t.scale / layer.scale
         ctx.drawImage(layer.canvas, t.ox - (layer.ox + pad) * k, t.oy - (layer.oy + pad) * k, (w + 2 * pad) * k, (h + 2 * pad) * k)
-        window.clearTimeout(static2DSettleTimerRef.current)
-        static2DSettleTimerRef.current = window.setTimeout(() => {
-          layer.settled = true
-          scheduleRender()
-        }, STATIC_2D_SETTLE_MS)
+        // Simulation and Follow render continuously. Arm this once per layer;
+        // restarting it every frame would leave the zoomed bitmap stretched.
+        if (!static2DSettleTimerRef.current) {
+          static2DSettleTimerRef.current = window.setTimeout(() => {
+            static2DSettleTimerRef.current = 0
+            layer.settled = true
+            scheduleRender()
+          }, STATIC_2D_SETTLE_MS)
+        }
         return
       }
     }
 
     const pad = Math.round(Math.max(w, h) * STATIC_2D_LAYER_PAD_RATIO)
+    window.clearTimeout(static2DSettleTimerRef.current)
+    static2DSettleTimerRef.current = 0
     const canvas = layer?.canvas ?? document.createElement('canvas')
     canvas.width = Math.round((w + 2 * pad) * dpr)
     canvas.height = Math.round((h + 2 * pad) * dpr)
     const layerCtx = canvas.getContext('2d')
     if (!layerCtx) return
     layerCtx.setTransform(dpr, 0, 0, dpr, pad * dpr, pad * dpr)
-    strokeStatic2DPaths(layerCtx, paths, t, showRapids, hiddenTools)
-    static2DLayerRef.current = { paths, canvas, ox: t.ox, oy: t.oy, scale: t.scale, w, h, dpr, pad, showRapids, hiddenTools, settled: false }
+    strokeStatic2DPaths(layerCtx, paths, t, showRapids, hiddenTools, showPlunges)
+    static2DLayerRef.current = { paths, canvas, ox: t.ox, oy: t.oy, scale: t.scale, w, h, dpr, pad, showRapids, hiddenTools, showPlunges, settled: false }
     ctx.drawImage(canvas, -pad, -pad, w + 2 * pad, h + 2 * pad)
   }
 
@@ -2146,14 +2158,17 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
   // An SD job running a file this page has not loaded: one started from
   // another window or device. Its preview cannot be fetched meanwhile, as
   // FluidNC refuses to serve files while the machine moves.
-  const otherJobFile = !simulationActive && !senderActive && machineJobActive && !!status.sdFilename
+  const otherProgram = !simulationActive && !senderActive && machineJobActive && !!status.sdFilename
     && !isRunningFile(status.sdFilename, loadedPath)
     ? status.sdFilename
     : null
+  // FluidNC also reports config macros (e.g. after_homing) in SD:. They are
+  // not downloadable files and do not establish which device started them.
+  const otherJobFile = otherProgram && !isConfigMacro(otherProgram) ? otherProgram : null
   // The notice outlives the job, so the file can be loaded here once the machine stops.
   const [otherJobNotice, setOtherJobNotice] = useState<string | null>(null)
   // A job or simulation of the file loaded here ends it.
-  const runningLoadedFile = simulationActive || senderActive || (!!status.sdFilename && !otherJobFile)
+  const runningLoadedFile = simulationActive || senderActive || (!!status.sdFilename && !otherProgram)
   useEffect(() => {
     if (otherJobFile) setOtherJobNotice(otherJobFile)
     else if (runningLoadedFile) setOtherJobNotice(null)
@@ -2165,9 +2180,9 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
     setOtherJobNotice(null)
   }, [model])
   useEffect(() => {
-    staleModelRef.current = !!otherJobFile
+    staleModelRef.current = !!otherProgram
     scheduleRender()
-  }, [otherJobFile])
+  }, [otherProgram])
   const isJobRunning = senderPhase === 'streaming' || senderPhase === 'draining'
     || (status.state === 'Run' && senderPhase !== 'paused') || controllerJobStarting
   const isJobHeld = senderPhase === 'paused' || status.state === 'Hold'
@@ -2274,6 +2289,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
 
   // Keep refs in sync so render() (called from non-React contexts) reads current values
   showRapidsRef.current = showRapids
+  showPlungesRef.current = showPlunges
   showToolRef.current = showTool
   hiddenToolsRef.current = hiddenTools
 
@@ -2295,6 +2311,8 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
       : null
     filteredPathGeometryRef.current = null
     static2DLayerRef.current = null
+    window.clearTimeout(static2DSettleTimerRef.current)
+    static2DSettleTimerRef.current = 0
     renderLinesRef.current = model ? storeRenderLines : null
     markerGeometryRef.current = null
     pathXYLengthsRef.current = null
@@ -2774,7 +2792,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
         // A hole is finished once execution has passed its last plunge.
         const reached = progress.segmentIndex + (progress.fraction >= 1 ? 1 : 0)
         const done = completedPlungeCount(staticPaths.plunges, reached)
-        drawPlungeMarkers(ctx, staticPaths.plunges, 0, done, t, hiddenToolsRef.current, CUT_DONE)
+        if (showPlungesRef.current) drawPlungeMarkers(ctx, staticPaths.plunges, 0, done, t, hiddenToolsRef.current, CUT_DONE)
       }
       ctx.setLineDash([])
 
@@ -2875,7 +2893,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
     }
 
     // A job started elsewhere may run another file: do not track it on this one.
-    if (isRunning && modelRef.current && !otherJobFile) {
+    if (isRunning && modelRef.current && !otherProgram) {
       // Tracking is cheap at any size; only drawing the completed path is
       // limited to smaller jobs. Program Execution follows this position.
       const freshStart = !prevIsRunningRef.current || model !== prevModelRef.current
@@ -2955,10 +2973,11 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
     model,
     simulationActive,
     showRapids,
+    showPlunges,
     showTool,
     hiddenTools,
     isRunning,
-    otherJobFile,
+    otherProgram,
     senderActive,
     senderAcceptedLine,
     autoFollow,
@@ -3484,6 +3503,17 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
             <Eye size={iconSize} />
             <span>Rapids</span>
           </button>
+          {!is3D && (
+            <button
+              className={`${btnCls} ${showPlunges ? 'text-accent bg-accent/10' : 'text-text-dim bg-elevated hover:text-text-primary'}`}
+              onClick={() => setShowPlunges(!showPlunges)}
+              title="Toggle plunge markers (circles at downward Z feed moves)"
+              aria-pressed={showPlunges}
+            >
+              <Circle size={iconSize} />
+              <span>Plunges</span>
+            </button>
+          )}
           <button
             className={`${btnCls} ${showTool ? 'text-danger bg-danger/10' : 'text-text-dim bg-elevated hover:text-text-primary'}`}
             onClick={() => setShowTool(v => !v)}

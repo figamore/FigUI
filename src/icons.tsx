@@ -60,6 +60,7 @@ export const ChevronLeft = /*#__PURE__*/createIcon('chevron-left', [["path",{"d"
 export const ChevronRight = /*#__PURE__*/createIcon('chevron-right', [["path",{"d":"m9 18 6-6-6-6"}]])
 export const ChevronUp = /*#__PURE__*/createIcon('chevron-up', [["path",{"d":"m18 15-6-6-6 6"}]])
 export const ChevronsDown = /*#__PURE__*/createIcon('chevrons-down', [["path",{"d":"m7 6 5 5 5-5"}],["path",{"d":"m7 13 5 5 5-5"}]])
+export const Circle = /*#__PURE__*/createIcon('circle', [["circle",{"cx":"12","cy":"12","r":"10"}]])
 export const CircleDot = /*#__PURE__*/createIcon('circle-dot', [["circle",{"cx":"12","cy":"12","r":"10"}],["circle",{"cx":"12","cy":"12","r":"1"}]])
 export const CircuitBoard = /*#__PURE__*/createIcon('circuit-board', [["rect",{"width":"18","height":"18","x":"3","y":"3","rx":"2"}],["path",{"d":"M11 9h4a2 2 0 0 0 2-2V3"}],["circle",{"cx":"9","cy":"9","r":"2"}],["path",{"d":"M7 21v-4a2 2 0 0 1 2-2h4"}],["circle",{"cx":"15","cy":"15","r":"2"}]])
 export const Clipboard = /*#__PURE__*/createIcon('clipboard', [["rect",{"width":"8","height":"4","x":"8","y":"2","rx":"1","ry":"1"}],["path",{"d":"M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"}]])

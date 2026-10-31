@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict'
 import React from 'react'
 
-const storage = { getItem: () => null, setItem() {} }
+const savedValues = new Map<string, string>()
+const storage = {
+  getItem: (key: string) => savedValues.get(key) ?? null,
+  setItem: (key: string, value: string) => { savedValues.set(key, value) },
+  removeItem: (key: string) => { savedValues.delete(key) },
+}
 Object.assign(globalThis, {
   localStorage: storage,
   sessionStorage: storage,
@@ -32,7 +37,7 @@ setBase('http://fluidnc.local')
 // Run the real panel callbacks and effects with controlled hook state. Child
 // components and DOM work are left unmounted; no browser or new dependency is
 // needed to reproduce async request ordering and readiness transitions.
-function panel(Component: any, effectFilter = (_effect: any) => true) {
+function panel(Component: any, effectFilter = (_effect: any) => true, mount = (_tree: any) => {}) {
   const slots: any[] = []
   let index = 0
   let effects: Array<() => void> = []
@@ -65,6 +70,7 @@ function panel(Component: any, effectFilter = (_effect: any) => true) {
         })
       }
     },
+    useLayoutEffect(effect: any, deps: any[]) { this.useEffect(effect, deps) },
   }
   return {
     slots,
@@ -76,6 +82,7 @@ function panel(Component: any, effectFilter = (_effect: any) => true) {
       current.current = dispatcher
       let tree
       try { tree = Component({}) } finally { current.current = previous }
+      mount(tree)
       for (const effect of effects) effect()
       return tree
     },
@@ -329,7 +336,152 @@ try {
     window.clearInterval = originalClearInterval
     useGCodeSenderStore.setState({ phase: 'idle' })
   }
-  console.log('Deferred file listings, plugin scan ordering, job cache restoration, and configuration error checks passed')
+  {
+    // Exercise the real viewer with a canvas stub and animation clock. A large
+    // cached layer must sharpen during playback even when every frame redraws it.
+    const { GCodeViewer } = await import('../src/components/GCodeViewer')
+    const { buildRenderLines, buildStatic2DPaths } = await import('../src/lib/gcodeBuild')
+    class TestPath {
+      arcs = 0
+      moveTo() {}
+      lineTo() {}
+      arc() { this.arcs++ }
+    }
+    let now = 0
+    let nextId = 1
+    const frames = new Map<number, FrameRequestCallback>()
+    const timeouts = new Map<number, { at: number; fn: () => void }>()
+    Object.assign(globalThis, {
+      Path2D: TestPath,
+      WheelEvent: { DOM_DELTA_LINE: 1, DOM_DELTA_PAGE: 2 },
+      requestAnimationFrame: (fn: FrameRequestCallback) => { const id = nextId++; frames.set(id, fn); return id },
+      cancelAnimationFrame: (id: number) => { frames.delete(id) },
+      ResizeObserver: class { observe() {} disconnect() {} },
+    })
+    window.setTimeout = ((fn: () => void, ms = 0) => {
+      const id = nextId++
+      timeouts.set(id, { at: now + ms, fn })
+      return id
+    }) as typeof window.setTimeout
+    window.clearTimeout = id => { timeouts.delete(id) }
+    window.setInterval = (() => nextId++) as typeof window.setInterval
+    window.clearInterval = () => {}
+    const frame = () => {
+      now += 16
+      for (const [id, timer] of [...timeouts]) {
+        if (timer.at <= now) { timeouts.delete(id); timer.fn() }
+      }
+      const callbacks = [...frames.values()]
+      frames.clear()
+      for (const callback of callbacks) callback(now)
+    }
+    let layerStrokes = 0
+    let rings = 0
+    let completedDots = 0
+    const context = (offscreen: boolean) => new Proxy({
+      stroke(path?: TestPath) { if (offscreen) layerStrokes++; rings += path?.arcs ?? 0 },
+      fill(path?: TestPath) { completedDots += path?.arcs ?? 0 },
+      createRadialGradient: () => ({ addColorStop() {} }),
+    } as any, { get: (target, key) => key in target ? target[key] : () => {} })
+    const element = (offscreen = false) => Object.assign(new EventTarget(), {
+      width: 800, height: 600, clientWidth: 800, clientHeight: 600, style: {},
+      getBoundingClientRect: () => ({ width: 800, height: 600, left: 0, top: 0 }),
+      getContext: () => context(offscreen),
+    })
+    document.createElement = (() => element(true)) as any
+    const container = element()
+    const canvas = element()
+    const mount = (tree: any) => {
+      for (const node of nodes(tree)) {
+        if (node?.ref && typeof node.ref === 'object') {
+          node.ref.current = node.type === 'canvas' ? canvas : container
+        }
+      }
+    }
+    ready(true)
+    useGCodeStore.getState().clear()
+    const source = 'G21 G90\nG0 Z2\nG0 X10 Y10\nG1 Z-2 F60\nG1 X1000 F60'
+    const viewerModel = parseGCode(source)
+    const lines = buildRenderLines(viewerModel.segments)
+    useGCodeStore.setState({
+      model: viewerModel, sourceText: source, fileName: 'viewer.nc', loadedPath: '/sd/viewer.nc',
+      paths2D: buildStatic2DPaths(lines),
+      // Only the count controls the large-layer strategy; the paths stay small.
+      renderLines: { ...lines, count: 100_001 },
+      trackedJob: null, showPlunges: true,
+    })
+    const viewer = panel(GCodeViewer, () => true, mount)
+    let viewerTree = viewer.render()
+    frame() // fit
+    frame() // stroke the initial layer
+    assert(layerStrokes > 0)
+    assert(rings > 0, 'vertical plunges initially have rings')
+
+    const plungeToggle = () => find(viewerTree, node => node.props.title?.startsWith('Toggle plunge markers'))
+    plungeToggle().props.onClick()
+    viewerTree = viewer.render()
+    rings = 0
+    frame()
+    assert.equal(plungeToggle().props['aria-pressed'], false)
+    assert.equal(storage.getItem('gcode.showPlunges'), 'false', 'the visibility choice is saved')
+    assert.equal(rings, 0, 'hiding plunges invalidates the layer and removes its rings')
+    plungeToggle().props.onClick()
+    viewerTree = viewer.render()
+    rings = 0
+    frame()
+    assert(rings > 0, 'plunge rings can be shown again')
+
+    find(viewerTree, node => node.props.title === 'Toggle tool position marker').props.onClick()
+    viewerTree = viewer.render()
+    find(viewerTree, node => node.type === 'button' && text(node).trim() === 'Simulate').props.onClick()
+    viewerTree = viewer.render()
+    frame()
+    const beforeZoom = layerStrokes
+    const wheel = new Event('wheel', { cancelable: true })
+    Object.assign(wheel, { deltaY: -200, deltaMode: 0, clientX: 400, clientY: 300 })
+    container.dispatchEvent(wheel)
+    frame()
+    assert.equal(layerStrokes, beforeZoom, 'zoom initially reuses the large bitmap')
+    for (let i = 0; i < 15; i++) frame()
+    assert(layerStrokes > beforeZoom, 'continuous simulation frames must not postpone the sharp redraw')
+
+    // Jump to the final, long segment so the first plunge is completed. Both
+    // the static rings and the green progress dots obey the same toggle.
+    const originalPerformance = globalThis.performance
+    Object.assign(globalThis, { performance: { now: () => originalPerformance.now() + 10_000 } })
+    try { frame() } finally { Object.assign(globalThis, { performance: originalPerformance }) }
+    viewerTree = viewer.render()
+    completedDots = 0
+    frame()
+    assert(completedDots > 0, 'simulation fills completed plunge markers')
+    plungeToggle().props.onClick()
+    viewerTree = viewer.render()
+    rings = 0
+    completedDots = 0
+    frame()
+    assert.equal(rings, 0, 'hidden rings stay hidden during simulation')
+    assert.equal(completedDots, 0, 'completed plunge dots are hidden too')
+    viewer.unmount()
+    frames.clear()
+    timeouts.clear()
+
+    // A config macro must never leave a file-loading notice after it ends.
+    // Mounted files with the same name still retain the normal Load action.
+    for (const program of ['after_homing', 'after_reset', 'after_unlock', 'Macro0', '/sd/after_homing']) {
+      useMachineStore.setState({ status: { ...useMachineStore.getState().status, state: 'Run', sdFilename: program } })
+      const notice = panel(GCodeViewer)
+      notice.render()
+      let noticeTree = notice.render()
+      const realFile = program.startsWith('/sd/')
+      assert.equal(text(noticeTree).includes('from another window or device'), realFile, program)
+      ready(true)
+      noticeTree = notice.render()
+      assert.equal(nodes(noticeTree).some(node => node?.type === 'button' && text(node).trim() === 'Load'), realFile, `${program}: Load after completion`)
+      notice.unmount()
+      frames.clear()
+    }
+  }
+  console.log('Resource loading, viewer zoom, plunge visibility, and macro notice checks passed')
 } finally {
   disconnect()
   globalThis.fetch = originalFetch

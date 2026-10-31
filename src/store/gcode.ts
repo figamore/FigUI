@@ -72,6 +72,7 @@ interface GCodeStore {
 
   // Setting (shared so 3D rebuild only happens once on toggle)
   showRapids: boolean
+  showPlunges: boolean
 
   // Loading state
   loading: boolean
@@ -112,6 +113,7 @@ interface GCodeStore {
   dismissFinishedJobNotice: () => void
   dismissInterruptedJobNotice: () => void
   setShowRapids: (v: boolean) => void
+  setShowPlunges: (v: boolean) => void
   setActiveSourceLine: (line: number | null) => void
   beginSdUpload: (path: string) => void
   completeSdUpload: (path: string) => Promise<void>
@@ -374,6 +376,7 @@ export const useGCodeStore = create<GCodeStore>((set, get) => ({
   paths2D: null,
   geometry3D: null,
   showRapids: true,
+  showPlunges: localStorage.getItem('gcode.showPlunges') === 'true',
   loading: false,
   pendingPath: null,
   pendingFileName: null,
@@ -626,6 +629,11 @@ export const useGCodeStore = create<GCodeStore>((set, get) => ({
 
   dismissFinishedJobNotice: () => set({ finishedJobElapsedMs: null }),
   dismissInterruptedJobNotice: () => set({ interruptedJob: null }),
+
+  setShowPlunges: (v: boolean) => {
+    localStorage.setItem('gcode.showPlunges', String(v))
+    set({ showPlunges: v })
+  },
 
   setShowRapids: (v: boolean) => {
     if (get().showRapids === v) return

@@ -1,5 +1,20 @@
 import assert from 'node:assert/strict'
-import { isRunningFile, runningFilePath } from '../src/lib/controllerFiles'
+import { isConfigMacro, isRunningFile, runningFilePath } from '../src/lib/controllerFiles'
+
+{
+  // Config macros are reported in SD: too, but cannot be downloaded. Keep
+  // actual files named after a macro (including extensionless ones) loadable.
+  for (const name of ['after_homing', 'after_reset', 'after_unlock', 'startup_line0', 'startup_line1', 'Macro0', 'Macro1', 'Macro2', 'Macro3']) {
+    assert.equal(isConfigMacro(name), true, name)
+    assert.equal(isRunningFile(name, `/sd/${name}`), false, 'a config macro is not the loaded file')
+    assert.equal(isConfigMacro(`/sd/${name}`), false, 'a mounted path is a real file')
+    assert.equal(isConfigMacro(`/localfs/${name}`), false)
+    assert.equal(isConfigMacro(`${name}.nc`), false)
+  }
+  assert.equal(isConfigMacro('jobs/after_homing'), false)
+  assert.equal(isConfigMacro('Maske.nc'), false)
+  assert.equal(isConfigMacro('extensionless'), false, 'do not require file extensions')
+}
 
 {
   // Only the file FluidNC reports running counts as the loaded preview's job:

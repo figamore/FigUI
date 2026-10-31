@@ -30,6 +30,11 @@ export function controllerPathsMatch(runningPath: string, loadedPath: string): b
     && normalizePath(runningPath) === normalizePath(loadedPath)
 }
 
+/** Config macros share the SD: status field with files, but have no file to load. */
+export function isConfigMacro(sdFilename: string): boolean {
+  return /^(?:after_homing|after_reset|after_unlock|startup_line[01]|macro[0-3])$/i.test(sdFilename)
+}
+
 /**
  * The loadable path of the file a status report's SD: field names. FluidNC
  * reports it with its /sd or /localfs mount; a bare name is on the SD card.
@@ -41,5 +46,5 @@ export function runningFilePath(sdFilename: string) {
 
 /** Whether the running file a status report names is the file at path: same filesystem and full path. */
 export function isRunningFile(sdFilename: string, path: string | null | undefined) {
-  return !!path && controllerPathsMatch(runningFilePath(sdFilename), path)
+  return !isConfigMacro(sdFilename) && !!path && controllerPathsMatch(runningFilePath(sdFilename), path)
 }

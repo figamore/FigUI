@@ -216,60 +216,6 @@ reply = hang
 await withFastTimers(() => assert.rejects(http.sendCommand('$I'), /HTTP timeout/))
 await withFastTimers(() => assert.rejects(http.fetchFileContent('/sd/a.nc'), /HTTP timeout/))
 
-// An optional favicon must release LocalFS whether headers or the body stop arriving.
-for (const stall of ['headers', 'body']) {
-  let listingRequested = false
-  let faviconSignal: AbortSignal | undefined
-  reply = (url, init) => {
-    if (url.pathname !== '/favicon.ico') {
-      listingRequested = true
-      return new Response(listing('Ok'))
-    }
-    faviconSignal = init?.signal ?? undefined
-    if (stall === 'headers') return hang(url, init)
-    return new Response(new ReadableStream({
-      start(stream) {
-        stream.enqueue(new Uint8Array([0, 0, 1, 0]))
-        faviconSignal?.addEventListener('abort', () => stream.error(new DOMException('aborted', 'AbortError')))
-      },
-    }), { headers: { 'Content-Type': 'image/x-icon' } })
-  }
-  await withFastTimers(async () => {
-    const favicon = http.fetchLocalFavicon()
-    const files = http.listFiles('/', 'local')
-    let deadline: ReturnType<typeof setTimeout> | undefined
-    try {
-      const [icon] = await Promise.race([
-        Promise.all([favicon, files]),
-        new Promise<never>((_, reject) => {
-          deadline = realSetTimeout(() => reject(new Error(`Favicon ${stall} stall blocked LocalFS`)), 500)
-        }),
-      ])
-      assert.equal(icon, null, `${stall} timeout keeps the default icon`)
-      assert.equal(faviconSignal?.aborted, true, `${stall} timeout aborts the download`)
-      assert.equal(listingRequested, true, `${stall} timeout releases the queued listing`)
-    } finally {
-      clearTimeout(deadline)
-    }
-  })
-}
-
-// Valid icons still load; missing files and HTML fallback pages keep the default.
-for (const [status, contentType, expected] of [
-  [200, 'image/x-icon', true],
-  [200, 'Image/X-Icon', true],
-  [404, 'image/x-icon', false],
-  [200, 'text/html', false],
-  [200, null, false],
-] as const) {
-  reply = () => new Response(new Uint8Array([0, 0, 1, 0]), {
-    status, headers: contentType ? { 'Content-Type': contentType } : {},
-  })
-  const icon = await http.fetchLocalFavicon()
-  assert.equal(icon !== null, expected)
-  if (icon) URL.revokeObjectURL(icon)
-}
-
 // A file stalled mid-transfer gives up; a slow one that keeps arriving does not.
 const fileBytes = new TextEncoder().encode('G0 X1 ; ölçü\n')
 const chunked = (stallAfterFirst: boolean) => (_url: URL, init?: RequestInit) => new Response(new ReadableStream({

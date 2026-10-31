@@ -384,25 +384,6 @@ export function fetchFileContent(fullPath: string, fs: Filesystem = 'sd'): Promi
     fetchFilesystemText(`${base}${encodeFilePath(mountedFilePath(fullPath, fs))}`))
 }
 
-/** Object URL for /favicon.ico on LocalFS, or null when unavailable. */
-export function fetchLocalFavicon(): Promise<string | null> {
-  return serializeFilesystem('local', async () => {
-    const ctl = new AbortController()
-    // An optional icon must not hold the LocalFS queue if its request or body stalls.
-    const timer = setTimeout(() => ctl.abort(), FILESYSTEM_STALL_TIMEOUT_MS)
-    try {
-      const res = await fetch(`${base}/favicon.ico`, { signal: ctl.signal })
-      // Some servers answer unknown paths with an HTML page instead of a 404
-      if (!res.ok || !/^image\//i.test(res.headers.get('Content-Type') ?? '')) return null
-      return URL.createObjectURL(await res.blob())
-    } catch {
-      return null
-    } finally {
-      clearTimeout(timer)
-    }
-  })
-}
-
 export function downloadFile(fullPath: string, filename: string, fs: Filesystem): Promise<void> {
 
   return (async () => {
