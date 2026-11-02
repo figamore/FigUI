@@ -12,6 +12,8 @@ import { useMachineStore } from '../store'
 import { useManualAtcStore } from '../store/manualAtc'
 import { displayToMm, feedUnitLabel, linearUnitLabel, mmToDisplay } from '../lib/units'
 import { parseProbePoint, type ProbePoint } from '../lib/fluidncReports'
+import { useConfirmTap } from '../hooks/useConfirmTap'
+import { markProbeRelative, restoreProbeAbsolute, setProbeCycleActive } from '../lib/probeAbsoluteMode'
 
 type Axis = 'X' | 'Y' | 'Z'
 type Side = 'negative' | 'positive'
@@ -432,8 +434,10 @@ function ParamRow({ label, value, onChange, unit, min = 0, isTablet }: ParamRowP
   }, [value])
 
   function commitValue() {
-    const parsed = Number(draftValue.trim().replace(',', '.'))
-    if (Number.isFinite(parsed) && parsed >= min) onChange(parsed)
+    const text = draftValue.trim()
+    const parsed = Number(text.replace(',', '.'))
+    // An emptied field keeps the previous value instead of becoming 0.
+    if (text && Number.isFinite(parsed) && parsed >= min) onChange(parsed)
     else setDraftValue(String(value))
   }
 
@@ -465,6 +469,7 @@ export function ProbePanel({ isTablet, embedded = false }: { isTablet?: boolean;
   const [selected, setSelected] = usePersisted<CycleId>('probe.cycle', 'z-surface')
   const [running, setRunning] = useState<RunningCycle | null>(null)
   const [probeHeld, setProbeHeld] = useState(false)
+  const abortConfirm = useConfirmTap()
   const [completedCycle, setCompletedCycle] = useState<CycleId | null>(null)
   const runningRef = useRef<RunningCycle | null>(null)
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -489,8 +494,13 @@ export function ProbePanel({ isTablet, embedded = false }: { isTablet?: boolean;
 
   function updateRun(next: RunningCycle | null) {
     runningRef.current = next
+    setProbeCycleActive(next !== null)
     setRunning(next)
-    if (!next) setProbeHeld(false)
+    if (!next) {
+      setProbeHeld(false)
+      // An Abort armed for this cycle must not carry into the next one.
+      abortConfirm.disarm()
+    }
   }
 
   function selectCycle(cycle: CycleId) {
@@ -528,9 +538,19 @@ export function ProbePanel({ isTablet, embedded = false }: { isTablet?: boolean;
     }, ms)
   }
 
+  // A slow feed over a long travel can take longer than the fixed 90 s.
+  function probeMoveTimeoutMs(distance: number) {
+    return Math.max(90_000, (distance / probeFeed) * 60_000 * 1.5 + 30_000)
+  }
+
   function probe(axis: Axis, side: Side, distance = maxTravel) {
     sendRaw(`G21 G91 G38.2 F${number(probeFeed)} ${moveWord(axis, side, distance)}`)
-    armTimeout()
+    markProbeRelative()
+    armTimeout(probeMoveTimeoutMs(distance))
+  }
+
+  function restoreAbsoluteMode() {
+    restoreProbeAbsolute()
   }
 
   // Edge-center: the guarded descent has ended — send the edge-2 fast
@@ -539,7 +559,7 @@ export function ProbePanel({ isTablet, embedded = false }: { isTablet?: boolean;
     sendRaw(`G21 G91 G38.2 F${number(probeFeed)} ${moveWord(axis, 'negative', maxTravel)}`)
     updateRun({ ...runningRef.current!, phase: 'e2-fast' })
     setMessage(`Edge 2/2 — probing ${axis}−…`)
-    armTimeout()
+    armTimeout(probeMoveTimeoutMs(maxTravel))
   }
 
   function finish(messageText: string, markCycleCompleted = false) {
@@ -562,7 +582,7 @@ export function ProbePanel({ isTablet, embedded = false }: { isTablet?: boolean;
       setMessage('Points 1–2 complete. Point 3/4 — probing Y−…')
       probe('Y', 'negative')
     } else {
-      sendRaw('G90')
+      restoreAbsoluteMode()
       const featureCenter = runningRef.current?.id === 'bore-center' || runningRef.current?.id === 'rectangle-center'
       finish(featureCenter
         ? 'Feature center found and X/Y work zero set.'
@@ -619,7 +639,7 @@ export function ProbePanel({ isTablet, embedded = false }: { isTablet?: boolean;
     if (active.id === 'z-surface') {
       sendRaw(`G10 L20 P0 Z${number(plateThick)}`)
       sendRaw(`G21 G91 G0 Z${number(retract)}`)
-      sendRaw('G90')
+      restoreAbsoluteMode()
       const referenceRegistered = !hasManualATC || completeReferenceSetup()
       finish(hasManualATC && referenceRegistered
         ? 'Z surface captured and the installed tool is now the tool-change reference.'
@@ -636,7 +656,7 @@ export function ProbePanel({ isTablet, embedded = false }: { isTablet?: boolean;
       const compensatedCoordinate = side === 'negative' ? radius : -radius
       sendRaw(`G10 L20 P0 ${axis}${number(compensatedCoordinate)}`)
       sendRaw(`G21 G91 G0 ${moveWord(axis, side === 'negative' ? 'positive' : 'negative', retract)}`)
-      sendRaw('G90')
+      restoreAbsoluteMode()
       finish(`${axis}${side === 'negative' ? '−' : '+'} edge captured with probe-radius compensation.`)
       return
     }
@@ -677,7 +697,7 @@ export function ProbePanel({ isTablet, embedded = false }: { isTablet?: boolean;
         // parseProbePoint only parses contact reports, so reaching here means
         // the guarded G38.3 descent hit an obstruction before probing height.
         // Continuing from this Z would probe edge 2 from an invalid position.
-        sendRaw('G90')
+        restoreAbsoluteMode()
         finish('Edge-center crossing blocked — the guided descent contacted an obstruction before reaching probing height. Clear the cross-over path and retry.')
         return
       }
@@ -744,6 +764,7 @@ export function ProbePanel({ isTablet, embedded = false }: { isTablet?: boolean;
   }, [connected])
 
   useEffect(() => () => {
+    if (runningRef.current) setProbeCycleActive(false)
     if (timeoutRef.current) clearTimeout(timeoutRef.current)
     if (backgroundPausedRef.current) {
       backgroundPausedRef.current = false
@@ -812,14 +833,16 @@ export function ProbePanel({ isTablet, embedded = false }: { isTablet?: boolean;
     if (!runningRef.current) return
     pauseBackgroundTraffic()
     sendRealtime(0x7e)
+    abortConfirm.disarm()
     setProbeHeld(false)
     armTimeout(timeoutDurationRef.current)
   }
 
+  // Two taps instead of confirm(), which would stop the page while it is open.
   function abortProbe() {
-    if (!runningRef.current) return
-    if (!confirm('Abort probing and reset the controller? Machine position may be lost.')) return
-    sendRealtime(0x18)
+    abortConfirm.tap(() => {
+      if (runningRef.current) sendRealtime(0x18)
+    })
   }
 
   const selectedCycle = CYCLES.find(c => c.id === selected)!
@@ -926,7 +949,7 @@ export function ProbePanel({ isTablet, embedded = false }: { isTablet?: boolean;
               <Play size={isTablet ? 22 : 17} /> Resume
             </button>
             <button className={`btn btn-danger justify-center gap-2 ${isTablet ? 'h-16 px-6 text-xl' : 'h-11 px-4'}`} onClick={abortProbe}>
-              <Square className="fill-current" size={isTablet ? 20 : 15} /> Abort
+              <Square className="fill-current" size={isTablet ? 20 : 15} /> {abortConfirm.armed ? 'Tap again to reset' : 'Abort'}
             </button>
           </>}
         </div>
