@@ -1,3 +1,4 @@
+import { uiText as __uiText, formatUi } from './i18n'
 import type { ControllerSettings, FluidNCSetting, GCodeModes, MachineStatus, MachineState, Position } from '../types'
 import { MM_PER_INCH } from './units'
 
@@ -113,7 +114,7 @@ export function parseESP800(raw: string): Record<string, string> {
 
 export function parseESP400Settings(raw: string): FluidNCSetting[] {
   if (!raw?.trim()) {
-    throw new Error('Device returned an empty response for [ESP400].')
+    throw new Error(__uiText("lib.parser.system_coverage.1", "Device returned an empty response for [ESP400]."))
   }
 
   let json: unknown
@@ -121,7 +122,7 @@ export function parseESP400Settings(raw: string): FluidNCSetting[] {
     json = JSON.parse(raw)
   } catch {
     const preview = raw.slice(0, 200) + (raw.length > 200 ? '...' : '')
-    throw new Error(`Could not parse settings response.\n\nReceived:\n${preview}`)
+    throw new Error(formatUi(__uiText("lib.parser.template_coverage.1", "Could not parse settings response.\n\nReceived:\n{v0}"), { v0: preview }))
   }
 
   const j = json as Record<string, unknown>

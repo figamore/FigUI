@@ -4,6 +4,8 @@ import { viteSingleFile } from 'vite-plugin-singlefile'
 import tailwindMangle from 'unplugin-tailwindcss-mangle/vite'
 import { fileURLToPath } from 'url'
 import { configStudioBuildId } from './scripts/config-studio-build-id.mjs'
+import { translateJsx } from './scripts/translate-jsx.mjs'
+import { enabledLanguages } from './scripts/languages.mjs'
 
 const mangleReservedPrefixes = [
   'btn-',
@@ -25,7 +27,7 @@ const shouldMangleClass = (className: string) =>
   !mangleReservedPrefixes.some((prefix) => className.startsWith(prefix))
 
 export default defineConfig(({ mode }) => ({
-  define: { __CONFIG_STUDIO_BUILD__: JSON.stringify(configStudioBuildId()) },
+  define: { __FIGUI_LOCALE__: JSON.stringify(process.env.VITE_FIGUI_LOCALE || 'en'), __CONFIG_STUDIO_BUILD__: JSON.stringify(configStudioBuildId()), __FIGUI_LANGUAGES__: JSON.stringify(enabledLanguages().map(({ code, name }) => ({ code, name }))) },
   resolve: {
     alias: {
       'react':             'preact/compat',
@@ -46,6 +48,7 @@ export default defineConfig(({ mode }) => ({
   } : {}),
   base: mode === 'demo' ? '/FigUI/' : '/',
   plugins: [
+    translateJsx(process.env.VITE_FIGUI_LOCALE || 'en'),
     react({ jsxRuntime: mode === 'esp32' ? 'classic' : 'automatic' }),
     ...(mode === 'esp32' ? [
       tailwindMangle({

@@ -1,0 +1,66 @@
+{
+  "store.gcodeSender.ignored": {
+    "zero": "لن يُرسل أي سطر قابل للتنفيذ بعد M2/M30 (العدد: {count}).",
+    "one": "لن يُرسل سطر واحد قابل للتنفيذ بعد M2/M30 (العدد: {count}).",
+    "two": "لن يُرسل سطران قابلان للتنفيذ بعد M2/M30 (العدد: {count}).",
+    "few": "لن تُرسل {count} أسطر قابلة للتنفيذ بعد M2/M30.",
+    "many": "لن يُرسل {count} سطرًا قابلًا للتنفيذ بعد M2/M30.",
+    "other": "لن يُرسل {count} سطر قابل للتنفيذ بعد M2/M30."
+  },
+  "components.LimitsTab.active_inputs": {
+    "zero": "لا توجد مدخلات نشطة ({count})",
+    "one": "مدخل نشط واحد ({count})",
+    "two": "مدخلان نشطان ({count})",
+    "few": "{count} مدخلات نشطة",
+    "many": "{count} مدخلًا نشطًا",
+    "other": "{count} مدخل نشط"
+  },
+  "components.FileManager.folder_warning": {
+    "zero": "\n\nلا يشمل ذلك أي مجلدات ({count}).",
+    "one": "\n\nيشمل ذلك مجلدًا واحدًا ومحتوياته ({count}).",
+    "two": "\n\nيشمل ذلك مجلدين ومحتوياتهما ({count}).",
+    "few": "\n\nيشمل ذلك {count} مجلدات ومحتوياتها.",
+    "many": "\n\nيشمل ذلك {count} مجلدًا ومحتوياتها.",
+    "other": "\n\nيشمل ذلك {count} مجلد ومحتوياته."
+  },
+  "components.Macros.more_line.1": {
+    "zero": "+{count} سطر إضافي",
+    "one": "+{count} سطر إضافي",
+    "two": "سطران إضافيان (+{count})",
+    "few": "+{count} أسطر إضافية",
+    "many": "+{count} سطرًا إضافيًا",
+    "other": "+{count} سطر إضافي"
+  },
+  "components.Macros.more_line.2": {
+    "zero": "+{count} سطر إضافي",
+    "one": "+{count} سطر إضافي",
+    "two": "سطران إضافيان (+{count})",
+    "few": "+{count} أسطر إضافية",
+    "many": "+{count} سطرًا إضافيًا",
+    "other": "+{count} سطر إضافي"
+  },
+  "components.Macros.line.1": {
+    "zero": "{count} سطر",
+    "one": "{count} سطر",
+    "two": "سطران ({count})",
+    "few": "{count} أسطر",
+    "many": "{count} سطرًا",
+    "other": "{count} سطر"
+  },
+  "components.SettingsPanel.result.1": {
+    "zero": "{count} نتيجة",
+    "one": "{count} نتيجة",
+    "two": "نتيجتان ({count})",
+    "few": "{count} نتائج",
+    "many": "{count} نتيجة",
+    "other": "{count} نتيجة"
+  },
+  "components.SettingsPanel.save_config_prompt": {
+    "zero": "تغير إعداد الآلة. هل تريد حفظ التغييرات في {filename}؟\n\n",
+    "one": "تغير إعداد الآلة. هل تريد حفظ هذا التغيير في {filename}؟\n\n",
+    "two": "تغير إعداد الآلة. هل تريد حفظ هذين التغييرين في {filename}؟\n\n",
+    "few": "تغير إعداد الآلة. هل تريد حفظ هذه التغييرات في {filename}؟\n\n",
+    "many": "تغير إعداد الآلة. هل تريد حفظ هذه التغييرات في {filename}؟\n\n",
+    "other": "تغير إعداد الآلة. هل تريد حفظ هذه التغييرات في {filename}؟\n\n"
+  }
+}

@@ -9,7 +9,7 @@
     "build:esp32": "node scripts/generate-icons.mjs && tsc && node scripts/build-esp32.mjs",
     "build:demo": "node scripts/generate-icons.mjs && tsc && vite build --mode demo",
     "build:studio": "node scripts/build-config-studio.mjs",
-    "test": "node scripts/run-tests.mjs && npm run -s test:webui && npm run -s test:resources",
+    "test": "node scripts/run-tests.mjs && npm run -s test:webui && npm run -s test:resources && npm run -s test:i18n-coverage",
     "test:config": "node scripts/test-config-compatibility.mjs",
     "test:settings": "esbuild scripts/test-settings-values.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/figui-test-settings-values.mjs && node node_modules/.cache/figui-test-settings-values.mjs",
     "test:jog": "node scripts/test-jog-settings.mjs",
@@ -39,7 +39,8 @@
     "test:line-gate": "esbuild scripts/test-line-gate.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/figui-test-line-gate.mjs && node node_modules/.cache/figui-test-line-gate.mjs",
     "test:continuous-jog": "esbuild scripts/test-continuous-jog.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/figui-test-continuous-jog.mjs && node node_modules/.cache/figui-test-continuous-jog.mjs",
     "test:gcode-files": "esbuild scripts/test-gcode-files.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/figui-test-gcode-files.mjs && node node_modules/.cache/figui-test-gcode-files.mjs",
-    "test:gcode-framing": "esbuild scripts/test-gcode-framing.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/figui-test-gcode-framing.mjs && node node_modules/.cache/figui-test-gcode-framing.mjs"
+    "test:gcode-framing": "esbuild scripts/test-gcode-framing.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/figui-test-gcode-framing.mjs && node node_modules/.cache/figui-test-gcode-framing.mjs",
+    "test:i18n-coverage": "node scripts/audit-untranslated.mjs --strict"
   },
   "dependencies": {
     "codejar": "^4.3.0",

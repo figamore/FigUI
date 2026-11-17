@@ -1,0 +1,50 @@
+{
+  "store.gcodeSender.ignored": {
+    "one": "{count} исполняемая строка после M2/M30 не будет отправлена.",
+    "few": "{count} исполняемые строки после M2/M30 не будут отправлены.",
+    "many": "{count} исполняемых строк после M2/M30 не будут отправлены.",
+    "other": "{count} исполняемой строки после M2/M30 не будет отправлено."
+  },
+  "components.LimitsTab.active_inputs": {
+    "one": "{count} активный вход",
+    "few": "{count} активных входа",
+    "many": "{count} активных входов",
+    "other": "{count} активного входа"
+  },
+  "components.FileManager.folder_warning": {
+    "one": "\n\nЭто включает {count} папку и её содержимое.",
+    "few": "\n\nЭто включает {count} папки и их содержимое.",
+    "many": "\n\nЭто включает {count} папок и их содержимое.",
+    "other": "\n\nЭто включает {count} папки и их содержимое."
+  },
+  "components.Macros.more_line.1": {
+    "one": "+{count} строка",
+    "few": "+{count} строки",
+    "many": "+{count} строк",
+    "other": "+{count} строки"
+  },
+  "components.Macros.more_line.2": {
+    "one": "+{count} строка",
+    "few": "+{count} строки",
+    "many": "+{count} строк",
+    "other": "+{count} строки"
+  },
+  "components.Macros.line.1": {
+    "one": "{count} строка",
+    "few": "{count} строки",
+    "many": "{count} строк",
+    "other": "{count} строки"
+  },
+  "components.SettingsPanel.result.1": {
+    "one": "{count} результат",
+    "few": "{count} результата",
+    "many": "{count} результатов",
+    "other": "{count} результата"
+  },
+  "components.SettingsPanel.save_config_prompt": {
+    "one": "Конфигурация станка изменена. Сохранить это изменение в {filename}?\n\n",
+    "few": "Конфигурация станка изменена. Сохранить эти изменения в {filename}?\n\n",
+    "many": "Конфигурация станка изменена. Сохранить эти изменения в {filename}?\n\n",
+    "other": "Конфигурация станка изменена. Сохранить эти изменения в {filename}?\n\n"
+  }
+}

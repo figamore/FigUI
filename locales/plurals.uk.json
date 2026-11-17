@@ -1,0 +1,50 @@
+{
+  "store.gcodeSender.ignored": {
+    "one": "{count} виконуваний рядок після M2/M30 не буде надіслано.",
+    "few": "{count} виконувані рядки після M2/M30 не буде надіслано.",
+    "many": "{count} виконуваних рядків після M2/M30 не буде надіслано.",
+    "other": "{count} виконуваного рядка після M2/M30 не буде надіслано."
+  },
+  "components.LimitsTab.active_inputs": {
+    "one": "{count} активний вхід",
+    "few": "{count} активні входи",
+    "many": "{count} активних входів",
+    "other": "{count} активного входу"
+  },
+  "components.FileManager.folder_warning": {
+    "one": "\n\nЦе включає {count} папку та її вміст.",
+    "few": "\n\nЦе включає {count} папки та їхній вміст.",
+    "many": "\n\nЦе включає {count} папок та їхній вміст.",
+    "other": "\n\nЦе включає {count} папки та їхній вміст."
+  },
+  "components.Macros.more_line.1": {
+    "one": "+{count} рядок",
+    "few": "+{count} рядки",
+    "many": "+{count} рядків",
+    "other": "+{count} рядка"
+  },
+  "components.Macros.more_line.2": {
+    "one": "+{count} рядок",
+    "few": "+{count} рядки",
+    "many": "+{count} рядків",
+    "other": "+{count} рядка"
+  },
+  "components.Macros.line.1": {
+    "one": "{count} рядок",
+    "few": "{count} рядки",
+    "many": "{count} рядків",
+    "other": "{count} рядка"
+  },
+  "components.SettingsPanel.result.1": {
+    "one": "{count} результат",
+    "few": "{count} результати",
+    "many": "{count} результатів",
+    "other": "{count} результату"
+  },
+  "components.SettingsPanel.save_config_prompt": {
+    "one": "Конфігурацію машини змінено. Зберегти цю зміну у {filename}?\n\n",
+    "few": "Конфігурацію машини змінено. Зберегти ці зміни у {filename}?\n\n",
+    "many": "Конфігурацію машини змінено. Зберегти ці зміни у {filename}?\n\n",
+    "other": "Конфігурацію машини змінено. Зберегти ці зміни у {filename}?\n\n"
+  }
+}

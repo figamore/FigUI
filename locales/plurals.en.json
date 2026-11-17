@@ -1,0 +1,34 @@
+{
+  "store.gcodeSender.ignored": {
+    "one": "{count} executable line after M2/M30 will not be sent.",
+    "other": "{count} executable lines after M2/M30 will not be sent."
+  },
+  "components.LimitsTab.active_inputs": {
+    "one": "{count} active input",
+    "other": "{count} active inputs"
+  },
+  "components.FileManager.folder_warning": {
+    "one": "\n\nThis includes {count} folder and its contents.",
+    "other": "\n\nThis includes {count} folders and their contents."
+  },
+  "components.Macros.more_line.1": {
+    "one": "+{count} more line",
+    "other": "+{count} more lines"
+  },
+  "components.Macros.more_line.2": {
+    "one": "+{count} more line",
+    "other": "+{count} more lines"
+  },
+  "components.Macros.line.1": {
+    "one": "{count} line",
+    "other": "{count} lines"
+  },
+  "components.SettingsPanel.result.1": {
+    "one": "{count} result",
+    "other": "{count} results"
+  },
+  "components.SettingsPanel.save_config_prompt": {
+    "one": "Machine config changed. Save this change to {filename}?\n\n",
+    "other": "Machine config changed. Save these changes to {filename}?\n\n"
+  }
+}

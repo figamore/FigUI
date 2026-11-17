@@ -1,3 +1,4 @@
+import { uiText as __uiText, formatUi } from '../lib/i18n'
 import { useEffect, useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import { useMachineStore } from '../store'
@@ -59,7 +60,7 @@ export function AxisPositionDialog({ axis, mode, value, units, isTablet = false,
   function submit(action: AxisPositionAction) {
     if (disabled || invalid || (action === 'set' && unitsUnknown)) return
     if (onAction(action, draft)) onClose()
-    else setError('Command could not be sent.')
+    else setError(__uiText("components.AxisPositionDialog.notice.1", "Command could not be sent."))
   }
 
   return <dialog ref={dialogRef} aria-labelledby="axis-position-title"
@@ -69,34 +70,34 @@ export function AxisPositionDialog({ axis, mode, value, units, isTablet = false,
     className={`m-auto w-[calc(100%-2rem)] ${isTablet ? 'max-w-xl' : 'max-w-xs'} max-h-[calc(100svh-2rem)] overflow-y-auto rounded-xl border border-border bg-surface p-4 text-text-primary shadow-2xl backdrop:bg-black/60`}>
     <div className="flex items-center justify-between gap-2 mb-3">
       <div>
-        <h2 id="axis-position-title" className={`font-semibold ${isTablet ? 'text-2xl' : 'text-lg'}`}>{axis} position</h2>
-        <div className={`text-text-muted ${isTablet ? 'text-sm' : 'text-xs'}`}>{mode === 'WPos' ? 'Work' : 'Machine'} · {unitLabel}</div>
+        <h2 id="axis-position-title" className={`font-semibold ${isTablet ? 'text-2xl' : 'text-lg'}`}>{axis} {__uiText("components.AxisPositionDialog.position.1", "position")}</h2>
+        <div className={`text-text-muted ${isTablet ? 'text-sm' : 'text-xs'}`}>{mode === 'WPos' ? __uiText("components.AxisPositionDialog.work.1", "Work") : __uiText("components.AxisPositionDialog.machine.1", "Machine")} · {unitLabel}</div>
       </div>
-      <button className={`btn btn-ghost p-0 ${isTablet ? 'h-14 w-14' : 'h-10 w-10'}`} onClick={onClose} aria-label="Close position editor"><X size={isTablet ? 24 : 18} /></button>
+      <button className={`btn btn-ghost p-0 ${isTablet ? 'h-14 w-14' : 'h-10 w-10'}`} onClick={onClose} aria-label={__uiText("components.AxisPositionDialog.close_position_editor.1", "Close position editor")}><X size={isTablet ? 24 : 18} /></button>
     </div>
     <div className={isTablet ? 'grid grid-cols-2 gap-3' : ''}>
       <div className="min-w-0 flex flex-col">
         <div className="flex items-center rounded border border-border bg-elevated focus-within:border-accent">
           <input ref={inputRef} inputMode={isTablet ? 'none' : 'decimal'} type="text" autoComplete="off" spellCheck={false} maxLength={24}
-            aria-label={`${axis} ${mode === 'WPos' ? 'work' : 'machine'} position in ${unitLabel}`}
+            aria-label={formatUi(__uiText("components.AxisPositionDialog.tail_coverage.1", "{v0} {v1} position in {v2}"), { v0: axis, v1: mode === 'WPos' ? __uiText("components.AxisPositionDialog.work_mode.1", "work") : __uiText("components.AxisPositionDialog.machine_mode.1", "machine"), v2: unitLabel })}
             value={draft} onChange={event => { setDraft(event.target.value.replace(',', '.')); setError('') }}
             className={`min-w-0 w-full bg-transparent px-3 font-mono tabular-nums focus:outline-none ${isTablet ? 'h-16 text-3xl' : 'h-12 text-2xl'}`} />
-          {isTablet && <button className="btn btn-ghost h-16 w-14 shrink-0 p-0 text-2xl" aria-label="Backspace"
+          {isTablet && <button className="btn btn-ghost h-16 w-14 shrink-0 p-0 text-2xl" aria-label={__uiText("components.AxisPositionDialog.backspace.1", "Backspace")}
             onMouseDown={event => event.preventDefault()} onClick={() => press('⌫')}>⌫</button>}
         </div>
         <p className={`my-3 flex-1 leading-relaxed ${isTablet ? 'text-sm' : 'text-xs'} ${error ? 'text-danger' : 'text-text-muted'}`} role={error ? 'alert' : undefined}>
-          {error || (disabled ? 'Machine must be idle.' : mode === 'MPos' ? 'Go moves to this machine position.' : 'Set changes the coordinate. Go moves the axis.')}
+          {error || (disabled ? __uiText("components.AxisPositionDialog.extra_coverage.1", "Machine must be idle.") : mode === 'MPos' ? __uiText("components.AxisPositionDialog.extra_coverage.2", "Go moves to this machine position.") : __uiText("components.AxisPositionDialog.extra_coverage.3", "Set changes the coordinate. Go moves the axis."))}
         </p>
         <div className="flex gap-2">
           {mode === 'WPos' && <button className={`btn btn-ghost flex-1 ${isTablet ? 'h-16 text-xl' : 'h-11'}`} disabled={disabled || invalid || unitsUnknown}
-            title={unitsUnknown ? 'Waiting for controller units' : `Set current ${axis} work position to this value`} onClick={() => submit('set')}>Set</button>}
-          <button className={`btn btn-ok-solid flex-1 ${isTablet ? 'h-16 text-xl' : 'h-11'}`} disabled={disabled || invalid} onClick={() => submit('go')}>Go</button>
+            title={unitsUnknown ? __uiText("components.AxisPositionDialog.waiting_for_controller_units.1", "Waiting for controller units") : formatUi(__uiText("components.AxisPositionDialog.dynamic.1", "Set current {v0} work position to this value"), { v0: axis })} onClick={() => submit('set')}>{__uiText("components.AxisPositionDialog.set.1", "Set")}</button>}
+          <button className={`btn btn-ok-solid flex-1 ${isTablet ? 'h-16 text-xl' : 'h-11'}`} disabled={disabled || invalid} onClick={() => submit('go')}>{__uiText("components.AxisPositionDialog.go.1", "Go")}</button>
         </div>
       </div>
       {isTablet && <div className="grid grid-cols-3 gap-2">
         {['7', '8', '9', '4', '5', '6', '1', '2', '3', '±', '0', '.'].map(key => <button key={key}
           className="btn btn-ghost h-16 bg-elevated text-2xl [@media(max-height:420px)]:h-12" onMouseDown={event => event.preventDefault()} onClick={() => press(key)}
-          aria-label={key === '±' ? 'Toggle sign' : key === '.' ? 'Decimal point' : key}>{key}</button>)}
+          aria-label={key === '±' ? __uiText("components.AxisPositionDialog.toggle_sign.1", "Toggle sign") : key === '.' ? __uiText("components.AxisPositionDialog.decimal_point.1", "Decimal point") : key}>{key}</button>)}
       </div>}
     </div>
   </dialog>

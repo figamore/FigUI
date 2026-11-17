@@ -1,3 +1,4 @@
+import { uiText as __uiText, formatUi } from './i18n'
 type ToolLengthMode = { mode: 'G49' } | { mode: 'G43'; h: number | null }
 
 export interface RestartModalState {
@@ -200,16 +201,16 @@ function scanProgramWideSafety(lines: string[], blockers: string[]) {
     const line = index + 1
     if (!movesZ && code.includes('Z') && wordsIn(code).some(word => word.letter === 'Z')) movesZ = true
     if (code.includes('#') || /\b(?:IF|WHILE|ENDWHILE|GOTO|CALL|RETURN)\b/.test(code)) {
-      addUnique(blockers, `Line ${line} uses macro or conditional syntax, which cannot be reconstructed safely.`)
+      addUnique(blockers, formatUi(__uiText("lib.gcodeRestart.coverage.1", "Line {v0} uses macro or conditional syntax, which cannot be reconstructed safely."), { v0: line }))
     }
     if (/\bM(?:98|99)(?:\.0*)?\b/.test(code)) {
-      addUnique(blockers, `Line ${line} calls or returns from a subprogram. Restart copies cannot safely remove its preceding definitions.`)
+      addUnique(blockers, formatUi(__uiText("lib.gcodeRestart.coverage.2", "Line {v0} calls or returns from a subprogram. Restart copies cannot safely remove its preceding definitions."), { v0: line }))
     }
     if (/\bG(?:65|66|67)(?:\.0*)?\b/.test(code)) {
-      addUnique(blockers, `Line ${line} uses a macro call or modal macro.`)
+      addUnique(blockers, formatUi(__uiText("lib.gcodeRestart.coverage.3", "Line {v0} uses a macro call or modal macro."), { v0: line }))
     }
     if (wordsIn(code).some(word => ['A', 'B', 'C', 'U', 'V', 'W'].includes(word.letter))) {
-      addUnique(blockers, `Line ${line} contains a rotary or auxiliary axis. This restart version supports XYZ programs only.`)
+      addUnique(blockers, formatUi(__uiText("lib.gcodeRestart.coverage.4", "Line {v0} contains a rotary or auxiliary axis. This restart version supports XYZ programs only."), { v0: line }))
     }
   }
   return movesZ
@@ -260,7 +261,7 @@ function applyPrefixLine(raw: string, state: MutableState, blockers: string[]) {
 
   const unsupportedCoordinateState = gCodes.find(g => ['41.1', '43.2', '51', '52', '54.1', '68'].includes(g))
   if (unsupportedCoordinateState) {
-    addUnique(blockers, `The selected line depends on unsupported modal state G${unsupportedCoordinateState}. Restart before it is enabled.`)
+    addUnique(blockers, formatUi(__uiText("lib.gcodeRestart.coverage.5", "The selected line depends on unsupported modal state G{v0}. Restart before it is enabled."), { v0: unsupportedCoordinateState }))
   }
 
   const unitScale = state.units === 'G20' ? 25.4 : 1
@@ -290,12 +291,12 @@ function applyPrefixLine(raw: string, state: MutableState, blockers: string[]) {
   if (state.tool == null && state.pendingTool != null) state.tool = state.pendingTool
 
   if (gCodes.includes('92') || gCodes.includes('92.1') || gCodes.includes('92.2') || gCodes.includes('92.3')) {
-    addUnique(blockers, 'The selected line depends on G92 coordinate state, which cannot be recreated safely yet.')
+    addUnique(blockers, __uiText("lib.gcodeRestart.coverage.6", "The selected line depends on G92 coordinate state, which cannot be recreated safely yet."))
     state.positionKnown = { x: false, y: false, z: false }
     return
   }
   if (gCodes.includes('10')) {
-    addUnique(blockers, 'The selected line follows a G10 coordinate/tool-table change. Restart generation will not replay persistent offset changes.')
+    addUnique(blockers, __uiText("lib.gcodeRestart.coverage.7", "The selected line follows a G10 coordinate/tool-table change. Restart generation will not replay persistent offset changes."))
     return
   }
 
@@ -359,7 +360,7 @@ function validateFirstSuffixFeed(
       && words.some(word => ['I', 'J', 'K', 'R'].includes(word.letter))
     if (!isNonMotionAxisBlock && (hasLinearEndpoint || hasArcDefinition)) {
       if (motion !== 'G0' && !feedKnown) {
-        addUnique(blockers, `The first feed move after the restart (line ${index + 1}) depends on an unknown earlier F value.`)
+        addUnique(blockers, formatUi(__uiText("lib.gcodeRestart.coverage.8", "The first feed move after the restart (line {v0}) depends on an unknown earlier F value."), { v0: index + 1 }))
       }
       return
     }
@@ -398,7 +399,7 @@ function validateRestartProgram(program: string) {
     const hasArcMotion = words.some(word => word.letter === 'G' && (word.value === 2 || word.value === 3))
     const hasArcGeometry = words.some(word => ['X', 'Y', 'Z', 'I', 'J', 'K', 'R'].includes(word.letter))
     if (hasArcMotion && !hasArcGeometry) {
-      throw new Error(`Generated restart line ${index + 1} contains an arc command without arc geometry.`)
+      throw new Error(formatUi(__uiText("lib.gcodeRestart.coverage.9", "Generated restart line {v0} contains an arc command without arc geometry."), { v0: index + 1 }))
     }
   }
 }
@@ -414,7 +415,7 @@ export function analyzeRestart(text: string, requestedLine: number): RestartAnal
   const warnings: string[] = []
 
   if (resumeIndex >= lines.length) {
-    addUnique(blockers, 'There is no executable G-code at or after the requested line.')
+    addUnique(blockers, __uiText("lib.gcodeRestart.coverage.10", "There is no executable G-code at or after the requested line."))
     resumeIndex = Math.min(clampedRequested - 1, lines.length - 1)
   }
 
@@ -425,35 +426,35 @@ export function analyzeRestart(text: string, requestedLine: number): RestartAnal
   if (resumeIndex > 0) {
     for (const axis of movesZ ? ['x', 'y', 'z'] as const : ['x', 'y'] as const) {
       if (!state.positionKnown[axis]) {
-        addUnique(blockers, `The ${axis.toUpperCase()} position before line ${resumeIndex + 1} cannot be determined from the program.`)
+        addUnique(blockers, formatUi(__uiText("lib.gcodeRestart.coverage.11", "The {v0} position before line {v1} cannot be determined from the program."), { v0: axis.toUpperCase(), v1: resumeIndex + 1 }))
       }
     }
   }
   if (state.cutterComp !== 'G40') {
-    addUnique(blockers, `Cutter compensation ${state.cutterComp} is active at the selected line. Restart before compensation is engaged.`)
+    addUnique(blockers, formatUi(__uiText("lib.gcodeRestart.coverage.12", "Cutter compensation {v0} is active at the selected line. Restart before compensation is engaged."), { v0: state.cutterComp }))
   }
   if (state.cannedCycle !== 'G80') {
-    addUnique(blockers, `Canned cycle ${state.cannedCycle} is active at the selected line. Restart before the cycle begins.`)
+    addUnique(blockers, formatUi(__uiText("lib.gcodeRestart.coverage.13", "Canned cycle {v0} is active at the selected line. Restart before the cycle begins."), { v0: state.cannedCycle }))
   }
   if (state.dynamicToolLength) {
-    addUnique(blockers, 'Dynamic tool-length compensation G43.1 is active at the selected line.')
+    addUnique(blockers, __uiText("lib.gcodeRestart.coverage.14", "Dynamic tool-length compensation G43.1 is active at the selected line."))
   }
   if (state.toolLength.mode === 'G43' && state.toolLength.h == null) {
-    addUnique(blockers, 'Tool-length compensation is active, but its H register cannot be determined.')
+    addUnique(blockers, __uiText("lib.gcodeRestart.coverage.15", "Tool-length compensation is active, but its H register cannot be determined."))
   }
   if (state.feedMode !== 'G94') {
-    addUnique(blockers, `${state.feedMode} feed mode is active. The first release supports units-per-minute G94 restarts only.`)
+    addUnique(blockers, formatUi(__uiText("lib.gcodeRestart.coverage.16", "{v0} feed mode is active. The first release supports units-per-minute G94 restarts only."), { v0: state.feedMode }))
   }
   if (state.spindle !== 'M5' && state.spindleSpeed == null) {
-    addUnique(blockers, 'The spindle is active at the selected line, but its commanded S speed cannot be determined.')
+    addUnique(blockers, __uiText("lib.gcodeRestart.coverage.17", "The spindle is active at the selected line, but its commanded S speed cannot be determined."))
   }
   validateFirstSuffixFeed(lines, resumeIndex, state.motion, state.feedMmPerMin != null, blockers)
 
   const assumed: Array<[string, string]> = [
-    ['units', 'Units were not commanded before this line; G21 is being assumed.'],
-    ['distance', 'Distance mode was not commanded before this line; G90 is being assumed.'],
-    ['plane', 'Plane was not commanded before this line; G17 is being assumed.'],
-    ['wcs', 'No work offset was commanded before this line; the controller\'s active offset (G54 after a reset) is used.'],
+    ['units', __uiText("lib.gcodeRestart.coverage.18", "Units were not commanded before this line; G21 is being assumed.")],
+    ['distance', __uiText("lib.gcodeRestart.coverage.19", "Distance mode was not commanded before this line; G90 is being assumed.")],
+    ['plane', __uiText("lib.gcodeRestart.coverage.20", "Plane was not commanded before this line; G17 is being assumed.")],
+    ['wcs', __uiText("lib.gcodeRestart.coverage.21", "No work offset was commanded before this line; the controller's active offset (G54 after a reset) is used.")],
   ]
   if (resumeIndex > 0) {
     for (const [group, message] of assumed) {
@@ -461,13 +462,13 @@ export function analyzeRestart(text: string, requestedLine: number): RestartAnal
     }
   }
   if (resumeIndex + 1 !== clampedRequested) {
-    warnings.push(`Line ${clampedRequested} is blank or comment-only; execution will resume at line ${resumeIndex + 1}.`)
+    warnings.push(formatUi(__uiText("lib.gcodeRestart.coverage.22", "Line {v0} is blank or comment-only; execution will resume at line {v1}."), { v0: clampedRequested, v1: resumeIndex + 1 }))
   }
   if (resumeIndex > 0 && state.spindle === 'M5') {
-    warnings.push('The spindle is off at the restart point. Verify that the selected line starts it before any cutting move.')
+    warnings.push(__uiText("lib.gcodeRestart.message.1", "The spindle is off at the restart point. Verify that the selected line starts it before any cutting move."))
   }
   if (resumeIndex > 0 && !movesZ) {
-    warnings.push('The program never moves Z, so neither does the restart. Check the focus or Z height first.')
+    warnings.push(__uiText("lib.gcodeRestart.message.2", "The program never moves Z, so neither does the restart. Check the focus or Z height first."))
   }
 
   const contextStart = Math.max(0, resumeIndex - 2)
@@ -528,10 +529,10 @@ export function buildRestartProgram(text: string, analysis: RestartAnalysis, opt
   }
   if (analysis.movesZ) {
     if (![options.safeMachineZMm, options.clearanceMm, options.approachFeedMmPerMin].every(Number.isFinite)) {
-      throw new Error('Restart positioning values must be valid numbers.')
+      throw new Error(__uiText("lib.gcodeRestart.message.3", "Restart positioning values must be valid numbers."))
     }
-    if (options.clearanceMm < 0) throw new Error('Approach clearance cannot be negative.')
-    if (options.approachFeedMmPerMin <= 0) throw new Error('Approach feed must be greater than zero.')
+    if (options.clearanceMm < 0) throw new Error(__uiText("lib.gcodeRestart.message.4", "Approach clearance cannot be negative."))
+    if (options.approachFeedMmPerMin <= 0) throw new Error(__uiText("lib.gcodeRestart.message.5", "Approach feed must be greater than zero."))
   }
   const sourceFeed = state.feedMmPerMin == null
     ? null

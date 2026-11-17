@@ -1,3 +1,4 @@
+import { uiText as __uiText, formatUi } from './i18n'
 import {
   STUDIO_API_VERSION,
   type ConfigStudioModule,
@@ -74,7 +75,7 @@ export function createStudioLoader(
           },
         );
         if (!response.ok)
-          throw new Error(`Download failed (${response.status}).`);
+          throw new Error(formatUi(__uiText("lib.remoteConfigStudio.template_coverage.1", "Download failed ({v0})."), { v0: response.status }));
         return response.text();
       };
       const [script, style] = await Promise.all([
@@ -83,11 +84,11 @@ export function createStudioLoader(
       ]);
       const assets = { script, style };
       if (!validAssets(assets))
-        throw new Error("Invalid Config Studio download.");
+        throw new Error(__uiText("lib.remoteConfigStudio.coverage.1", "Invalid Config Studio download."));
       return assets;
     } catch {
       throw new Error(
-        "Could not download Config Studio. Connect to the Internet and retry. You can still edit the file in YAML view.",
+        __uiText("lib.remoteConfigStudio.coverage.2", "Could not download Config Studio. Connect to the Internet and retry. You can still edit the file in YAML view."),
       );
     } finally {
       window.clearTimeout(timer);
@@ -112,7 +113,7 @@ export function createStudioLoader(
         delete window.FigUIConfigStudio;
         reject(
           new Error(
-            "Could not start Config Studio. Retry to download a fresh copy.",
+            __uiText("lib.remoteConfigStudio.coverage.3", "Could not start Config Studio. Retry to download a fresh copy."),
           ),
         );
       };

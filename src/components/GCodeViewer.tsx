@@ -1,3 +1,4 @@
+import { uiText as __uiText, formatUi } from '../lib/i18n'
 import { useRef, useEffect, useLayoutEffect, useState, useCallback } from 'react'
 import { Eye, Circle, Axis3D, Maximize2, Crosshair, Navigation, Play, Pause, Square, CloudDrizzle, Waves, PowerOff, Box, Zap, Orbit, Hand, ListStart, RotateCcw, FilePlus, X, AlertTriangle, Maximize, ChevronDown, Wrench, StepForward } from 'lucide-react'
 import { MOVE_FEED, MOVE_RAPID, NO_TOOL, type GCodeModel, type Segment, type SegmentTable } from '../lib/gcode'
@@ -754,6 +755,18 @@ function getClipBounds(modelBounds: GCodeModel['bounds'] | null) {
 }
 
 
+const VIEW_FACE_LABELS: Record<string, string> = {
+  "Top": __uiText("components.GCodeViewer.view_face.1", "Top"),
+  "Bottom": __uiText("components.GCodeViewer.view_face.2", "Bottom"),
+  "Front": __uiText("components.GCodeViewer.view_face.3", "Front"),
+  "Back": __uiText("components.GCodeViewer.view_face.4", "Back"),
+  "Right": __uiText("components.GCodeViewer.view_face.5", "Right"),
+  "Left": __uiText("components.GCodeViewer.view_face.6", "Left"),
+}
+
+function viewFaceLabel(value: string): string {
+  return Object.prototype.hasOwnProperty.call(VIEW_FACE_LABELS, value) ? VIEW_FACE_LABELS[value] : value
+}
 const HALF_PI = Math.PI / 2
 const ISOMETRIC_PHI = Math.acos(1 / Math.sqrt(3))
 const VIEW_CUBE_CHAMFER = 0.34
@@ -1284,8 +1297,8 @@ function getStoredFollowMode(): FollowMode {
 }
 
 const FOLLOW_MODE_OPTIONS: Array<{ mode: FollowMode; label: string; detail: string }> = [
-  { mode: 'edge', label: 'Re-center at edge', detail: 'The view moves only when the tool nears an edge.' },
-  { mode: 'center', label: 'Keep centered', detail: 'The tool stays in the middle; the toolpath moves under it.' },
+  { mode: 'edge', label: __uiText("components.GCodeViewer.label_extra.1", "Re-center at edge"), detail: __uiText("components.GCodeViewer.late_coverage.1", "The view moves only when the tool nears an edge.") },
+  { mode: 'center', label: __uiText("components.GCodeViewer.label_extra.2", "Keep centered"), detail: __uiText("components.GCodeViewer.late_coverage.2", "The tool stays in the middle; the toolpath moves under it.") },
 ]
 
 function getStoredPositiveNumber(key: string, fallback: number) {
@@ -1405,21 +1418,21 @@ function ViewerOverrideControl({
         <button
           className="h-9 w-9 shrink-0 rounded border border-border bg-surface text-lg text-text-primary active:bg-elevated"
           onClick={onMinus}
-          aria-label={`Decrease ${label.toLowerCase()} override`}
+          aria-label={formatUi(__uiText("components.GCodeViewer.dynamic.1", "Decrease {v0} override"), { v0: label.toLowerCase() })}
         >
           −
         </button>
         <button
           className={`h-9 flex-1 min-w-0 rounded border border-border bg-surface font-mono text-base font-semibold ${colorClass}`}
           onClick={onReset}
-          title={`Reset ${label.toLowerCase()} override to 100%`}
+          title={formatUi(__uiText("components.GCodeViewer.dynamic.2", "Reset {v0} override to 100%"), { v0: label.toLowerCase() })}
         >
           {value}%
         </button>
         <button
           className="h-9 w-9 shrink-0 rounded border border-border bg-surface text-lg text-text-primary active:bg-elevated"
           onClick={onPlus}
-          aria-label={`Increase ${label.toLowerCase()} override`}
+          aria-label={formatUi(__uiText("components.GCodeViewer.dynamic.3", "Increase {v0} override"), { v0: label.toLowerCase() })}
         >
           +
         </button>
@@ -1610,7 +1623,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
       rendererRef.current = renderer
       updateCameraFromOrbit()
     } else {
-      console.error('Failed to initialize WebGL renderer - WebGL not supported')
+      console.error(__uiText("components.GCodeViewer.late_coverage.3", "Failed to initialize WebGL renderer - WebGL not supported"))
     }
   }
 
@@ -2212,12 +2225,12 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
     }
     const stopLines = onLine(line => {
       if (line.startsWith('error') && Date.now() - startedAt < CONTROLLER_START_ERROR_WINDOW_MS) {
-        giveUp(`The controller did not start the job (${line}).`)
+        giveUp(formatUi(__uiText("components.GCodeViewer.template_coverage.1", "The controller did not start the job ({v0})."), { v0: line }))
       }
     })
     const deadline = Math.max(startedAt + spindleSpinupMs + CONTROLLER_START_TIMEOUT_MS, Date.now() + 2000)
     const timer = window.setTimeout(
-      () => giveUp('The controller did not report the job as started. Check that the file is still on the SD card.'),
+      () => giveUp(__uiText("components.GCodeViewer.late_coverage.4", "The controller did not report the job as started. Check that the file is still on the SD card.")),
       deadline - Date.now(),
     )
     return () => {
@@ -3328,15 +3341,15 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
     const clearanceDisplay = parseDecimalInput(framingClearanceInput)
     const travelZDisplay = parseDecimalInput(framingTravelZInput)
     if (feedDisplay == null || feedDisplay <= 0) {
-      setFramingError('Enter a framing feed rate greater than zero.')
+      setFramingError(__uiText("components.GCodeViewer.notice.1", "Enter a framing feed rate greater than zero."))
       return
     }
     if (framingMovesZ && clearanceDisplay == null) {
-      setFramingError('Enter a valid clearance height.')
+      setFramingError(__uiText("components.GCodeViewer.notice.2", "Enter a valid clearance height."))
       return
     }
     if (framingMovesZ && travelZDisplay == null) {
-      setFramingError('Enter a valid safe travel height.')
+      setFramingError(__uiText("components.GCodeViewer.notice.3", "Enter a valid safe travel height."))
       return
     }
 
@@ -3354,11 +3367,11 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
         displayUnits: units,
       })
     } catch (error) {
-      setFramingError(error instanceof Error ? error.message : 'Framing settings are not valid.')
+      setFramingError(error instanceof Error ? error.message : __uiText("components.GCodeViewer.late_coverage.5", "Framing settings are not valid."))
       return
     }
     if (!result) {
-      setFramingError('This file has no cutting moves to frame.')
+      setFramingError(__uiText("components.GCodeViewer.notice.4", "This file has no cutting moves to frame."))
       return
     }
 
@@ -3372,7 +3385,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
       { showRuntimeEstimate: false },
     )
     if (!started) {
-      setFramingError('Framing can start only while connected and idle.')
+      setFramingError(__uiText("components.GCodeViewer.notice.5", "Framing can start only while connected and idle."))
       return
     }
     setShowFramingDialog(false)
@@ -3402,9 +3415,9 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
 
   return (
     <div className={`panel flex flex-col overflow-hidden ${className ?? ''}`}>
-      <div className="panel-header !flex-col !items-stretch sm:!flex-row sm:!items-center sm:justify-between gap-y-1.5">
+      <div className="panel-header !flex-col !items-stretch sm:!flex-row sm:!flex-wrap sm:!items-center sm:justify-between gap-y-1.5">
         {!isTablet && (
-        <div className="flex items-center gap-2 min-w-0 sm:flex-1">
+        <div className="flex items-center gap-2 min-w-0 sm:min-w-24 sm:flex-1">
           {fileName ? (
             <span
               className="text-text-primary font-mono normal-case tracking-normal font-normal truncate text-sm min-w-0"
@@ -3413,27 +3426,27 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
               {fileName}
             </span>
           ) : (
-            <span className="text-text-dim text-sm whitespace-nowrap">No file loaded</span>
+            <span className="text-text-dim text-sm normal-case tracking-normal truncate min-w-0">{__uiText("components.GCodeViewer.no_file_loaded.1", "No file loaded")}</span>
           )}
-          {isLocalFile && <span className="tag border-info/30 bg-info/10 text-info normal-case tracking-normal">Local</span>}
-          {restoredFromCache && <span className="tag normal-case tracking-normal" title="Preview restored from this browser's saved copy">Cached</span>}
+          {isLocalFile && <span className="tag border-info/30 bg-info/10 text-info normal-case tracking-normal">{__uiText("components.GCodeViewer.local.1", "Local")}</span>}
+          {restoredFromCache && <span className="tag normal-case tracking-normal" title={__uiText("components.GCodeViewer.preview_restored_from_this_browser_.1", "Preview restored from this browser's saved copy")}>{__uiText("components.GCodeViewer.cached.1", "Cached")}</span>}
           {restartSource && (
-            <span className="px-1.5 py-0.5 rounded text-xs font-semibold text-accent bg-accent/10 border border-accent/25 shrink-0" title={`Prepared from ${restartSource.fileName}, requested line ${restartSource.requestedLine}`}>
-              Restart L{restartSource.resumeLine}
+            <span className="px-1.5 py-0.5 rounded text-xs font-semibold text-accent bg-accent/10 border border-accent/25 shrink-0" title={formatUi(__uiText("components.GCodeViewer.dynamic.4", "Prepared from {v0}, requested line {v1}"), { v0: restartSource.fileName, v1: restartSource.requestedLine })}>
+              {__uiText("components.GCodeViewer.coverage.1", "Restart L")}{restartSource.resumeLine}
             </span>
           )}
           {isLargeProgressOverlayDisabled && (
             <span
               className="px-1.5 py-0.5 rounded text-sm text-text-dim bg-elevated shrink-0"
-              title={`Toolpath completion overlay disabled above ${LARGE_PROGRESS_OVERLAY_SEGMENT_LIMIT.toLocaleString()} segments while a job is running`}
+              title={formatUi(__uiText("components.GCodeViewer.dynamic.5", "Toolpath completion overlay disabled above {v0} segments while a job is running"), { v0: LARGE_PROGRESS_OVERLAY_SEGMENT_LIMIT.toLocaleString() })}
             >
-              Progress overlay off
+              {__uiText("components.GCodeViewer.progress_overlay_off.1", "Progress overlay off")}
             </span>
           )}
           {!loading && isProcessing3D && (
             <span
               className="px-1.5 py-0.5 rounded text-sm text-text-dim bg-elevated shrink-0"
-              title="3D preview is still being prepared in the background"
+              title={__uiText("components.GCodeViewer.3d_preview_is_still_being_prepared_.1", "3D preview is still being prepared in the background")}
             >
               3D {processing3DProgress}%
             </span>
@@ -3441,7 +3454,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
         </div>
         )}
         {/* Right: toggle buttons with visible labels */}
-        <div className="flex items-center gap-1 flex-wrap sm:flex-nowrap justify-start sm:justify-end ml-auto sm:shrink-0">
+        <div className="flex min-w-0 max-w-full items-center gap-1 flex-wrap justify-start sm:justify-end sm:ml-auto sm:flex-[0_1_auto]">
           <input
             ref={localFileInputRef}
             type="file"
@@ -3455,8 +3468,8 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
           />
           {(() => {
             const btnCls = isTablet
-              ? 'flex items-center gap-1.5 px-3 py-1.5 rounded text-base transition-colors'
-              : 'flex items-center gap-1 px-1.5 py-0.5 rounded text-base transition-colors'
+              ? 'flex shrink-0 items-center gap-1.5 px-3 py-1.5 rounded text-base transition-colors'
+              : 'flex shrink-0 items-center gap-1 px-1.5 py-0.5 rounded text-base transition-colors'
             const iconSize = isTablet ? 16 : 11
             return (<>
           <button
@@ -3467,7 +3480,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
               needsFitRef.current = true
               scheduleRender()
             }}
-            title={is3DToggleDisabled ? '3D preview is still being prepared' : 'Toggle 3D view'}
+            title={is3DToggleDisabled ? __uiText("components.GCodeViewer.3d_preview_is_still_being_prepared.1", "3D preview is still being prepared") : __uiText("components.GCodeViewer.toggle_3d_view.1", "Toggle 3D view")}
             disabled={is3DToggleDisabled}
           >
             <Box size={iconSize} />
@@ -3478,49 +3491,49 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
               <button
                 className={`${btnCls} ${projectionMode === 'orthographic' ? 'text-info bg-info/10' : 'text-text-dim bg-elevated hover:text-text-primary'}`}
                 onClick={() => setProjectionMode(mode => mode === 'perspective' ? 'orthographic' : 'perspective')}
-                title={projectionMode === 'orthographic' ? 'Switch to perspective projection' : 'Switch to orthographic projection'}
+                title={projectionMode === 'orthographic' ? __uiText("components.GCodeViewer.switch_to_perspective_projection.1", "Switch to perspective projection") : __uiText("components.GCodeViewer.switch_to_orthographic_projection.1", "Switch to orthographic projection")}
               >
                 <Axis3D size={iconSize} />
-                <span>{projectionMode === 'orthographic' ? 'Ortho' : 'Persp'}</span>
+                <span>{projectionMode === 'orthographic' ? __uiText("components.GCodeViewer.ortho.1", "Ortho") : __uiText("components.GCodeViewer.persp.1", "Persp")}</span>
               </button>
               <button
                 className={`${btnCls} ${dragMode === 'pan' ? 'text-info bg-info/10' : 'text-text-dim bg-elevated hover:text-text-primary'}`}
                 onClick={() => setDragMode(mode => mode === 'orbit' ? 'pan' : 'orbit')}
                 title={dragMode === 'orbit'
-                  ? 'Drag to orbit. Shift-, middle-, or right-drag to pan.'
-                  : 'Drag to pan.'}
+                  ? __uiText("components.GCodeViewer.drag_to_orbit_shift_middle_or_right.1", "Drag to orbit. Shift-, middle-, or right-drag to pan.")
+                  : __uiText("components.GCodeViewer.drag_to_pan.1", "Drag to pan.")}
               >
                 {dragMode === 'orbit' ? <Orbit size={iconSize} /> : <Hand size={iconSize} />}
-                <span>{dragMode === 'orbit' ? 'Orbit' : 'Pan'}</span>
+                <span>{dragMode === 'orbit' ? __uiText("components.GCodeViewer.orbit.1", "Orbit") : __uiText("components.GCodeViewer.pan.1", "Pan")}</span>
               </button>
             </>
           )}
           <button
             className={`${btnCls} ${showRapids ? 'text-accent bg-accent/10' : 'text-text-dim bg-elevated hover:text-text-primary'}`}
             onClick={() => setShowRapids(!showRapids)}
-            title="Toggle rapid moves (dashed blue lines)"
+            title={__uiText("components.GCodeViewer.toggle_rapid_moves_dashed_blue_line.1", "Toggle rapid moves (dashed blue lines)")}
           >
             <Eye size={iconSize} />
-            <span>Rapids</span>
+            <span>{__uiText("components.GCodeViewer.rapids.1", "Rapids")}</span>
           </button>
           {!is3D && (
             <button
               className={`${btnCls} ${showPlunges ? 'text-accent bg-accent/10' : 'text-text-dim bg-elevated hover:text-text-primary'}`}
               onClick={() => setShowPlunges(!showPlunges)}
-              title="Toggle plunge markers (circles at downward Z feed moves)"
+              title={__uiText("components.GCodeViewer.toggle_plunge_markers_circles_at_do.1", "Toggle plunge markers (circles at downward Z feed moves)")}
               aria-pressed={showPlunges}
             >
               <Circle size={iconSize} />
-              <span>Plunges</span>
+              <span>{__uiText("components.GCodeViewer.plunges.1", "Plunges")}</span>
             </button>
           )}
           <button
             className={`${btnCls} ${showTool ? 'text-danger bg-danger/10' : 'text-text-dim bg-elevated hover:text-text-primary'}`}
             onClick={() => setShowTool(v => !v)}
-            title="Toggle tool position marker"
+            title={__uiText("components.GCodeViewer.toggle_tool_position_marker.1", "Toggle tool position marker")}
           >
             <Crosshair size={iconSize} />
-            <span>Tool</span>
+            <span>{__uiText("components.GCodeViewer.tool.1", "Tool")}</span>
           </button>
           {!is3D && (
             <div className="relative flex items-center">
@@ -3532,15 +3545,15 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
                   setAutoFollow(follow)
                   if (follow) centerOnRunningTool()
                 }}
-                title={`Keep the tool in view while running (${FOLLOW_MODE_OPTIONS.find(option => option.mode === followMode)?.label})`}
+                title={formatUi(__uiText("components.GCodeViewer.dynamic.6", "Keep the tool in view while running ({v0})"), { v0: FOLLOW_MODE_OPTIONS.find(option => option.mode === followMode)?.label })}
               >
                 <Navigation size={iconSize} />
-                <span>Follow</span>
+                <span>{__uiText("components.GCodeViewer.follow.1", "Follow")}</span>
               </button>
               <button
                 className={`flex items-center self-stretch rounded rounded-l-none transition-colors ${isTablet ? 'px-1' : 'px-0.5'} ${autoFollow ? 'text-info bg-info/10' : 'text-text-dim bg-elevated hover:text-text-primary'}`}
                 onClick={() => setShowFollowMenu(open => !open)}
-                title="Choose how Follow moves the view"
+                title={__uiText("components.GCodeViewer.choose_how_follow_moves_the_view.1", "Choose how Follow moves the view")}
                 aria-expanded={showFollowMenu}
               >
                 <ChevronDown size={isTablet ? 12 : 10} className={`transition-transform ${showFollowMenu ? 'rotate-180' : ''}`} />
@@ -3569,10 +3582,10 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
           <button
             className={`${btnCls} text-text-muted hover:text-text-primary hover:bg-elevated`}
             onClick={() => fitToView()}
-            title="Fit entire path to view"
+            title={__uiText("components.GCodeViewer.fit_entire_path_to_view.1", "Fit entire path to view")}
           >
             <Maximize2 size={iconSize} />
-            <span>Fit</span>
+            <span>{__uiText("components.GCodeViewer.fit.1", "Fit")}</span>
           </button>
             </>)
           })()}
@@ -3612,16 +3625,16 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
             <div className="pointer-events-auto max-w-full flex items-start gap-3 rounded-lg border border-info/40 bg-surface shadow-lg px-3 py-2 text-sm" role="status" aria-live="polite">
               <div className="min-w-0">
                 <div className="font-semibold text-info [overflow-wrap:anywhere]">
-                  {otherJobFile ? 'Running ' : 'Ran '}
+                  {otherJobFile ? __uiText("components.GCodeViewer.running.1", "Running ") : __uiText("components.GCodeViewer.ran.1", "Ran ")}
                   <span className="font-mono">{otherJobNotice.slice(otherJobNotice.replace(/\\/g, '/').lastIndexOf('/') + 1)}</span>
-                  {' from another window or device'}
+                  {__uiText("components.GCodeViewer.from_another_window_or_device.1", " from another window or device")}
                 </div>
                 <div className="mt-0.5 text-xs text-text-muted">
                   {otherJobFile
-                    ? <>Its live preview is shown there. {fileName
-                      ? <>This page shows <span className="font-mono">{fileName}</span>, dimmed.</>
-                      : 'No file is loaded on this page.'}</>
-                    : 'Load it to see it here.'}
+                    ? <>{__uiText("components.GCodeViewer.its_live_preview_is_shown_there.1", "Its live preview is shown there.")} {fileName
+                      ? <>{__uiText("components.GCodeViewer.this_page_shows.1", "This page shows")} <span className="font-mono">{fileName}</span>{__uiText("components.GCodeViewer.dimmed.1", ", dimmed.")}</>
+                      : __uiText("components.GCodeViewer.no_file_on_page.1", "No file is loaded on this page.")}</>
+                    : __uiText("components.GCodeViewer.load_it_to_see_it_here.1", "Load it to see it here.")}
                 </div>
               </div>
               {!otherJobFile && (
@@ -3631,13 +3644,13 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
                     onClick={() => void loadFile(runningFilePath(otherJobNotice))}
                     disabled={isRunning}
                   >
-                    Load
+                    {__uiText("components.GCodeViewer.load.1", "Load")}
                   </button>
                   <button
                     className="shrink-0 self-center text-text-dim hover:text-text-primary"
                     onClick={() => setOtherJobNotice(null)}
-                    aria-label="Dismiss message about the job from another window or device"
-                    title="Dismiss"
+                    aria-label={__uiText("components.GCodeViewer.dismiss_message_about_the_job_from_.1", "Dismiss message about the job from another window or device")}
+                    title={__uiText("components.GCodeViewer.dismiss.1", "Dismiss")}
                   >
                     <X size={14} />
                   </button>
@@ -3657,13 +3670,13 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
               <FilePlus size={34} className="mx-auto mb-2" />
               <div className="font-semibold">
                 {fileDragStatus === 'invalid'
-                  ? 'Unsupported file type'
-                  : 'Drop G-code to preview and stream'}
+                  ? __uiText("components.GCodeViewer.unsupported_file_type.1", "Unsupported file type")
+                  : __uiText("components.GCodeViewer.drop_g_code_to_preview_and_stream.1", "Drop G-code to preview and stream")}
               </div>
               <div className="mt-1 text-sm text-text-muted">
                 {fileDragStatus === 'invalid'
-                  ? `Use ${GCODE_EXTENSIONS_PREVIEW} files.`
-                  : 'The file stays in this browser.'}
+                  ? formatUi(__uiText("components.GCodeViewer.dynamic.7", "Use {v0} files."), { v0: GCODE_EXTENSIONS_PREVIEW })
+                  : __uiText("components.GCodeViewer.the_file_stays_in_this_browser.1", "The file stays in this browser.")}
               </div>
             </div>
           </div>
@@ -3673,12 +3686,12 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
           <div className="absolute inset-0 flex items-center justify-center bg-surface/70 backdrop-blur-sm px-4">
             <div className="w-full max-w-md rounded-xl border border-border bg-surface/95 shadow-lg p-4 space-y-3">
               <div className="text-base text-text-primary font-mono truncate">
-                {pendingFileName ?? pendingPath?.split('/').pop() ?? fileName ?? 'Loading file'}
+                {pendingFileName ?? pendingPath?.split('/').pop() ?? fileName ?? __uiText("components.GCodeViewer.extra_coverage.1", "Loading file")}
               </div>
               <div className="space-y-1">
                 <div className="flex items-center justify-between text-base text-text-dim uppercase tracking-wide">
-                  <span>{restoredFromCache ? 'Read cached file' : pendingPath ? 'Download from controller' : 'Read local file'}</span>
-                  <span>{downloadProgress == null ? 'Streaming' : `${downloadProgress}%`}</span>
+                  <span>{restoredFromCache ? __uiText("components.GCodeViewer.read_cached_file.1", "Read cached file") : pendingPath ? __uiText("components.GCodeViewer.download_from_controller.1", "Download from controller") : __uiText("components.GCodeViewer.read_local_file.1", "Read local file")}</span>
+                  <span>{downloadProgress == null ? __uiText("components.GCodeViewer.streaming.1", "Streaming") : `${downloadProgress}%`}</span>
                 </div>
                 <div className="h-1.5 bg-elevated rounded-full overflow-hidden">
                   <div
@@ -3689,7 +3702,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
               </div>
               <div className="space-y-1">
                 <div className="flex items-center justify-between text-base text-text-dim uppercase tracking-wide">
-                  <span>Prepare 2D View</span>
+                  <span>{__uiText("components.GCodeViewer.prepare_2d_view.1", "Prepare 2D View")}</span>
                   <span>{processing2DProgress}%</span>
                 </div>
                 <div className="h-1.5 bg-elevated rounded-full overflow-hidden">
@@ -3698,7 +3711,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
               </div>
               <div className="space-y-1 opacity-75">
                 <div className="flex items-center justify-between text-base text-text-dim uppercase tracking-wide">
-                  <span>Prepare 3D View</span>
+                  <span>{__uiText("components.GCodeViewer.prepare_3d_view.1", "Prepare 3D View")}</span>
                   <span>{processing3DProgress}%</span>
                 </div>
                 <div className="h-1.5 bg-elevated rounded-full overflow-hidden">
@@ -3711,19 +3724,19 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
                     className="btn btn-warn gap-2 justify-center text-sm flex-1"
                     onClick={handleStartWithoutPreview}
                     disabled={blockModePending}
-                    title="Cancel the preview download and start the job immediately"
+                    title={__uiText("components.GCodeViewer.cancel_the_preview_download_and_sta.1", "Cancel the preview download and start the job immediately")}
                   >
                     <Zap size={12} />
-                    Start without preview
+                    {__uiText("components.GCodeViewer.start_without_preview.1", "Start without preview")}
                   </button>
                 )}
                 <button
                   className="btn gap-2 justify-center text-sm"
                   onClick={cancelLoad}
-                  title="Cancel the download"
+                  title={__uiText("components.GCodeViewer.cancel_the_download.1", "Cancel the download")}
                 >
                   <Square size={12} />
-                  Cancel
+                  {__uiText("components.GCodeViewer.cancel.1", "Cancel")}
                 </button>
               </div>
             </div>
@@ -3733,7 +3746,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
         {!loading && isProcessing3D && model && (
           <div className="absolute top-3 right-3 left-3 sm:left-auto sm:w-72 bg-surface/85 backdrop-blur-sm border border-border rounded-lg px-3 py-2">
             <div className="flex items-center justify-between text-sm text-text-dim uppercase tracking-wide mb-1">
-              <span>Preparing 3D View</span>
+              <span>{__uiText("components.GCodeViewer.preparing_3d_view.1", "Preparing 3D View")}</span>
               <span>{processing3DProgress}%</span>
             </div>
             <div className="h-1.5 bg-elevated rounded-full overflow-hidden">
@@ -3753,11 +3766,11 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
                     : 'text-text-primary hover:bg-elevated'
                 }`}
                 onClick={() => setShowToolPathMenu(open => !open)}
-                title="Show toolpath visibility controls"
+                title={__uiText("components.GCodeViewer.show_toolpath_visibility_controls.1", "Show toolpath visibility controls")}
               >
                 <span className="inline-flex min-w-0 items-center gap-1.5">
                   <Wrench size={12} className="shrink-0 text-text-muted" />
-                  <span className="text-text-muted">Tools</span>
+                  <span className="text-text-muted">{__uiText("components.GCodeViewer.tools.1", "Tools")}</span>
                   <span className="font-mono tabular-nums text-text-primary">{visibleToolCount}/{toolList.length}</span>
                 </span>
                 <ChevronDown
@@ -3804,31 +3817,31 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
                   className="flex items-center gap-1.5 rounded border border-border bg-surface/80 backdrop-blur-sm px-3 py-1.5 text-sm font-semibold text-text-primary shadow-sm hover:border-info/60 hover:text-info active:bg-elevated disabled:opacity-50 disabled:hover:border-border disabled:hover:text-text-primary"
                   onClick={openFramingDialog}
                   disabled={!connected || status.state !== 'Idle' || controllerResetPending}
-                  title={!connected || status.state !== 'Idle' || controllerResetPending ? 'Wait for the controller to be ready before framing' : 'Frame the cutting extents at clearance height'}
+                  title={!connected || status.state !== 'Idle' || controllerResetPending ? __uiText("components.GCodeViewer.wait_for_the_controller_to_be_ready.1", "Wait for the controller to be ready before framing") : __uiText("components.GCodeViewer.frame_the_cutting_extents_at_cleara.1", "Frame the cutting extents at clearance height")}
                 >
                   <Maximize size={14} />
-                  Frame
+                  {__uiText("components.GCodeViewer.frame.1", "Frame")}
                 </button>
                 <button
                   type="button"
                   className="flex items-center gap-1.5 rounded border border-border bg-surface/80 backdrop-blur-sm px-3 py-1.5 text-sm font-semibold text-text-primary shadow-sm hover:border-accent/60 hover:text-accent active:bg-elevated"
                   onClick={startSimulation}
-                  title="Preview the toolpath motion without sending commands"
+                  title={__uiText("components.GCodeViewer.preview_the_toolpath_motion_without.1", "Preview the toolpath motion without sending commands")}
                 >
                   <Play size={14} />
-                  Simulate
+                  {__uiText("components.GCodeViewer.simulate.1", "Simulate")}
                 </button>
               </div>
             ) : (
               <div className="pointer-events-auto flex flex-wrap items-center justify-end gap-1.5 rounded border border-border bg-surface/80 backdrop-blur-sm px-2 py-1.5 shadow-sm">
-                <span className="hidden sm:inline px-1.5 text-xs font-semibold uppercase tracking-wide text-text-muted">Simulation</span>
-                <div className="flex items-center gap-1" title="Simulation playback speed">
+                <span className="hidden sm:inline px-1.5 text-xs font-semibold uppercase tracking-wide text-text-muted">{__uiText("components.GCodeViewer.simulation.1", "Simulation")}</span>
+                <div className="flex items-center gap-1" title={__uiText("components.GCodeViewer.simulation_playback_speed.1", "Simulation playback speed")}>
                   <button
                     type="button"
                     className="h-8 w-8 rounded border border-border bg-elevated text-base text-text-primary hover:border-accent/60 disabled:opacity-40"
                     onClick={() => setSimulationSpeedPercentClamped(simulationSpeedPercent - SIMULATION_SPEED_STEP)}
                     disabled={simulationSpeedPercent <= SIMULATION_SPEED_MIN}
-                    aria-label="Decrease simulation speed"
+                    aria-label={__uiText("components.GCodeViewer.decrease_simulation_speed.1", "Decrease simulation speed")}
                   >
                     −
                   </button>
@@ -3836,7 +3849,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
                     type="button"
                     className={`h-8 min-w-14 rounded border border-border bg-elevated px-2 font-mono text-sm font-semibold ${simulationSpeedPercent === 100 ? 'text-accent' : simulationSpeedPercent > 100 ? 'text-ok' : 'text-warn'}`}
                     onClick={() => setSimulationSpeedPercentClamped(100)}
-                    title="Reset simulation speed to 100%"
+                    title={__uiText("components.GCodeViewer.reset_simulation_speed_to_100.1", "Reset simulation speed to 100%")}
                   >
                     {simulationSpeedPercent}%
                   </button>
@@ -3845,7 +3858,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
                     className="h-8 w-8 rounded border border-border bg-elevated text-base text-text-primary hover:border-accent/60 disabled:opacity-40"
                     onClick={() => setSimulationSpeedPercentClamped(simulationSpeedPercent + SIMULATION_SPEED_STEP)}
                     disabled={simulationSpeedPercent >= SIMULATION_SPEED_MAX}
-                    aria-label="Increase simulation speed"
+                    aria-label={__uiText("components.GCodeViewer.increase_simulation_speed.1", "Increase simulation speed")}
                   >
                     +
                   </button>
@@ -3855,22 +3868,22 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
                   className={`h-8 rounded border px-2.5 text-sm font-semibold ${simulationPaused ? 'border-ok/40 bg-ok/10 text-ok' : 'border-warn/40 bg-warn/10 text-warn'} disabled:opacity-50`}
                   onClick={simulationPaused ? resumeSimulation : pauseSimulation}
                   disabled={simulationPhase === 'completed'}
-                  title={simulationPaused ? 'Resume preview simulation' : 'Pause preview simulation'}
+                  title={simulationPaused ? __uiText("components.GCodeViewer.resume_preview_simulation.1", "Resume preview simulation") : __uiText("components.GCodeViewer.pause_preview_simulation.1", "Pause preview simulation")}
                 >
                   <span className="inline-flex items-center gap-1.5">
                     {simulationPaused ? <Play size={13} /> : <Pause size={13} />}
-                    {simulationPaused ? 'Resume' : 'Pause'}
+                    {simulationPaused ? __uiText("components.GCodeViewer.resume.1", "Resume") : __uiText("components.GCodeViewer.pause.1", "Pause")}
                   </span>
                 </button>
                 <button
                   type="button"
                   className="h-8 rounded border border-border bg-elevated px-2.5 text-sm font-semibold text-text-primary hover:border-danger/50 hover:text-danger"
                   onClick={() => stopSimulation()}
-                  title="Stop preview simulation"
+                  title={__uiText("components.GCodeViewer.stop_preview_simulation.1", "Stop preview simulation")}
                 >
                   <span className="inline-flex items-center gap-1.5">
                     <Square size={13} />
-                    Stop
+                    {__uiText("components.GCodeViewer.stop.1", "Stop")}
                   </span>
                 </button>
               </div>
@@ -3888,7 +3901,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
             ) : (
               <>
                 <Eye size={24} className="opacity-30" />
-                <span>Click a G-code file to preview</span>
+                <span>{__uiText("components.GCodeViewer.click_a_g_code_file_to_preview.1", "Click a G-code file to preview")}</span>
               </>
             )}
           </div>
@@ -3899,15 +3912,15 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
                           rounded px-2 py-1 pointer-events-none select-none">
             <span className="flex items-center gap-1.5 text-sm text-text-dim">
               <span className="inline-block w-5 h-px border-t-2 border-dashed border-[rgba(100,120,160,0.6)]" />
-              Rapid
+              {__uiText("components.GCodeViewer.rapid.1", "Rapid")}
             </span>
             <span className="flex items-center gap-1.5 text-sm text-text-dim">
               <span className="inline-block w-5 h-0.5 bg-[#f0a030] rounded" />
-              Cut
+              {__uiText("components.GCodeViewer.cut.1", "Cut")}
             </span>
             <span className="flex items-center gap-1.5 text-sm text-text-dim">
               <span className="inline-block w-5 h-0.5 bg-[#22c55e] rounded" />
-              Done
+              {__uiText("components.GCodeViewer.done.1", "Done")}
             </span>
           </div>
         )}
@@ -3920,7 +3933,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
             viewBox="0 0 108 108"
             style={{ overflow: 'visible' }}
             role="group"
-            aria-label="3D view orientation"
+            aria-label={__uiText("components.GCodeViewer.3d_view_orientation.1", "3D view orientation")}
           >
             {viewCubeData?.faces.map(face => {
               const points = face.projectedCorners.map(p => `${p.x},${p.y}`).join(' ')
@@ -3930,7 +3943,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
               const isHovered = hoveredViewTarget === targetId
               return (
                 <g key={face.label}>
-                  <title>{`View ${face.label}`}</title>
+                  <title>{formatUi(__uiText("components.GCodeViewer.dynamic.8", "View {v0}"), { v0: viewFaceLabel(face.label) })}</title>
                   <polygon
                     points={points}
                     fill={isHovered ? 'rgba(42, 194, 156, 0.88)' : `rgba(170, 176, 186, ${fillAlpha})`}
@@ -3955,7 +3968,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
                       dominantBaseline="middle"
                       style={{ pointerEvents: 'none', userSelect: 'none' }}
                     >
-                      {face.label}
+                      {viewFaceLabel(face.label)}
                     </text>
                   )}
                 </g>
@@ -3967,7 +3980,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
               const isHovered = hoveredViewTarget === targetId
               return facet.isVisible && (
                 <g key={facet.label}>
-                  <title>{`View isometric ${facet.label}`}</title>
+                  <title>{formatUi(__uiText("components.GCodeViewer.dynamic.9", "View isometric {v0}"), { v0: facet.label })}</title>
                   <polygon
                     points={facet.projectedCorners.map(point => `${point.x},${point.y}`).join(' ')}
                     fill={isHovered ? 'rgba(42, 194, 156, 0.94)' : 'rgba(218, 225, 234, 0.8)'}
@@ -4034,7 +4047,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
             {controllerJobStarting && (
               <div className="flex items-center gap-2 text-[11px] font-mono text-text-muted" role="status" aria-live="polite">
                 <span className="h-1.5 w-1.5 rounded-full bg-ok animate-pulse" />
-                Starting job - waiting for spindle spin-up.
+                {__uiText("components.GCodeViewer.starting_job_waiting_for_spindle_sp.1", "Starting job - waiting for spindle spin-up.")}
               </div>
             )}
             {displayedProgressPercent != null && (
@@ -4043,19 +4056,19 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
                   <div className="h-full bg-ok transition-all duration-500 rounded-full" style={{ width: `${displayedProgressPercent}%` }} />
                 </div>
                 {simulationActive && (
-                  <span className="text-[11px] font-mono text-text-muted tabular-nums" title="Preview-only simulation; no commands are being sent">
-                    Simulation {Math.round(displayedProgressPercent)}%
+                  <span className="text-[11px] font-mono text-text-muted tabular-nums" title={__uiText("components.GCodeViewer.preview_only_simulation_no_commands.1", "Preview-only simulation; no commands are being sent")}>
+                    {__uiText("components.GCodeViewer.simulation.2", "Simulation")} {Math.round(displayedProgressPercent)}%
                   </span>
                 )}
                 {senderActive && (
-                  <span className="text-[11px] font-mono text-text-muted tabular-nums" title="Position-derived toolpath completion, bounded by the latest accepted line">
-                    Motion {Math.round(displayedProgressPercent)}%
+                  <span className="text-[11px] font-mono text-text-muted tabular-nums" title={__uiText("components.GCodeViewer.position_derived_toolpath_completio.1", "Position-derived toolpath completion, bounded by the latest accepted line")}>
+                    {__uiText("components.GCodeViewer.motion.1", "Motion")} {Math.round(displayedProgressPercent)}%
                   </span>
                 )}
                 {!simulationActive && !senderActive && runtime.source === 'sd' && (
-                  <span className="text-[11px] font-mono text-text-muted tabular-nums" title="File progress reported by FluidNC">
-                    File {formatJobProgress(displayedProgressPercent, runtime.source)}
-                    {runtime.remainingSeconds != null && <>, Remain ~{formatRuntime(runtime.remainingSeconds)}</>}
+                  <span className="text-[11px] font-mono text-text-muted tabular-nums" title={__uiText("components.GCodeViewer.file_progress_reported_by_fluidnc.1", "File progress reported by FluidNC")}>
+                    {__uiText("components.GCodeViewer.file.1", "File")} {formatJobProgress(displayedProgressPercent, runtime.source)}
+                    {runtime.remainingSeconds != null && <>{__uiText("components.GCodeViewer.remain.2", ", Remain ~")}{formatRuntime(runtime.remainingSeconds)}</>}
                   </span>
                 )}
               </div>
@@ -4063,9 +4076,9 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
             {showDisplayedTiming && (
               <div className="flex flex-wrap items-center justify-between gap-2 text-sm font-mono text-text-muted tabular-nums">
                 <div className="flex items-center justify-between gap-3 min-w-[220px] flex-1">
-                  <span>Elapsed {formatRuntime(displayedElapsedSeconds)}</span>
-                  <span>Remain {formatRuntime(displayedRemainingSeconds)}</span>
-                  <span>Total {formatRuntime(displayedTotalSeconds)}</span>
+                  <span>{__uiText("components.GCodeViewer.elapsed.1", "Elapsed")} {formatRuntime(displayedElapsedSeconds)}</span>
+                  <span>{__uiText("components.GCodeViewer.remain.1", "Remain")} {formatRuntime(displayedRemainingSeconds)}</span>
+                  <span>{__uiText("components.GCodeViewer.total.1", "Total")} {formatRuntime(displayedTotalSeconds)}</span>
                 </div>
               </div>
             )}
@@ -4075,14 +4088,14 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
         {showOverrides && !simulationActive && (
           <div className="flex gap-2">
             <ViewerOverrideControl
-              label="Feed"
+              label={__uiText("components.GCodeViewer.prop_label.1", "Feed")}
               value={status.feedOverride}
               onMinus={() => sendRealtime(0x92)}
               onReset={() => sendRealtime(0x90)}
               onPlus={() => sendRealtime(0x91)}
             />
             <ViewerOverrideControl
-              label="Speed"
+              label={__uiText("components.GCodeViewer.prop_label.2", "Speed")}
               value={status.spindleOverride}
               onMinus={() => sendRealtime(0x9B)}
               onReset={() => sendRealtime(0x99)}
@@ -4096,15 +4109,15 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
             <div className="flex items-center justify-between gap-3 text-sm">
               <span className="text-ok">
                 {/* An adopted job was already running when this page saw it, so its run time is unknown. */}
-                {finishedJobAdopted ? 'Job finished' : <>
-                  Job finished in <span className="font-mono font-semibold">{formatRuntime(finishedJobElapsedMs / 1000)}</span>
+                {finishedJobAdopted ? __uiText("components.GCodeViewer.job_finished.1", "Job finished") : <>
+                  {__uiText("components.GCodeViewer.job_finished_in.1", "Job finished in")} <span className="font-mono font-semibold">{formatRuntime(finishedJobElapsedMs / 1000)}</span>
                 </>}
               </span>
               <button
                 className="text-text-dim hover:text-text-primary"
                 onClick={dismissFinishedJobNotice}
-                aria-label="Dismiss job finished message"
-                title="Dismiss"
+                aria-label={__uiText("components.GCodeViewer.dismiss_job_finished_message.1", "Dismiss job finished message")}
+                title={__uiText("components.GCodeViewer.dismiss.2", "Dismiss")}
               >
                 <X size={14} />
               </button>
@@ -4117,23 +4130,23 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5 font-semibold text-warn">
                   <AlertTriangle size={14} className="shrink-0" />
-                  {interruptedJob.controllerRestarted ? 'Controller restarted during the job' : 'Job end not confirmed'}
+                  {interruptedJob.controllerRestarted ? __uiText("components.GCodeViewer.controller_restarted_during_the_job.1", "Controller restarted during the job") : __uiText("components.GCodeViewer.job_end_not_confirmed.1", "Job end not confirmed")}
                 </div>
                 <p className="mt-1 text-xs leading-relaxed text-text-primary">
-                  {interruptedJob.controllerRestarted ? 'The job stopped' : 'The connection was lost'}
-                  {!interruptedJob.adopted && <> after <span className="font-mono">{formatRuntime(interruptedJob.elapsedMs / 1000)}</span></>}
-                  {interruptedJob.sdPercent != null && <> at <span className="font-mono">{Math.round(interruptedJob.sdPercent)}%</span></>}
-                  {interruptedJob.line != null && <>, near line <span className="font-mono">{interruptedJob.line.toLocaleString()}</span></>}
+                  {interruptedJob.controllerRestarted ? __uiText("components.GCodeViewer.the_job_stopped.1", "The job stopped") : __uiText("components.GCodeViewer.the_connection_was_lost.1", "The connection was lost")}
+                  {!interruptedJob.adopted && <> {__uiText("components.GCodeViewer.after.1", "after")} <span className="font-mono">{formatRuntime(interruptedJob.elapsedMs / 1000)}</span></>}
+                  {interruptedJob.sdPercent != null && <> {__uiText("components.GCodeViewer.at.1", "at")} <span className="font-mono">{Math.round(interruptedJob.sdPercent)}%</span></>}
+                  {interruptedJob.line != null && <>{__uiText("components.GCodeViewer.near_line.1", ", near line")} <span className="font-mono">{interruptedJob.line.toLocaleString()}</span></>}
                   {interruptedJob.controllerRestarted
-                    ? '. Its position was reset to zero but the toolhead stayed where it stopped, so home or set the work zero again before restarting.'
-                    : ', and the controller was not running the job when it came back. Check the work before treating the job as finished.'}
+                    ? __uiText("components.GCodeViewer.its_position_was_reset_to_zero_but_.1", ". Its position was reset to zero but the toolhead stayed where it stopped, so home or set the work zero again before restarting.")
+                    : __uiText("components.GCodeViewer.and_the_controller_was_not_running_.1", ", and the controller was not running the job when it came back. Check the work before treating the job as finished.")}
                 </p>
               </div>
               <button
                 className="text-text-dim hover:text-text-primary"
                 onClick={dismissInterruptedJobNotice}
-                aria-label="Dismiss interrupted job message"
-                title="Dismiss"
+                aria-label={__uiText("components.GCodeViewer.dismiss_interrupted_job_message.1", "Dismiss interrupted job message")}
+                title={__uiText("components.GCodeViewer.dismiss.3", "Dismiss")}
               >
                 <X size={14} />
               </button>
@@ -4147,8 +4160,8 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
               <button
                 className="text-text-dim hover:text-text-primary"
                 onClick={() => setControllerStartError(null)}
-                aria-label="Dismiss job start message"
-                title="Dismiss"
+                aria-label={__uiText("components.GCodeViewer.dismiss_job_start_message.1", "Dismiss job start message")}
+                title={__uiText("components.GCodeViewer.dismiss.4", "Dismiss")}
               >
                 <X size={14} />
               </button>
@@ -4159,17 +4172,17 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
           <div className={`rounded border px-3 py-2 ${senderPhase === 'error' ? 'border-danger/40 bg-danger/10' : 'border-info/30 bg-info/5'}`}>
             <div className="flex items-center justify-between gap-3 text-sm">
               <span className={senderPhase === 'error' ? 'text-danger' : 'text-text-primary'}>
-                {senderError ?? 'Local sender stopped'}
+                {senderError ?? __uiText("components.GCodeViewer.extra_coverage.2", "Local sender stopped")}
               </span>
               {!senderActive && (
-                <button className="text-text-dim hover:text-text-primary" onClick={dismissSender} title="Dismiss">
+                <button className="text-text-dim hover:text-text-primary" onClick={dismissSender} title={__uiText("components.GCodeViewer.dismiss.5", "Dismiss")}>
                   <X size={14} />
                 </button>
               )}
             </div>
             {senderPhase === 'error' && senderFailureLine != null && (
               <div className="mt-1 text-xs font-mono text-text-muted">
-                {senderFailureLineSource === 'position' ? 'Last tracked line' : 'Last acknowledged line'}: {senderFailureLine}
+                {senderFailureLineSource === 'position' ? __uiText("components.GCodeViewer.last_tracked_line.1", "Last tracked line") : __uiText("components.GCodeViewer.last_acknowledged_line.1", "Last acknowledged line")}: {senderFailureLine}
               </div>
             )}
             {senderPhase === 'error' && senderFailureLine != null && senderFailureLineSource === 'position' && sourceText && fileName && (
@@ -4177,9 +4190,9 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
                 type="button"
                 className="mt-2 btn btn-ghost px-2.5 py-1.5 text-xs gap-1.5"
                 onClick={() => { setRestartInitialLine(senderFailureLine); setShowRestartFromLine(true) }}
-                title="Open the restart editor at the last position-tracked program line"
+                title={__uiText("components.GCodeViewer.open_the_restart_editor_at_the_last.1", "Open the restart editor at the last position-tracked program line")}
               >
-                <ListStart size={13} /> Review restart at line {senderFailureLine}
+                <ListStart size={13} /> {__uiText("components.GCodeViewer.review_restart_at_line.1", "Review restart at line")} {senderFailureLine}
               </button>
             )}
             {senderNotice && (
@@ -4201,21 +4214,21 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
               className={`btn gap-1.5 job-action ${isTablet ? 'text-base' : 'text-sm'} justify-center flex-1 ${coolantState === 'mist' ? 'border-accent/50 text-accent' : 'btn-ghost'}`}
             >
               <CloudDrizzle size={isTablet ? 18 : 13} />
-              Mist
+              {__uiText("components.GCodeViewer.mist.1", "Mist")}
             </button>}
             {controllerSettings.hasFlood && <button
               onClick={() => { sendRealtime(0xA0); setCoolantState('flood') }}
               className={`btn gap-1.5 job-action ${isTablet ? 'text-base' : 'text-sm'} justify-center flex-1 ${coolantState === 'flood' ? 'border-info/50 text-info' : 'btn-ghost'}`}
             >
               <Waves size={isTablet ? 18 : 13} />
-              Flood
+              {__uiText("components.GCodeViewer.flood.1", "Flood")}
             </button>}
             <button
               onClick={() => { if (sendControlLine('M9', 'Coolant off')) setCoolantState('off') }}
               className={`btn gap-1.5 job-action ${isTablet ? 'text-base' : 'text-sm'} justify-center flex-1 ${coolantState === 'off' ? 'border-danger/50 text-danger' : 'btn-ghost'}`}
             >
               <PowerOff size={isTablet ? 18 : 13} />
-              Off
+              {__uiText("components.GCodeViewer.off.1", "Off")}
             </button>
           </div>
           <div className="hidden sm:block w-px bg-border self-stretch" />
@@ -4228,8 +4241,8 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
               className={`btn btn-ghost justify-center shrink-0 job-action px-2`}
               onClick={() => localFileInputRef.current?.click()}
               disabled={isRunning}
-              title="Open a G-code file from this device"
-              aria-label="Open a G-code file from this device"
+              title={__uiText("components.GCodeViewer.open_a_g_code_file_from_this_device.1", "Open a G-code file from this device")}
+              aria-label={__uiText("components.GCodeViewer.open_a_g_code_file_from_this_device.2", "Open a G-code file from this device")}
             >
               <FilePlus size={isTablet ? 22 : 17} />
             </button>
@@ -4241,10 +4254,10 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
                 ? loadFile(restartSource.path)
                 : restartSource.sourceText && loadFromText(restartSource.sourceText, restartSource.fileName)}
               disabled={isViewerStartBlocked || (!restartSource.path && !restartSource.sourceText)}
-              title={`Return to ${restartSource.fileName}`}
+              title={formatUi(__uiText("components.GCodeViewer.dynamic.10", "Return to {v0}"), { v0: restartSource.fileName })}
             >
               <RotateCcw size={isTablet ? 18 : 14} />
-              Original
+              {__uiText("components.GCodeViewer.original.1", "Original")}
             </button>
           )}
           {!isJobRunning && !isJobHeld && !simulationActive && !restartSource && hasLoadedSource && (
@@ -4252,10 +4265,10 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
               className={`btn btn-ghost gap-1.5 justify-center job-action ${isTablet ? 'text-base' : 'text-sm'}`}
               onClick={() => { setRestartInitialLine(null); setShowRestartFromLine(true) }}
               disabled={isViewerStartBlocked}
-              title={isLocalFile ? 'Prepare a safe local stream that resumes from a file line' : 'Prepare a reviewable controller program that restarts from a file line'}
+              title={isLocalFile ? __uiText("components.GCodeViewer.prepare_a_safe_local_stream_that_re.1", "Prepare a safe local stream that resumes from a file line") : __uiText("components.GCodeViewer.prepare_a_reviewable_controller_pro.1", "Prepare a reviewable controller program that restarts from a file line")}
             >
               <ListStart size={isTablet ? 18 : 14} />
-              From line
+              {__uiText("components.GCodeViewer.from_line.1", "From line")}
             </button>
           )}
           {!isJobRunning && !isJobHeld && !simulationActive && (
@@ -4271,26 +4284,26 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
               disabled={(!loadedPath && !isLocalFile) || !connected || status.state !== 'Idle' || isViewerStartBlocked}
               title={isViewerStartBlocked
                 ? controllerResetPending
-                  ? 'Controller is resetting after the abort'
+                  ? __uiText("components.GCodeViewer.controller_is_resetting_after_the_a.1", "Controller is resetting after the abort")
                   : blockModePending
-                    ? 'Waiting for FluidNC to confirm single block mode'
+                    ? __uiText("components.GCodeViewer.waiting_for_fluidnc_to_confirm_sing.1", "Waiting for FluidNC to confirm single block mode")
                   : sdUploadPath
-                    ? 'Wait for the SD-card upload to finish before starting the job'
-                    : 'Wait for file processing to finish before starting the job'
-                : isLocalFile ? 'Stream this local file to FluidNC' : 'Start job from loaded controller file'}
+                    ? __uiText("components.GCodeViewer.wait_for_the_sd_card_upload_to_fini.1", "Wait for the SD-card upload to finish before starting the job")
+                    : __uiText("components.GCodeViewer.wait_for_file_processing_to_finish_.1", "Wait for file processing to finish before starting the job")
+                : isLocalFile ? __uiText("components.GCodeViewer.stream_this_local_file_to_fluidnc.1", "Stream this local file to FluidNC") : __uiText("components.GCodeViewer.start_job_from_loaded_controller_fi.1", "Start job from loaded controller file")}
             >
               <Play size={isTablet ? 18 : 14} />
-              Start
+              {__uiText("components.GCodeViewer.start.1", "Start")}
             </button>
           )}
           {isJobRunning && (
             <button
               className={`btn btn-warn-solid job-cycle-action gap-1.5 job-action ${isTablet ? 'text-base' : 'text-sm'} justify-center flex-1`}
               onClick={() => senderActive ? pauseSender() : sendRealtime(0x21)}
-              title={controllerJobStarting ? 'Request a feed hold while the job starts' : undefined}
+              title={controllerJobStarting ? __uiText("components.GCodeViewer.request_a_feed_hold_while_the_job_s.1", "Request a feed hold while the job starts") : undefined}
             >
               <Pause size={isTablet ? 18 : 13} />
-              Pause
+              {__uiText("components.GCodeViewer.pause.2", "Pause")}
             </button>
           )}
           {isJobHeld && (
@@ -4299,11 +4312,11 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
               onClick={() => senderPhase === 'paused' ? resumeSender() : resumeController()}
               disabled={senderActive ? status.state === 'Door' : controllerResumeDisabled}
               title={senderPhase === 'paused' && status.state === 'Door'
-                ? 'Close the safety door before resuming'
-                : isStepHold ? 'Run one line. Spindle and coolant stay on.' : undefined}
+                ? __uiText("components.GCodeViewer.close_the_safety_door_before_resumi.1", "Close the safety door before resuming")
+                : isStepHold ? __uiText("components.GCodeViewer.run_one_line_spindle_and_coolant_st.1", "Run one line. Spindle and coolant stay on.") : undefined}
             >
               {isStepHold ? <StepForward size={isTablet ? 18 : 13} /> : <Play size={isTablet ? 18 : 13} />}
-              {isStepHold ? 'Next block' : 'Resume'}
+              {isStepHold ? __uiText("components.GCodeViewer.next_block.1", "Next block") : __uiText("components.GCodeViewer.resume.2", "Resume")}
             </button>
           )}
           {(isJobRunning || isJobHeld) && (
@@ -4317,7 +4330,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
               }}
             >
               <Square size={isTablet ? 18 : 13} />
-              Abort
+              {__uiText("components.GCodeViewer.abort.1", "Abort")}
             </button>
           )}
         </div>
@@ -4330,28 +4343,28 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
                 <span className="text-text-primary font-mono normal-case tracking-normal font-normal truncate text-base">
                   {fileName}
                 </span>
-                {restoredFromCache && <span className="tag normal-case tracking-normal" title="Preview restored from this browser's saved copy">Cached</span>}
+                {restoredFromCache && <span className="tag normal-case tracking-normal" title={__uiText("components.GCodeViewer.preview_restored_from_this_browser_.2", "Preview restored from this browser's saved copy")}>{__uiText("components.GCodeViewer.cached.2", "Cached")}</span>}
                 {restartSource && (
                   <span className="px-1.5 py-0.5 rounded text-sm font-semibold text-accent bg-accent/10 border border-accent/25 shrink-0">
-                    Restart L{restartSource.resumeLine}
+                    {__uiText("components.GCodeViewer.coverage.2", "Restart L")}{restartSource.resumeLine}
                   </span>
                 )}
               </>
             ) : (
-              <span className="text-text-dim text-base">No file loaded</span>
+              <span className="text-text-dim text-base">{__uiText("components.GCodeViewer.no_file_loaded.2", "No file loaded")}</span>
             )}
             {isLargeProgressOverlayDisabled && (
               <span
                 className="px-1.5 py-0.5 rounded text-sm text-text-dim bg-elevated shrink-0"
-                title={`Toolpath completion overlay disabled above ${LARGE_PROGRESS_OVERLAY_SEGMENT_LIMIT.toLocaleString()} segments while a job is running`}
+                title={formatUi(__uiText("components.GCodeViewer.dynamic.11", "Toolpath completion overlay disabled above {v0} segments while a job is running"), { v0: LARGE_PROGRESS_OVERLAY_SEGMENT_LIMIT.toLocaleString() })}
               >
-                Progress overlay off
+                {__uiText("components.GCodeViewer.progress_overlay_off.2", "Progress overlay off")}
               </span>
             )}
             {!loading && isProcessing3D && (
               <span
                 className="px-1.5 py-0.5 rounded text-sm text-text-dim bg-elevated shrink-0"
-                title="3D preview is still being prepared in the background"
+                title={__uiText("components.GCodeViewer.3d_preview_is_still_being_prepared_.2", "3D preview is still being prepared in the background")}
               >
                 3D {processing3DProgress}%
               </span>
@@ -4383,13 +4396,13 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
             <div className="flex items-start justify-between gap-4 border-b border-border px-4 py-3.5">
               <div className="flex min-w-0 items-center gap-2 text-lg font-semibold text-text-primary">
                 <Maximize size={19} className="shrink-0 text-info" />
-                Frame job
+                {__uiText("components.GCodeViewer.frame_job.1", "Frame job")}
               </div>
               <button
                 type="button"
                 className="p-1.5 rounded text-text-muted hover:text-text-primary hover:bg-elevated"
                 onClick={() => setShowFramingDialog(false)}
-                title="Close"
+                title={__uiText("components.GCodeViewer.close.1", "Close")}
               >
                 <X size={18} />
               </button>
@@ -4403,53 +4416,53 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
                     type="button"
                     className={`rounded px-3 py-2 text-sm font-semibold transition-colors ${framingMode === mode ? 'bg-info/15 text-info' : 'text-text-muted hover:text-text-primary'}`}
                     onClick={() => updateFramingMode(mode)}
-                    title={mode === 'rectangle' ? 'Frame the cutting bounds as a rectangle' : 'Follow the exterior cutting contour'}
+                    title={mode === 'rectangle' ? __uiText("components.GCodeViewer.frame_the_cutting_bounds_as_a_recta.1", "Frame the cutting bounds as a rectangle") : __uiText("components.GCodeViewer.follow_the_exterior_cutting_contour.1", "Follow the exterior cutting contour")}
                   >
-                    {mode === 'rectangle' ? 'Rectangle' : 'Contour'}
+                    {mode === 'rectangle' ? __uiText("components.GCodeViewer.rectangle.1", "Rectangle") : __uiText("components.GCodeViewer.contour.1", "Contour")}
                   </button>
                 ))}
               </div>
 
               <label className="block">
-                <span className="mb-1.5 block text-xs font-semibold uppercase text-text-muted">Feed rate ({feedUnitLabel(units)})</span>
+                <span className="mb-1.5 block text-xs font-semibold uppercase text-text-muted">{__uiText("components.GCodeViewer.feed_rate.1", "Feed rate (")}{feedUnitLabel(units)})</span>
                 <input
                   className="input-field font-mono"
                   inputMode="decimal"
                   value={framingFeedInput}
                   onChange={event => { setFramingFeedInput(event.currentTarget.value); setFramingError(null) }}
-                  title="Framing motion feed rate"
+                  title={__uiText("components.GCodeViewer.framing_motion_feed_rate.1", "Framing motion feed rate")}
                 />
               </label>
 
               {framingMovesZ ? (<>
               <label className="block">
-                <span className="mb-1.5 block text-xs font-semibold uppercase text-text-muted">Clearance from top ({linearUnitLabel(units)})</span>
+                <span className="mb-1.5 block text-xs font-semibold uppercase text-text-muted">{__uiText("components.GCodeViewer.clearance_from_top.1", "Clearance from top (")}{linearUnitLabel(units)})</span>
                 <input
                   className="input-field font-mono"
                   inputMode="decimal"
                   value={framingClearanceInput}
                   onChange={event => { setFramingClearanceInput(event.currentTarget.value); setFramingError(null) }}
-                  title="Signed vertical offset from the highest cutting move"
+                  title={__uiText("components.GCodeViewer.signed_vertical_offset_from_the_hig.1", "Signed vertical offset from the highest cutting move")}
                 />
               </label>
 
               <label className="block">
-                <span className="mb-1.5 block text-xs font-semibold uppercase text-text-muted">Safe travel height ({linearUnitLabel(units)})</span>
+                <span className="mb-1.5 block text-xs font-semibold uppercase text-text-muted">{__uiText("components.GCodeViewer.safe_travel_height.1", "Safe travel height (")}{linearUnitLabel(units)})</span>
                 <input
                   className="input-field font-mono"
                   inputMode="decimal"
                   value={framingTravelZInput}
                   onChange={event => { setFramingTravelZInput(event.currentTarget.value); setFramingError(null) }}
-                  title="Z height used for rapid positioning before and after framing"
+                  title={__uiText("components.GCodeViewer.z_height_used_for_rapid_positioning.1", "Z height used for rapid positioning before and after framing")}
                 />
               </label>
 
               <div className="rounded border border-warn/35 bg-warn/10 px-3 py-2 text-sm leading-relaxed text-warn">
-                Check Z zero first. Safe travel height must clear clamps and stock.
+                {__uiText("components.GCodeViewer.check_z_zero_first_safe_travel_heig.1", "Check Z zero first. Safe travel height must clear clamps and stock.")}
               </div>
               </>) : (
                 <div className="rounded border border-info/35 bg-info/10 px-3 py-2 text-sm leading-relaxed text-info">
-                  The program never commands Z, so framing leaves Z where it is.
+                  {__uiText("components.GCodeViewer.the_program_never_commands_z_so_fra.1", "The program never commands Z, so framing leaves Z where it is.")}
                 </div>
               )}
 
@@ -4466,16 +4479,16 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
                 className="btn btn-ghost justify-center px-4 py-2 text-sm"
                 onClick={() => setShowFramingDialog(false)}
               >
-                Cancel
+                {__uiText("components.GCodeViewer.cancel.2", "Cancel")}
               </button>
               <button
                 type="submit"
                 className="btn btn-ok-solid justify-center gap-2 px-4 py-2 text-sm font-semibold"
                 disabled={!connected || status.state !== 'Idle' || controllerResetPending}
-                title={!connected || status.state !== 'Idle' || controllerResetPending ? 'Wait for the controller to be ready before framing' : 'Start framing routine'}
+                title={!connected || status.state !== 'Idle' || controllerResetPending ? __uiText("components.GCodeViewer.wait_for_the_controller_to_be_ready.2", "Wait for the controller to be ready before framing") : __uiText("components.GCodeViewer.start_framing_routine.1", "Start framing routine")}
               >
                 <Play size={14} />
-                Start frame
+                {__uiText("components.GCodeViewer.start_frame.1", "Start frame")}
               </button>
             </div>
           </form>
@@ -4490,22 +4503,22 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
             <div className="flex items-start justify-between gap-4 border-b border-border px-4 py-3.5">
               <div className="flex min-w-0 items-center gap-2 text-lg font-semibold text-text-primary">
                 <AlertTriangle size={19} className="shrink-0 text-warn" />
-                Local stream warning
+                {__uiText("components.GCodeViewer.local_stream_warning.1", "Local stream warning")}
               </div>
               <button
                 className="p-1.5 rounded text-text-muted hover:text-text-primary hover:bg-elevated"
                 onClick={() => setShowLocalSenderWarning(false)}
-                title="Close"
+                title={__uiText("components.GCodeViewer.close.2", "Close")}
               >
                 <X size={18} />
               </button>
             </div>
             <div className="space-y-3 px-4 py-4 text-sm text-text-muted">
               <p>
-                Local file streaming is experimental. Use it only with a stable connection to the controller.
+                {__uiText("components.GCodeViewer.local_file_streaming_is_experimenta.1", "Local file streaming is experimental. Use it only with a stable connection to the controller.")}
               </p>
               <p>
-                For best results, keep this browser window open and visible while the job is in progress.
+                {__uiText("components.GCodeViewer.for_best_results_keep_this_browser_.1", "For best results, keep this browser window open and visible while the job is in progress.")}
               </p>
             </div>
             <div className="flex flex-col-reverse gap-2 border-t border-border px-4 py-3 sm:flex-row sm:justify-end">
@@ -4513,14 +4526,14 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
                 className="btn btn-ghost justify-center px-4 py-2 text-sm"
                 onClick={() => setShowLocalSenderWarning(false)}
               >
-                Cancel
+                {__uiText("components.GCodeViewer.cancel.3", "Cancel")}
               </button>
               <button
                 className="btn btn-ok-solid justify-center gap-2 px-4 py-2 text-sm font-semibold"
                 onClick={confirmLocalSenderWarning}
               >
                 <Play size={14} />
-                Start local job
+                {__uiText("components.GCodeViewer.start_local_job.1", "Start local job")}
               </button>
             </div>
           </div>

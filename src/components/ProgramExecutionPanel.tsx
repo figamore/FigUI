@@ -1,3 +1,4 @@
+import { uiText as __uiText, formatUi } from '../lib/i18n'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import { AlertTriangle, ChevronDown, FileCode2, Info, Navigation, Target, Wrench } from '../icons'
 import { useMachineStore } from '../store'
@@ -185,9 +186,10 @@ function VirtualProgramView({ program, physicalLine, isEstimated, isPending, fol
   return (
     <div
       ref={scrollRef}
+      dir="ltr"
       className="absolute inset-0 overflow-auto z-10 selection:bg-info/25"
       role="log"
-      aria-label="Running G-code program"
+      aria-label={__uiText("components.ProgramExecutionPanel.running_g_code_program.1", "Running G-code program")}
       onScroll={event => setScrollTop(event.currentTarget.scrollTop)}
     >
       <div className="relative" style={{ height: scrollHeight }}>
@@ -275,16 +277,16 @@ export function ProgramExecutionPanel({ isTablet, initiallyOpen = false, accordi
 
   const trackingMessage = !sourceMatchesJob
     ? runningName
-      ? `The running file ${runningName} is not loaded in the viewer.`
-      : 'Program source is unavailable because this job was started without loading its preview.'
+      ? formatUi(__uiText("components.ProgramExecutionPanel.tracking.1", "The running file {name} is not loaded in the viewer."), { name: runningName })
+      : __uiText("components.ProgramExecutionPanel.tracking_static.1", "Program source is unavailable because this job was started without loading its preview.")
     : pendingStep && pendingPhysicalLine == null
-      ? `FluidNC is waiting at file line ${pendingStep.line}, which is outside the loaded source.`
+      ? formatUi(__uiText("components.ProgramExecutionPanel.tracking.2", "FluidNC is waiting at file line {line}, which is outside the loaded source."), { line: pendingStep.line })
     : reportedN != null && controllerPhysicalLine == null && estimatedPhysicalLine == null && !pendingStep
-        ? `FluidNC reports N${reportedN}, but that block is not present in the loaded file.`
+        ? formatUi(__uiText("components.ProgramExecutionPanel.tracking.3", "FluidNC reports N{block}, but that block is not present in the loaded file."), { block: reportedN })
         : physicalLine == null
           ? senderActive && senderAcceptedLine != null
-            ? `FluidNC has accepted through file line ${senderAcceptedLine}; waiting to locate the executing motion from live XYZ.`
-            : 'Waiting for the viewer to locate the tool on the loaded toolpath.'
+            ? formatUi(__uiText("components.ProgramExecutionPanel.tracking.4", "FluidNC has accepted through file line {line}; waiting to locate the executing motion from live XYZ."), { line: senderAcceptedLine })
+            : __uiText("components.ProgramExecutionPanel.tracking_static.2", "Waiting for the viewer to locate the tool on the loaded toolpath.")
           : null
 
   return (
@@ -297,7 +299,7 @@ export function ProgramExecutionPanel({ isTablet, initiallyOpen = false, accordi
           aria-expanded={contentOpen}
         >
           <FileCode2 size={isTablet ? 20 : 15} className="text-accent shrink-0" />
-          <span className={`${isTablet ? 'text-xl' : 'text-lg'} font-semibold shrink-0`}>Program Execution</span>
+          <span className={`${isTablet ? 'text-xl' : 'text-lg'} font-semibold shrink-0`}>{__uiText("components.ProgramExecutionPanel.program_execution.1", "Program Execution")}</span>
           <ChevronDown size={isTablet ? 20 : 15} className={`ml-auto shrink-0 transition-transform duration-200 ${contentOpen ? 'rotate-180' : ''}`} />
         </button>
         {contentOpen && <div className="ml-2 flex items-center gap-2 shrink-0">
@@ -306,7 +308,7 @@ export function ProgramExecutionPanel({ isTablet, initiallyOpen = false, accordi
               type="button"
               className="flex h-7 w-7 items-center justify-center rounded text-text-dim transition-colors hover:bg-elevated hover:text-info"
               onClick={() => setShowTrackingInfo(value => !value)}
-              aria-label={senderMode ? 'About local sender line tracking' : 'About program line tracking'}
+              aria-label={senderMode ? __uiText("components.ProgramExecutionPanel.about_local_sender_line_tracking.1", "About local sender line tracking") : __uiText("components.ProgramExecutionPanel.about_program_line_tracking.1", "About program line tracking")}
               aria-expanded={showTrackingInfo}
             >
               <Info size={14} />
@@ -314,22 +316,22 @@ export function ProgramExecutionPanel({ isTablet, initiallyOpen = false, accordi
             {showTrackingInfo && (
               <div role="note" className="absolute right-0 top-9 z-50 w-72 rounded border border-border bg-surface p-3 text-xs font-normal normal-case tracking-normal text-text-muted shadow-xl">
                 <p className="font-semibold text-text-primary">
-                  {senderMode ? 'Local job line tracking' : 'About line tracking'}
+                  {senderMode ? __uiText("components.ProgramExecutionPanel.local_job_line_tracking.1", "Local job line tracking") : __uiText("components.ProgramExecutionPanel.about_line_tracking.1", "About line tracking")}
                 </p>
                 {senderMode ? (
                   <p className="mt-1.5">
-                    This is an approximation of the current line being executed. It may differ slightly due to FluidNC's planner queue.
+                    {__uiText("components.ProgramExecutionPanel.this_is_an_approximation_of_the_cur.1", "This is an approximation of the current line being executed. It may differ slightly due to FluidNC's planner queue.")}
                   </p>
                 ) : (
                   <>
                     <p className="mt-1.5">
-                      When FluidNC reports an N block, that value is mapped directly to the loaded controller file. Otherwise, FigUI estimates the nearest motion line from live XYZ position.
+                      {__uiText("components.ProgramExecutionPanel.when_fluidnc_reports_an_n_block_tha.1", "When FluidNC reports an N block, that value is mapped directly to the loaded controller file. Otherwise, FigUI estimates the nearest motion line from live XYZ position.")}
                     </p>
                     <p className="mt-1.5">
-                      In single block mode, the amber highlight marks the next file line reported by FluidNC. That line has not executed yet.
+                      {__uiText("components.ProgramExecutionPanel.in_single_block_mode_the_amber_high.1", "In single block mode, the amber highlight marks the next file line reported by FluidNC. That line has not executed yet.")}
                     </p>
                     <p className="mt-1.5">
-                      The estimate cannot identify non-motion commands such as dwells, pauses, tool changes, spindle commands, or modal-only lines because they do not change the reported coordinates. Treat it as a visual aid, not an exact execution or restart position.
+                      {__uiText("components.ProgramExecutionPanel.the_estimate_cannot_identify_non_mo.1", "The estimate cannot identify non-motion commands such as dwells, pauses, tool changes, spindle commands, or modal-only lines because they do not change the reported coordinates. Treat it as a visual aid, not an exact execution or restart position.")}
                     </p>
                   </>
                 )}
@@ -338,16 +340,16 @@ export function ProgramExecutionPanel({ isTablet, initiallyOpen = false, accordi
           </div>
           {pendingStep ? (
             <span className="tag border-warn/35 bg-warn/10 text-warn normal-case font-mono tracking-normal">
-              Next · Line {pendingStep.line}
+              {__uiText("components.ProgramExecutionPanel.next_line.1", "Next · Line")} {pendingStep.line}
             </span>
           ) : senderMode ? (
             physicalLine != null ? (
               <span className={`tag normal-case font-mono tracking-normal ${isEstimated ? 'border-info/35 bg-info/10 text-info' : 'border-ok/35 bg-ok/10 text-ok'}`}>
                 <span className={`w-1.5 h-1.5 rounded-full ${isEstimated ? 'bg-info' : 'bg-ok'} ${senderActive ? 'animate-pulse' : ''}`} />
-                Line {physicalLine}
+                {__uiText("components.ProgramExecutionPanel.line.1", "Line")} {physicalLine}
               </span>
             ) : (
-              <span className="text-xs font-mono text-text-dim">Locating…</span>
+              <span className="text-xs font-mono text-text-dim">{__uiText("components.ProgramExecutionPanel.locating.1", "Locating…")}</span>
             )
           ) : controllerPhysicalLine != null && reportedN != null ? (
             <span className="tag border-ok/35 bg-ok/10 text-ok normal-case font-mono tracking-normal">
@@ -355,21 +357,21 @@ export function ProgramExecutionPanel({ isTablet, initiallyOpen = false, accordi
               N{reportedN}
             </span>
           ) : isEstimated ? (
-            <span className="tag border-info/35 bg-info/10 text-info normal-case font-mono tracking-normal" title="Nearest motion line estimated from the viewer's live XYZ toolpath tracker">
-              ≈ Motion line {physicalLine}
+            <span className="tag border-info/35 bg-info/10 text-info normal-case font-mono tracking-normal" title={__uiText("components.ProgramExecutionPanel.nearest_motion_line_estimated_from_.1", "Nearest motion line estimated from the viewer's live XYZ toolpath tracker")}>
+              {__uiText("components.ProgramExecutionPanel.motion_line.1", "≈ Motion line")} {physicalLine}
             </span>
           ) : (
-            <span className="text-xs font-mono text-text-dim">Locating…</span>
+            <span className="text-xs font-mono text-text-dim">{__uiText("components.ProgramExecutionPanel.locating.2", "Locating…")}</span>
           )}
           {!pendingStep && !senderMode && controllerPhysicalLine != null && (
-            <span className="text-xs font-mono text-text-muted">File line {physicalLine}</span>
+            <span className="text-xs font-mono text-text-muted">{__uiText("components.ProgramExecutionPanel.file_line.1", "File line")} {physicalLine}</span>
           )}
           <button
             className={`flex items-center gap-1 rounded px-2 py-1 text-xs transition-colors ${follow ? 'text-info bg-info/10' : 'text-text-dim hover:text-text-primary bg-elevated'}`}
             onClick={() => setFollow(value => !value)}
-            title={follow ? 'Disable automatic line following' : 'Follow the current program line'}
+            title={follow ? __uiText("components.ProgramExecutionPanel.disable_automatic_line_following.1", "Disable automatic line following") : __uiText("components.ProgramExecutionPanel.follow_the_current_program_line.1", "Follow the current program line")}
           >
-            <Navigation size={12} /> Follow
+            <Navigation size={12} /> {__uiText("components.ProgramExecutionPanel.follow.1", "Follow")}
           </button>
         </div>}
       </div>}
@@ -389,11 +391,12 @@ export function ProgramExecutionPanel({ isTablet, initiallyOpen = false, accordi
             </div>
             <textarea
               ref={programRef}
+              dir="ltr"
               readOnly
               wrap="off"
               spellCheck={false}
               value={program.text}
-              aria-label="Running G-code program"
+              aria-label={__uiText("components.ProgramExecutionPanel.running_g_code_program.2", "Running G-code program")}
               className="absolute inset-y-0 left-16 right-0 w-auto resize-none overflow-auto border-0 bg-transparent px-3 text-text-primary outline-none z-10 selection:bg-info/25"
               style={{ paddingTop: PADDING_Y, paddingBottom: PADDING_Y, lineHeight: `${LINE_HEIGHT}px`, tabSize: 2 }}
               onScroll={event => {
@@ -415,8 +418,8 @@ export function ProgramExecutionPanel({ isTablet, initiallyOpen = false, accordi
           <div className="max-w-md text-center">
             <FileCode2 size={24} className="mx-auto mb-2 text-text-dim" />
             <p className={`${isTablet ? 'text-lg' : 'text-sm'} text-text-muted`}>{trackingMessage}</p>
-            {pendingStep ? <p className="mt-2 font-mono text-warn">Next · Line {pendingStep.line}: {pendingStep.preview}</p>
-              : reportedN != null && <p className="mt-2 font-mono text-ok">FluidNC executing N{reportedN}</p>}
+            {pendingStep ? <p className="mt-2 font-mono text-warn">{__uiText("components.ProgramExecutionPanel.next_line.2", "Next · Line")} {pendingStep.line}: {pendingStep.preview}</p>
+              : reportedN != null && <p className="mt-2 font-mono text-ok">{__uiText("components.ProgramExecutionPanel.fluidnc_executing_n.1", "FluidNC executing N")}{reportedN}</p>}
           </div>
         </div>
       ))}
@@ -467,7 +470,7 @@ function ProbeAndManualATCPanel({
 
   return <div className="panel">
     <div className="panel-header flex items-center gap-1">
-      <div className="flex min-w-0 flex-1 items-center gap-1" role="tablist" aria-label="Machine tools">
+      <div className="flex min-w-0 flex-1 items-center gap-1" role="tablist" aria-label={__uiText("components.ProgramExecutionPanel.machine_tools.1", "Machine tools")}>
         {hasProbingInput && <button
           type="button"
           role="tab"
@@ -479,7 +482,7 @@ function ProbeAndManualATCPanel({
           }}
         >
           <Target size={isTablet ? 20 : 15} />
-          <span>Probing</span>
+          <span>{__uiText("components.ProgramExecutionPanel.probing.1", "Probing")}</span>
         </button>}
         {hasManualATC && <button
           type="button"
@@ -492,14 +495,14 @@ function ProbeAndManualATCPanel({
           }}
         >
           <Wrench size={isTablet ? 20 : 15} />
-          <span>Manual ATC</span>
+          <span>{__uiText("components.ProgramExecutionPanel.manual_atc.1", "Manual ATC")}</span>
         </button>}
       </div>
       <button
         type="button"
         className="flex shrink-0 items-center rounded p-1 hover:bg-elevated/50"
         onClick={() => setOpen(value => !value)}
-        aria-label={open ? 'Collapse tools' : 'Expand tools'}
+        aria-label={open ? __uiText("components.ProgramExecutionPanel.collapse_tools.1", "Collapse tools") : __uiText("components.ProgramExecutionPanel.expand_tools.1", "Expand tools")}
         aria-expanded={open}
       >
         <ChevronDown size={isTablet ? 20 : 15} className={`transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />

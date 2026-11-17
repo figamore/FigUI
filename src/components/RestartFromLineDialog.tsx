@@ -1,3 +1,4 @@
+import { uiText as __uiText, formatUi } from '../lib/i18n'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { AlertTriangle, ArrowRight, FileCode2, ShieldCheck, X } from 'lucide-react'
 import { analyzeRestart, buildRestartProgram, clearRestartScanCache, makeRestartFilename } from '../lib/gcodeRestart'
@@ -195,12 +196,12 @@ export function RestartFromLineDialog({
       if (prepared.fileName !== generatedName
         || prepared.restartSource?.requestedLine !== analysis.requestedLine
         || prepared.restartSource?.resumeLine !== analysis.resumeLine) {
-        throw new Error('The restart program could not be loaded in the viewer.')
+        throw new Error(__uiText("components.RestartFromLineDialog.notice.1", "The restart program could not be loaded in the viewer."))
       }
       onPrepared?.()
       onClose()
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Could not prepare the restart file.')
+      setError(cause instanceof Error ? cause.message : __uiText("components.RestartFromLineDialog.late_coverage.1", "Could not prepare the restart file."))
     } finally {
       setPreparing(false)
     }
@@ -216,13 +217,13 @@ export function RestartFromLineDialog({
           <div className="min-w-0">
             <div className="flex items-center gap-2 text-text-primary font-semibold text-lg">
               <FileCode2 size={18} className="text-accent" />
-              Restart from line
+              {__uiText("components.RestartFromLineDialog.restart_from_line.1", "Restart from line")}
             </div>
             <p className="mt-1 text-sm text-text-muted truncate">
-              {sourceName} · {totalLines.toLocaleString()} file lines
+              {sourceName} · {totalLines.toLocaleString()} {__uiText("components.RestartFromLineDialog.file_lines.1", "file lines")}
             </p>
           </div>
-          <button className="p-1.5 rounded text-text-muted hover:text-text-primary hover:bg-elevated disabled:opacity-50" onClick={onClose} title="Close" disabled={preparing}>
+          <button className="p-1.5 rounded text-text-muted hover:text-text-primary hover:bg-elevated disabled:opacity-50" onClick={onClose} title={__uiText("components.RestartFromLineDialog.close.1", "Close")} disabled={preparing}>
             <X size={18} />
           </button>
         </div>
@@ -230,7 +231,7 @@ export function RestartFromLineDialog({
         <div className="overflow-y-auto px-4 py-4 sm:px-5 flex flex-col gap-4">
           <div>
             <label className="block text-sm font-semibold text-text-primary mb-1.5" htmlFor="restart-line-number">
-              Selected file line
+              {__uiText("components.RestartFromLineDialog.selected_file_line.1", "Selected file line")}
             </label>
             <div className="flex items-stretch rounded border border-border bg-elevated overflow-hidden focus-within:border-accent/70">
               <span className="flex items-center px-3 border-r border-border font-mono text-text-dim">L</span>
@@ -257,23 +258,23 @@ export function RestartFromLineDialog({
                 onClick={reviewLine}
                 disabled={!lineIsValid}
               >
-                Go
+                {__uiText("components.RestartFromLineDialog.go.1", "Go")}
               </button>
             </div>
             {lineText && !lineIsValid && (
-              <p className="mt-1.5 text-sm text-danger">Enter a whole number from 1 through {totalLines}.</p>
+              <p className="mt-1.5 text-sm text-danger">{formatUi(__uiText("components.RestartFromLineDialog.enter_a_whole_number_from_1_through.1", "Enter a whole number from 1 through {max}."), { max: totalLines })}</p>
             )}
             {initialSelectedLine != null && (
               <p className="mt-1.5 text-sm text-warn">
-                Suggested from the last tracked machine position. Confirm the actual stop point and selected program line before preparing a restart.
+                {__uiText("components.RestartFromLineDialog.suggested_from_the_last_tracked_mac.1", "Suggested from the last tracked machine position. Confirm the actual stop point and selected program line before preparing a restart.")}
               </p>
             )}
           </div>
 
           <div>
             <div className="flex items-center justify-between gap-3 mb-1.5">
-              <span className="text-sm font-semibold text-text-primary">Program</span>
-              <span className="text-xs text-text-muted">Click any line to select it</span>
+              <span className="text-sm font-semibold text-text-primary">{__uiText("components.RestartFromLineDialog.program.1", "Program")}</span>
+              <span className="text-xs text-text-muted">{__uiText("components.RestartFromLineDialog.click_any_line_to_select_it.1", "Click any line to select it")}</span>
             </div>
             <div className="relative h-[42vh] min-h-[260px] overflow-hidden rounded border border-border bg-surface font-mono text-[13px]">
               <div
@@ -290,7 +291,7 @@ export function RestartFromLineDialog({
                 wrap="off"
                 spellCheck={false}
                 value={program.text}
-                aria-label="Complete G-code program. Click a line to select it for restart."
+                aria-label={__uiText("components.RestartFromLineDialog.complete_g_code_program_click_a_lin.1", "Complete G-code program. Click a line to select it for restart.")}
                 className="absolute inset-y-0 left-16 right-0 w-auto resize-none overflow-auto border-0 bg-transparent py-3 px-3 text-text-primary outline-none z-10 selection:bg-accent/30"
                 style={{ lineHeight: `${PROGRAM_LINE_HEIGHT}px`, tabSize: 2 }}
                 onScroll={event => {
@@ -311,11 +312,11 @@ export function RestartFromLineDialog({
           {analysis && (
             <>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                <SummaryCell label="Resume line" value={`L${analysis.resumeLine}`} accent />
-                <SummaryCell label="Work offset" value={analysis.state.wcs ?? `Active${activeWcs ? ` (${activeWcs})` : ''}`} />
-                <SummaryCell label="Tool" value={analysis.state.tool == null ? 'Verify' : `T${analysis.state.tool}`} />
+                <SummaryCell label={__uiText("components.RestartFromLineDialog.prop_label.1", "Resume line")} value={`L${analysis.resumeLine}`} accent />
+                <SummaryCell label={__uiText("components.RestartFromLineDialog.prop_label.2", "Work offset")} value={analysis.state.wcs ?? formatUi(__uiText("components.RestartFromLineDialog.active_wcs.1", "Active{wcs}"), { wcs: activeWcs ? ` (${activeWcs})` : '' })} />
+                <SummaryCell label={__uiText("components.RestartFromLineDialog.prop_label.3", "Tool")} value={analysis.state.tool == null ? __uiText("components.RestartFromLineDialog.verify_tool.1", "Verify") : `T${analysis.state.tool}`} />
                 <SummaryCell
-                  label={`Start position (${linearUnitLabel(units)})`}
+                  label={formatUi(__uiText("components.RestartFromLineDialog.start_position.1", "Start position ({unit})"), { unit: linearUnitLabel(units) })}
                   value={`X${fmtLinear(analysis.state.positionMm.x, units)} Y${fmtLinear(analysis.state.positionMm.y, units)}${analysis.movesZ ? ` Z${fmtLinear(analysis.state.positionMm.z, units)}` : ''}`}
                   compact
                 />
@@ -324,7 +325,7 @@ export function RestartFromLineDialog({
               {analysis.blockers.length > 0 && (
                 <div className="rounded border border-danger/40 bg-danger/10 px-3.5 py-3">
                   <div className="flex items-center gap-2 text-danger font-semibold text-sm mb-1.5">
-                    <AlertTriangle size={15} /> Cannot prepare this restart
+                    <AlertTriangle size={15} /> {__uiText("components.RestartFromLineDialog.cannot_prepare_this_restart.1", "Cannot prepare this restart")}
                   </div>
                   <ul className="list-disc pl-5 space-y-1 text-sm text-text-primary">
                     {analysis.blockers.map(message => <li key={message}>{message}</li>)}
@@ -335,7 +336,7 @@ export function RestartFromLineDialog({
               {analysis.warnings.length > 0 && analysis.blockers.length === 0 && (
                 <div className="rounded border border-warn/35 bg-warn/10 px-3.5 py-3">
                   <div className="flex items-center gap-2 text-warn font-semibold text-sm mb-1.5">
-                    <AlertTriangle size={15} /> Review before running
+                    <AlertTriangle size={15} /> {__uiText("components.RestartFromLineDialog.review_before_running.1", "Review before running")}
                   </div>
                   <ul className="list-disc pl-5 space-y-1 text-sm text-text-primary">
                     {analysis.warnings.map(message => <li key={message}>{message}</li>)}
@@ -346,15 +347,15 @@ export function RestartFromLineDialog({
               {analysis.blockers.length === 0 && analysis.resumeLine > 1 && analysis.movesZ && (
                 <details className="rounded border border-border bg-elevated/40 group">
                   <summary className="cursor-pointer select-none px-3.5 py-2.5 text-sm font-semibold text-text-primary">
-                    Safe positioning
-                    <span className="ml-2 font-normal text-text-muted">G53 retract and controlled Z re-entry</span>
+                    {__uiText("components.RestartFromLineDialog.safe_positioning.1", "Safe positioning")}
+                    <span className="ml-2 font-normal text-text-muted">{__uiText("components.RestartFromLineDialog.g53_retract_and_controlled_z_re_ent.1", "G53 retract and controlled Z re-entry")}</span>
                   </summary>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 px-3.5 pb-3.5 border-t border-border pt-3">
-                    <NumberField label="Machine safe Z" value={safeZText} onChange={setSafeZText} suffix={linearUnitLabel(units)} signed />
-                    <NumberField label="Approach clearance" value={clearanceText} onChange={setClearanceText} suffix={linearUnitLabel(units)} />
-                    <NumberField label="Approach feed" value={approachFeedText} onChange={setApproachFeedText} suffix={feedUnitLabel(units)} />
+                    <NumberField label={__uiText("components.RestartFromLineDialog.prop_label.4", "Machine safe Z")} value={safeZText} onChange={setSafeZText} suffix={linearUnitLabel(units)} signed />
+                    <NumberField label={__uiText("components.RestartFromLineDialog.prop_label.5", "Approach clearance")} value={clearanceText} onChange={setClearanceText} suffix={linearUnitLabel(units)} />
+                    <NumberField label={__uiText("components.RestartFromLineDialog.prop_label.6", "Approach feed")} value={approachFeedText} onChange={setApproachFeedText} suffix={feedUnitLabel(units)} />
                   </div>
-                  {!positioningValid && <p className="px-3.5 pb-3 text-sm text-danger">Enter valid safe-positioning values.</p>}
+                  {!positioningValid && <p className="px-3.5 pb-3 text-sm text-danger">{__uiText("components.RestartFromLineDialog.enter_valid_safe_positioning_values.1", "Enter valid safe-positioning values.")}</p>}
                 </details>
               )}
 
@@ -362,8 +363,8 @@ export function RestartFromLineDialog({
                 <ShieldCheck size={17} className="text-ok shrink-0" />
                 <span className="text-text-muted">
                   {sourcePath && (
-                    <>Preparing saves <span className="font-mono text-text-primary">{generatedName}</span> beside the original controller file and loads it in the viewer.</>
-                  )}{' '}Verify the tool and offsets before running.
+                    <>{__uiText("components.RestartFromLineDialog.preparing_saves.1", "Preparing saves")} <span className="font-mono text-text-primary">{generatedName}</span> {__uiText("components.RestartFromLineDialog.beside_the_original_controller_file.1", "beside the original controller file and loads it in the viewer.")}</>
+                  )}{' '}{__uiText("components.RestartFromLineDialog.verify_the_tool_and_offsets_before_.1", "Verify the tool and offsets before running.")}
                 </span>
               </div>
             </>
@@ -373,9 +374,9 @@ export function RestartFromLineDialog({
         </div>
 
         <div className="border-t border-border px-4 py-3 sm:px-5 flex items-center justify-end gap-2 bg-elevated/30">
-          <button className="btn btn-ghost px-4 py-2 text-sm" onClick={onClose} disabled={preparing}>Cancel</button>
+          <button className="btn btn-ghost px-4 py-2 text-sm" onClick={onClose} disabled={preparing}>{__uiText("components.RestartFromLineDialog.cancel.1", "Cancel")}</button>
           <button className="btn btn-primary px-4 py-2 text-sm gap-2" onClick={prepare} disabled={!canPrepare}>
-            {preparing ? 'Preparing…' : <><span>Prepare in viewer</span><ArrowRight size={15} /></>}
+            {preparing ? __uiText("components.RestartFromLineDialog.preparing.1", "Preparing…") : <><span>{__uiText("components.RestartFromLineDialog.prepare_in_viewer.1", "Prepare in viewer")}</span><ArrowRight size={15} /></>}
           </button>
         </div>
       </div>

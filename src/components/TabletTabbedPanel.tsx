@@ -53,6 +53,7 @@ export function TabletTabbedPanel({
           <button
             key={id}
             onClick={() => onTabChange(id)}
+            title={label}
             className={`min-w-0 flex-1 px-1 py-2 font-medium uppercase tracking-wide whitespace-nowrap transition-colors border-b-2 -mb-px flex flex-col items-center justify-center gap-0.5 ${
               activeTab === id
                 ? 'border-accent text-accent'
@@ -61,7 +62,7 @@ export function TabletTabbedPanel({
             style={{ fontSize: tabLabelFontSize }}
           >
             <Icon size={15} className="shrink-0" />
-            <span>{label}</span>
+            <span className="max-w-full truncate">{label}</span>
           </button>
         ))}
       </div>

@@ -1,3 +1,4 @@
+import { uiText as __uiText } from '../lib/i18n'
 import { useEffect, useMemo, useState } from 'react'
 import { ChevronDown, ChevronRight } from '../icons'
 import { ProgramExecutionPanel } from './ProgramExecutionPanel'
@@ -103,7 +104,7 @@ export function TabletAccordion({
   }
 
   return (
-    <div className="portrait:shrink-0 landscape:flex-1 landscape:basis-1/2 landscape:min-h-0 landscape:overflow-hidden flex flex-col">
+    <div dir={typeof document === 'undefined' ? 'ltr' : (document.documentElement.dir || 'ltr')} className="portrait:shrink-0 landscape:flex-1 landscape:basis-1/2 landscape:min-h-0 landscape:overflow-hidden flex flex-col">
 
       <div className="portrait:flex landscape:hidden flex-col gap-3">
         {isProgramRunning && <ProgramExecutionPanel isTablet />}
@@ -138,15 +139,16 @@ export function TabletAccordion({
                   <button
                     key={id}
                     onClick={() => setTabletTab(id)}
+                    title={label}
                     className={`min-w-0 flex-1 px-1 py-2 font-medium uppercase tracking-wide whitespace-nowrap transition-colors border-b-2 -mb-px flex flex-col items-center justify-center gap-0.5 ${
                       tabletTab === id
                         ? 'border-accent text-accent'
                         : 'border-transparent text-text-muted hover:text-text-primary'
                     }`}
-                    style={{ fontSize: 'clamp(10px, 1.35vw, 20px)' }}
+                    style={{ fontSize: 'clamp(10px, 1.15vw, 18px)' }}
                   >
                     <Icon size={15} className="shrink-0" />
-                    <span>{label}</span>
+                    <span className="max-w-full truncate">{label}</span>
                   </button>
                 ))}
                 <button onClick={() => setExpanded('controls')} className="w-11 shrink-0 hover:text-text-primary text-text-muted flex items-center justify-center">
@@ -181,7 +183,7 @@ export function TabletAccordion({
                 className="panel-header text-left font-bold cursor-pointer flex justify-between items-center text-xl py-4"
                 onClick={() => setExpanded('program')}
               >
-                <span className="uppercase tracking-wide">Program execution</span>
+                <span className="uppercase tracking-wide">{__uiText("components.TabletAccordion.program_execution.1", "Program execution")}</span>
                 <ChevronRight size={22} />
               </button>
             ) : (
@@ -190,7 +192,7 @@ export function TabletAccordion({
                   className="panel-header flex justify-between items-center border-b border-border cursor-pointer hover:text-text-primary shrink-0 text-xl py-3"
                   onClick={() => setExpanded('visualizer')}
                 >
-                  <span className="uppercase tracking-wide">Program execution</span>
+                  <span className="uppercase tracking-wide">{__uiText("components.TabletAccordion.program_execution.2", "Program execution")}</span>
                   <ChevronDown size={22} />
                 </button>
                 <ProgramExecutionPanel isTablet accordionManaged />
@@ -205,7 +207,7 @@ export function TabletAccordion({
               className="panel-header text-left font-bold cursor-pointer flex justify-between items-center text-xl py-4"
               onClick={() => setExpanded('controls')}
             >
-              <span className="uppercase tracking-wide">{hasSpindle ? 'Spindle & Overrides' : 'Overrides'}</span>
+              <span className="uppercase tracking-wide">{hasSpindle ? __uiText("components.TabletAccordion.spindle_overrides.1", "Spindle & Overrides") : __uiText("components.TabletAccordion.overrides.1", "Overrides")}</span>
               <ChevronRight size={22} />
             </button>
           )}
@@ -215,7 +217,7 @@ export function TabletAccordion({
                 className="panel-header flex justify-between items-center border-b border-border cursor-pointer hover:text-text-primary shrink-0 text-xl py-3"
                 onClick={() => setExpanded('visualizer')}
               >
-                <span className="uppercase tracking-wide">{hasSpindle ? 'Spindle & Overrides' : 'Overrides'}</span>
+                <span className="uppercase tracking-wide">{hasSpindle ? __uiText("components.TabletAccordion.spindle_overrides.2", "Spindle & Overrides") : __uiText("components.TabletAccordion.overrides.2", "Overrides")}</span>
                 <ChevronDown size={22} />
               </button>
               <div className="flex-1 overflow-y-auto flex flex-col gap-0 p-0">

@@ -1,0 +1,98 @@
+[
+  {
+    "code": "en",
+    "name": "English",
+    "direction": "ltr",
+    "enabled": true
+  },
+  {
+    "code": "es",
+    "name": "Español",
+    "direction": "ltr",
+    "enabled": true
+  },
+  {
+    "code": "fr",
+    "name": "Français",
+    "direction": "ltr",
+    "enabled": true
+  },
+  {
+    "code": "pt",
+    "name": "Português",
+    "direction": "ltr",
+    "enabled": true
+  },
+  {
+    "code": "de",
+    "name": "Deutsch",
+    "direction": "ltr",
+    "enabled": true
+  },
+  {
+    "code": "ru",
+    "name": "Русский",
+    "direction": "ltr",
+    "enabled": true
+  },
+  {
+    "code": "ar",
+    "name": "العربية",
+    "direction": "rtl",
+    "enabled": true
+  },
+  {
+    "code": "hi",
+    "name": "हिन्दी",
+    "direction": "ltr",
+    "enabled": true
+  },
+  {
+    "code": "tr",
+    "name": "Türkçe",
+    "direction": "ltr",
+    "enabled": true
+  },
+  {
+    "code": "ja",
+    "name": "日本語",
+    "direction": "ltr",
+    "enabled": true
+  },
+  {
+    "code": "zh-Hans",
+    "name": "简体中文",
+    "direction": "ltr",
+    "enabled": true
+  },
+  {
+    "code": "it",
+    "name": "Italiano",
+    "direction": "ltr",
+    "enabled": true
+  },
+  {
+    "code": "pl",
+    "name": "Polski",
+    "direction": "ltr",
+    "enabled": true
+  },
+  {
+    "code": "ko",
+    "name": "한국어",
+    "direction": "ltr",
+    "enabled": true
+  },
+  {
+    "code": "uk",
+    "name": "Українська",
+    "direction": "ltr",
+    "enabled": true
+  },
+  {
+    "code": "bg",
+    "name": "Български",
+    "direction": "ltr",
+    "enabled": true
+  }
+]

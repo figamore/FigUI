@@ -1,3 +1,4 @@
+import { uiText as __uiText, formatUi } from '../lib/i18n'
 import { useEffect, useRef, useState } from 'react'
 import { ChevronDown, CircleDot, Crosshair, Pause, Play, Square, Target } from 'lucide-react'
 import {
@@ -23,46 +24,46 @@ interface RunningCycle { id: CycleId; phase: string; first?: number; oks?: numbe
 type ProbeStepState = 'idle' | 'pending' | 'active' | 'completed'
 
 const PROBE_ALARM_MESSAGES: Record<number, string> = {
-  1: 'Hard limit triggered',
-  2: 'Soft limit exceeded',
-  3: 'Cycle aborted',
-  4: 'Probe fail — initial state',
-  5: 'Probe fail — no contact',
-  13: 'Hard stop',
-  14: 'Machine is unhomed',
-  17: 'G-code command error',
-  18: 'Probe hard limit',
+  1: __uiText("components.ProbePanel.instruction.1", "Hard limit triggered"),
+  2: __uiText("components.ProbePanel.instruction.2", "Soft limit exceeded"),
+  3: __uiText("components.ProbePanel.instruction.3", "Cycle aborted"),
+  4: __uiText("components.ProbePanel.instruction.4", "Probe fail — initial state"),
+  5: __uiText("components.ProbePanel.instruction.5", "Probe fail — no contact"),
+  13: __uiText("components.ProbePanel.instruction.6", "Hard stop"),
+  14: __uiText("components.ProbePanel.instruction.7", "Machine is unhomed"),
+  17: __uiText("components.ProbePanel.instruction.8", "G-code command error"),
+  18: __uiText("components.ProbePanel.instruction.9", "Probe hard limit"),
 }
 
 const CYCLES: Array<{ id: CycleId; label: string; short: string; group: 'edge' | 'center' }> = [
-  { id: 'z-surface', label: 'Z surface', short: 'Z−', group: 'edge' },
-  { id: 'x-negative', label: 'Probe X−', short: 'X−', group: 'edge' },
-  { id: 'x-positive', label: 'Probe X+', short: 'X+', group: 'edge' },
-  { id: 'y-negative', label: 'Probe Y−', short: 'Y−', group: 'edge' },
-  { id: 'y-positive', label: 'Probe Y+', short: 'Y+', group: 'edge' },
-  { id: 'x-center', label: 'X center', short: 'X ⊕', group: 'center' },
-  { id: 'y-center', label: 'Y center', short: 'Y ⊕', group: 'center' },
-  { id: 'bore-center', label: 'Bore center', short: '○ ⊕', group: 'center' },
-  { id: 'rectangle-center', label: 'Rectangle center', short: '▭ ⊕', group: 'center' },
-  { id: 'edge-center-x', label: 'Edge Center X', short: '⊏⊕⊐', group: 'center' },
-  { id: 'edge-center-y', label: 'Edge Center Y', short: '⊏⊕⊐', group: 'center' },
+  { id: 'z-surface', label: __uiText("components.ProbePanel.label_extra.1", "Z surface"), short: 'Z−', group: 'edge' },
+  { id: 'x-negative', label: __uiText("components.ProbePanel.label_extra.2", "Probe X−"), short: 'X−', group: 'edge' },
+  { id: 'x-positive', label: __uiText("components.ProbePanel.label_extra.3", "Probe X+"), short: 'X+', group: 'edge' },
+  { id: 'y-negative', label: __uiText("components.ProbePanel.label_extra.4", "Probe Y−"), short: 'Y−', group: 'edge' },
+  { id: 'y-positive', label: __uiText("components.ProbePanel.label_extra.5", "Probe Y+"), short: 'Y+', group: 'edge' },
+  { id: 'x-center', label: __uiText("components.ProbePanel.label_extra.6", "X center"), short: 'X ⊕', group: 'center' },
+  { id: 'y-center', label: __uiText("components.ProbePanel.label_extra.7", "Y center"), short: 'Y ⊕', group: 'center' },
+  { id: 'bore-center', label: __uiText("components.ProbePanel.label_extra.8", "Bore center"), short: '○ ⊕', group: 'center' },
+  { id: 'rectangle-center', label: __uiText("components.ProbePanel.label_extra.9", "Rectangle center"), short: '▭ ⊕', group: 'center' },
+  { id: 'edge-center-x', label: __uiText("components.ProbePanel.label_extra.10", "Edge Center X"), short: '⊏⊕⊐', group: 'center' },
+  { id: 'edge-center-y', label: __uiText("components.ProbePanel.label_extra.11", "Edge Center Y"), short: '⊏⊕⊐', group: 'center' },
 ]
 
 const CYCLE_INSTRUCTIONS: Record<CycleId, string> = {
-  'z-surface': 'Position the probe above the touch plate or work surface, then verify the plate thickness.',
-  'x-negative': 'Position the probe on the X+ side of the target face with a clear path for X− travel.',
-  'x-positive': 'Position the probe on the X− side of the target face with a clear path for X+ travel.',
-  'y-negative': 'Position the probe on the Y+ side of the target face with a clear path for Y− travel.',
-  'y-positive': 'Position the probe on the Y− side of the target face with a clear path for Y+ travel.',
-  'x-center': 'Start between the opposing X faces near center, with both faces within the configured travel.',
-  'y-center': 'Start between the opposing Y faces near center, with both faces within the configured travel.',
-  'bore-center': 'Start inside the bore near center. The cycle touches X−/X+, centers X, then touches Y−/Y+ and sets X0 Y0.',
-  'rectangle-center': 'Start inside the feature near center. The cycle touches X−/X+, centers X, then touches Y−/Y+ and sets X0 Y0.',
-  'edge-center-x': 'Start OUTSIDE the X− edge of the workpiece at probing height, with clear +X travel. The cycle probes both edges and sets X0 at the midpoint. Enter the actual work size and probe diameter. Set Z lift to clear the tallest obstruction on the cross-over path.',
-  'edge-center-y': 'Start OUTSIDE the Y− edge of the workpiece at probing height, with clear +Y travel. The cycle probes both edges and sets Y0 at the midpoint. Enter the actual work size and probe diameter. Set Z lift to clear the tallest obstruction on the cross-over path.',
+  'z-surface': __uiText("components.ProbePanel.instruction.10", "Position the probe above the touch plate or work surface, then verify the plate thickness."),
+  'x-negative': __uiText("components.ProbePanel.instruction.11", "Position the probe on the X+ side of the target face with a clear path for X− travel."),
+  'x-positive': __uiText("components.ProbePanel.instruction.12", "Position the probe on the X− side of the target face with a clear path for X+ travel."),
+  'y-negative': __uiText("components.ProbePanel.instruction.13", "Position the probe on the Y+ side of the target face with a clear path for Y− travel."),
+  'y-positive': __uiText("components.ProbePanel.instruction.14", "Position the probe on the Y− side of the target face with a clear path for Y+ travel."),
+  'x-center': __uiText("components.ProbePanel.instruction.15", "Start between the opposing X faces near center, with both faces within the configured travel."),
+  'y-center': __uiText("components.ProbePanel.instruction.16", "Start between the opposing Y faces near center, with both faces within the configured travel."),
+  'bore-center': __uiText("components.ProbePanel.instruction.17", "Start inside the bore near center. The cycle touches X−/X+, centers X, then touches Y−/Y+ and sets X0 Y0."),
+  'rectangle-center': __uiText("components.ProbePanel.instruction.18", "Start inside the feature near center. The cycle touches X−/X+, centers X, then touches Y−/Y+ and sets X0 Y0."),
+  'edge-center-x': __uiText("components.ProbePanel.instruction.19", "Start OUTSIDE the X− edge of the workpiece at probing height, with clear +X travel. The cycle probes both edges and sets X0 at the midpoint. Enter the actual work size and probe diameter. Set Z lift to clear the tallest obstruction on the cross-over path."),
+  'edge-center-y': __uiText("components.ProbePanel.instruction.20", "Start OUTSIDE the Y− edge of the workpiece at probing height, with clear +Y travel. The cycle probes both edges and sets Y0 at the midpoint. Enter the actual work size and probe diameter. Set Z lift to clear the tallest obstruction on the cross-over path."),
 }
 
-const TOOLSETTER_ONLY_HINT = 'Only a toolsetter is configured. Only Z-height setting is available; X/Y and center probing require a probe input.'
+const TOOLSETTER_ONLY_HINT = __uiText("components.ProbePanel.instruction.21", "Only a toolsetter is configured. Only Z-height setting is available; X/Y and center probing require a probe input.")
 
 function usePersisted<T>(key: string, init: T): [T, (v: T) => void] {
   const [val, setVal] = useState<T>(() => {
@@ -87,14 +88,14 @@ function alarmMessageFromLine(line: string): string | null {
   const activeAlarm = line.match(/^Active alarm:\s*(\d+)\s*(?:\(([^)]+)\))?/i)
   if (activeAlarm) {
     const code = Number(activeAlarm[1])
-    return activeAlarm[2]?.trim() || PROBE_ALARM_MESSAGES[code] || `Controller alarm ${code}`
+    return activeAlarm[2]?.trim() || PROBE_ALARM_MESSAGES[code] || formatUi(__uiText("components.ProbePanel.template_coverage.1", "Controller alarm {v0}"), { v0: code })
   }
 
   const alarmCode = line.match(/^ALARM:(\d+)$/i)
     || line.match(/^<Alarm(?::(\d+))?(?:[|>])/i)
   if (alarmCode) {
     const code = Number(alarmCode[1])
-    return PROBE_ALARM_MESSAGES[code] || (Number.isFinite(code) ? `Controller alarm ${code}` : 'Controller alarm')
+    return PROBE_ALARM_MESSAGES[code] || (Number.isFinite(code) ? formatUi(__uiText("components.ProbePanel.template_coverage.2", "Controller alarm {v0}"), { v0: code }) : __uiText("components.ProbePanel.instruction.22", "Controller alarm"))
   }
 
   const namedAlarm = line.match(/\[MSG:(?:INFO|ERR):\s*ALARM:\s*(.+?)\]/i)
@@ -185,7 +186,7 @@ function ProbeGraphic({
   }
 
   return (
-    <svg viewBox="0 0 120 120" className="w-full h-full" role="img" aria-label={`${cycle} probing diagram`}>
+    <svg viewBox="0 0 120 120" className="w-full h-full" role="img" aria-label={formatUi(__uiText("components.ProbePanel.tail_coverage.1", "{v0} probing diagram"), { v0: CYCLES.find(item => item.id === cycle)?.label ?? cycle })}>
       <defs>
         <marker id={`probe-arrow-${cycle}`} markerWidth="7" markerHeight="7" refX="5.5" refY="3.5" orient="auto">
           <path d="M0 0 L7 3.5 L0 7Z" fill="var(--accent)" />
@@ -232,7 +233,7 @@ function ProbeGraphic({
         <text x="67" y="62" fill="var(--accent)" fontSize="9" fontWeight="800">Z−</text>
         <Datum x={60} y={84} label="Z0" />
         <path d="M101 77 V84 M97 77 H105 M97 84 H105" stroke="var(--text-muted)" strokeWidth=".9" />
-        <text x="82" y="73" fill="var(--text-muted)" fontSize="8" fontWeight="700">PLATE</text>
+        <text x="82" y="73" fill="var(--text-muted)" fontSize="8" fontWeight="700">{__uiText("components.ProbePanel.plate.1", "PLATE")}</text>
       </> : isBore || isRectangle ? <>
         {isBore ? <>
           <circle cx="60" cy="60" r="46" fill={`url(#probeHatch${id})`} stroke="var(--border-strong)" />
@@ -358,7 +359,7 @@ function EdgeCenterGraphic({
   }
 
   return (
-    <svg viewBox="0 0 120 120" className="w-full h-full" role="img" aria-label={`Edge-center ${axis} diagram (side view)`}>
+    <svg viewBox="0 0 120 120" className="w-full h-full" role="img" aria-label={formatUi(__uiText("components.ProbePanel.dynamic.1", "Edge-center {v0} diagram (side view)"), { v0: axis })}>
       <defs>
         <marker id={`ecXover-${id}`} markerWidth="6" markerHeight="6" refX="4.5" refY="3" orient="auto">
           <path d="M0 0 L6 3 L0 6Z" fill="var(--text-dim)" />
@@ -389,7 +390,7 @@ function EdgeCenterGraphic({
       <rect x="1" y="1" width="118" height="118" rx="8" fill="rgb(var(--accent-rgb) / .035)" stroke="var(--border)" />
 
       {/* Z-lift caption + cross-over polyline above the block. */}
-      <text x="60" y="16" textAnchor="middle" fill="var(--text-dim)" fontSize="7" fontWeight="700">Z LIFT</text>
+      <text x="60" y="16" textAnchor="middle" fill="var(--text-dim)" fontSize="7" fontWeight="700">{__uiText("components.ProbePanel.z_lift.1", "Z LIFT")}</text>
       <path d={xover} stroke="var(--text-dim)" strokeWidth="1.2" strokeDasharray="3 3" markerEnd={`url(#ecXover-${id})`} />
 
       {/* Workpiece block: hatch = material; ok-green lines mark the two probed faces. */}
@@ -413,7 +414,7 @@ function EdgeCenterGraphic({
       <SequenceBadge x={92} y={28} value={2} />
 
       {/* Start caption centered beneath the block. */}
-      <text x="60" y="110" textAnchor="middle" fill="var(--text-dim)" fontSize="7" fontWeight="700">−{axis} START</text>
+      <text x="60" y="110" textAnchor="middle" fill="var(--text-dim)" fontSize="7" fontWeight="700">−{axis} {__uiText("components.ProbePanel.coverage.1", "START")}</text>
 
       {/* Corner axis markers (side view): probe axis horizontal, Z vertical. */}
       <path d="M12 112 H26" stroke={axis === 'X' ? '#ef4444' : '#22c55e'} strokeWidth="1.2" markerEnd={`url(#ecAxis${axis}-${id})`} />
@@ -524,7 +525,7 @@ export function ProbePanel({ isTablet, embedded = false }: { isTablet?: boolean;
     timeoutRef.current = setTimeout(() => {
       restoreBackgroundTraffic()
       updateRun(null)
-      setMessage('No probe contact report received. Check the probe and controller state.')
+      setMessage(__uiText("components.ProbePanel.notice.1", "No probe contact report received. Check the probe and controller state."))
     }, ms)
   }
 
@@ -538,7 +539,7 @@ export function ProbePanel({ isTablet, embedded = false }: { isTablet?: boolean;
   function beginEdge2Probe(axis: Axis) {
     sendRaw(`G21 G91 G38.2 F${number(probeFeed)} ${moveWord(axis, 'negative', maxTravel)}`)
     updateRun({ ...runningRef.current!, phase: 'e2-fast' })
-    setMessage(`Edge 2/2 — probing ${axis}−…`)
+    setMessage(formatUi(__uiText("components.ProbePanel.alert_coverage.1", "Edge 2/2 — probing {v0}−…"), { v0: axis }))
     armTimeout()
   }
 
@@ -559,13 +560,13 @@ export function ProbePanel({ isTablet, embedded = false }: { isTablet?: boolean;
     if (continueWithY) {
       const next = { id: runningRef.current!.id, phase: 'y-negative' }
       updateRun(next)
-      setMessage('Points 1–2 complete. Point 3/4 — probing Y−…')
+      setMessage(__uiText("components.ProbePanel.notice.2", "Points 1–2 complete. Point 3/4 — probing Y−…"))
       probe('Y', 'negative')
     } else {
       sendRaw('G90')
       const featureCenter = runningRef.current?.id === 'bore-center' || runningRef.current?.id === 'rectangle-center'
       finish(featureCenter
-        ? 'Feature center found and X/Y work zero set.'
+        ? __uiText("components.ProbePanel.late_coverage.1", "Feature center found and X/Y work zero set.")
         : `${axis} center found and ${axis} work zero set.`, true)
     }
   }
@@ -576,13 +577,13 @@ export function ProbePanel({ isTablet, embedded = false }: { isTablet?: boolean;
 
     const alarmMessage = alarmMessageFromLine(line)
     if (alarmMessage) {
-      finish(`Probe cycle stopped — ${alarmMessage}.`)
+      finish(formatUi(__uiText("components.ProbePanel.template_coverage.3", "Probe cycle stopped — {v0}."), { v0: alarmMessage }))
       return
     }
 
     const commandError = line.match(/^error:(\d+)$/i)
     if (commandError) {
-      finish(`Probe command rejected by the controller (error ${commandError[1]}).`)
+      finish(formatUi(__uiText("components.ProbePanel.template_coverage.4", "Probe command rejected by the controller (error {v0})."), { v0: commandError[1] }))
       return
     }
 
@@ -637,7 +638,7 @@ export function ProbePanel({ isTablet, embedded = false }: { isTablet?: boolean;
       sendRaw(`G10 L20 P0 ${axis}${number(compensatedCoordinate)}`)
       sendRaw(`G21 G91 G0 ${moveWord(axis, side === 'negative' ? 'positive' : 'negative', retract)}`)
       sendRaw('G90')
-      finish(`${axis}${side === 'negative' ? '−' : '+'} edge captured with probe-radius compensation.`)
+      finish(formatUi(__uiText("components.ProbePanel.template_coverage.5", "{v0}{v1} edge captured with probe-radius compensation."), { v0: axis, v1: side === 'negative' ? '−' : '+' }))
       return
     }
 
@@ -666,7 +667,7 @@ export function ProbePanel({ isTablet, embedded = false }: { isTablet?: boolean;
         // strike a higher far-side surface before the probe move can stop.
         sendRaw(`G21 G91 G38.3 F${number(slowFeed)} Z${number(-edgeZLift)}`)
         updateRun({ ...active, phase: 'descend', first: value })
-        setMessage('Edge 1 captured. Crossing over — descending to edge 2…')
+        setMessage(__uiText("components.ProbePanel.notice.3", "Edge 1 captured. Crossing over — descending to edge 2…"))
         // The guarded descent runs the full lift at slow feed, which can
         // exceed the default window (e.g. 40 mm at 20 mm/min = 120 s).
         armTimeout(90_000 + (edgeZLift / slowFeed) * 60_000)
@@ -678,7 +679,7 @@ export function ProbePanel({ isTablet, embedded = false }: { isTablet?: boolean;
         // the guarded G38.3 descent hit an obstruction before probing height.
         // Continuing from this Z would probe edge 2 from an invalid position.
         sendRaw('G90')
-        finish('Edge-center crossing blocked — the guided descent contacted an obstruction before reaching probing height. Clear the cross-over path and retry.')
+        finish(__uiText("components.ProbePanel.late_coverage.2", "Edge-center crossing blocked — the guided descent contacted an obstruction before reaching probing height. Clear the cross-over path and retry."))
         return
       }
       if (active.phase === 'e2-slow') {
@@ -694,7 +695,7 @@ export function ProbePanel({ isTablet, embedded = false }: { isTablet?: boolean;
         // 6 acks before the G10: the slow probe's own ok (sent after its
         // PRB report) plus G4, retract, Z lift, G90 and the G53 move.
         updateRun({ ...active, phase: 'zeroing', oks: 6 })
-        setMessage(`Both ${axis} edges captured — moving to the midpoint…`)
+        setMessage(formatUi(__uiText("components.ProbePanel.alert_coverage.2", "Both {v0} edges captured — moving to the midpoint…"), { v0: axis }))
         armTimeout()
         return
       }
@@ -711,7 +712,7 @@ export function ProbePanel({ isTablet, embedded = false }: { isTablet?: boolean;
       const bothAxes = active.id === 'bore-center' || active.id === 'rectangle-center'
       const pointNumber = axis === 'Y' && bothAxes ? 4 : 2
       const total = bothAxes ? 4 : 2
-      setMessage(`Point ${pointNumber - 1} complete. Point ${pointNumber}/${total} — probing ${axis}+…`)
+      setMessage(formatUi(__uiText("components.ProbePanel.alert_coverage.3", "Point {v0} complete. Point {v1}/{v2} — probing {v3}+…"), { v0: pointNumber - 1, v1: pointNumber, v2: total, v3: axis }))
       probe(axis, 'positive', maxTravel * 2)
       return
     }
@@ -723,15 +724,15 @@ export function ProbePanel({ isTablet, embedded = false }: { isTablet?: boolean;
 
   useEffect(() => onSoftReset(() => {
     if (!runningRef.current) return
-    finish('Probe cycle aborted by controller reset.')
+    finish(__uiText("components.ProbePanel.late_coverage.3", "Probe cycle aborted by controller reset."))
   }), [])
 
   useEffect(() => {
     if (!runningRef.current || status.state !== 'Alarm') return
     const alarmMessage = status.alarmName
       || (status.alarmCode != null ? PROBE_ALARM_MESSAGES[status.alarmCode] : undefined)
-      || 'Controller alarm'
-    finish(`Probe cycle stopped — ${alarmMessage}.`)
+      || __uiText("components.ProbePanel.instruction.23", "Controller alarm")
+    finish(formatUi(__uiText("components.ProbePanel.template_coverage.6", "Probe cycle stopped — {v0}."), { v0: alarmMessage }))
   }, [status.state, status.alarmCode, status.alarmName])
 
   useEffect(() => {
@@ -740,7 +741,7 @@ export function ProbePanel({ isTablet, embedded = false }: { isTablet?: boolean;
     timeoutRef.current = null
     restoreBackgroundTraffic()
     updateRun(null)
-    setMessage('Probe cycle interrupted because the controller disconnected.')
+    setMessage(__uiText("components.ProbePanel.notice.4", "Probe cycle interrupted because the controller disconnected."))
   }, [connected])
 
   useEffect(() => () => {
@@ -756,21 +757,21 @@ export function ProbePanel({ isTablet, embedded = false }: { isTablet?: boolean;
       || probeFeed <= 0 || maxTravel <= 0 || retract <= 0) return
     setCompletedCycle(null)
     if (selected === 'z-surface' && hasManualATC && !resetToolReference()) {
-      setMessage('Could not reset the tool-change reference before probing.')
+      setMessage(__uiText("components.ProbePanel.notice.5", "Could not reset the tool-change reference before probing."))
       return
     }
     // The slow precision pass must not run faster than the seek pass.
     if (isEdgeCenter && slowFeed > probeFeed) {
-      setMessage('Slow feed must not exceed the probe feed — the precision pass must stay the slower pass.')
+      setMessage(__uiText("components.ProbePanel.notice.6", "Slow feed must not exceed the probe feed — the precision pass must stay the slower pass."))
       return
     }
     if (isEdgeCenter) {
       if (edgeWorkSize <= 0 || edgeZLift <= 0 || slowFeed <= 0) {
-        setMessage('Work size, Z lift and slow feed must be positive.')
+        setMessage(__uiText("components.ProbePanel.notice.7", "Work size, Z lift and slow feed must be positive."))
         return
       }
       if (retract * 2 > maxTravel) {
-        setMessage('Retract must be at most half of max travel so the slow pass can reach the surface.')
+        setMessage(__uiText("components.ProbePanel.notice.8", "Retract must be at most half of max travel so the slow pass can reach the surface."))
         return
       }
     }
@@ -778,24 +779,24 @@ export function ProbePanel({ isTablet, embedded = false }: { isTablet?: boolean;
     const edge = selected.match(/^([xy])-(negative|positive)$/)
     if (selected === 'z-surface') {
       updateRun({ id: selected, phase: 'z-negative' })
-      setMessage('Probing Z− toward the work surface…')
+      setMessage(__uiText("components.ProbePanel.notice.9", "Probing Z− toward the work surface…"))
       probe('Z', 'negative')
     } else if (isEdgeCenter) {
       const axis: Axis = selected === 'edge-center-y' ? 'Y' : 'X'
       updateRun({ id: selected, phase: 'e1-fast' })
-      setMessage(`Edge 1/2 — probing ${axis}+…`)
+      setMessage(formatUi(__uiText("components.ProbePanel.alert_coverage.4", "Edge 1/2 — probing {v0}+…"), { v0: axis }))
       probe(axis, 'positive')
     } else if (edge) {
       const axis = edge[1].toUpperCase() as Axis
       const side = edge[2] as Side
       updateRun({ id: selected, phase: `${axis.toLowerCase()}-${side}` })
-      setMessage(`Probing ${axis}${side === 'negative' ? '−' : '+'}…`)
+      setMessage(formatUi(__uiText("components.ProbePanel.alert_coverage.5", "Probing {v0}{v1}…"), { v0: axis, v1: side === 'negative' ? '−' : '+' }))
       probe(axis, side)
     } else {
       const axis: Axis = selected === 'y-center' ? 'Y' : 'X'
       const total = selected === 'bore-center' || selected === 'rectangle-center' ? 4 : 2
       updateRun({ id: selected, phase: `${axis.toLowerCase()}-negative` })
-      setMessage(`Point 1/${total} — probing ${axis}−…`)
+      setMessage(formatUi(__uiText("components.ProbePanel.alert_coverage.6", "Point 1/{v0} — probing {v1}−…"), { v0: total, v1: axis }))
       probe(axis, 'negative')
     }
   }
@@ -818,7 +819,7 @@ export function ProbePanel({ isTablet, embedded = false }: { isTablet?: boolean;
 
   function abortProbe() {
     if (!runningRef.current) return
-    if (!confirm('Abort probing and reset the controller? Machine position may be lost.')) return
+    if (!confirm(__uiText("components.ProbePanel.notice.10", "Abort probing and reset the controller? Machine position may be lost."))) return
     sendRealtime(0x18)
   }
 
@@ -836,14 +837,14 @@ export function ProbePanel({ isTablet, embedded = false }: { isTablet?: boolean;
         onClick={() => setOpen(v => !v)} aria-expanded={open}>
         <div className="flex items-center gap-2">
           <Target size={isTablet ? 20 : 15} />
-          <span className="text-lg font-semibold">Probing</span>
+          <span className="text-lg font-semibold">{__uiText("components.ProbePanel.probing.1", "Probing")}</span>
         </div>
         <ChevronDown size={isTablet ? 20 : 15} className={`transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
       </button>}
 
       {open && <div className={`p-4 ${isTablet ? 'space-y-5' : 'space-y-4'}`}>
         <div>
-          <div className="text-[13px] font-bold uppercase tracking-[.12em] text-text-dim mb-2">Single surface</div>
+          <div className="text-[13px] font-bold uppercase tracking-[.12em] text-text-dim mb-2">{__uiText("components.ProbePanel.single_surface.1", "Single surface")}</div>
           <div className="grid grid-cols-5 gap-2">
             {CYCLES.filter(c => c.group === 'edge').map(c => <button key={c.id} onClick={() => selectCycle(c.id)}
               disabled={!!running || (toolsetterOnly && c.id !== 'z-surface')}
@@ -854,7 +855,7 @@ export function ProbePanel({ isTablet, embedded = false }: { isTablet?: boolean;
           </div>
         </div>
         <div>
-          <div className="text-[13px] font-bold uppercase tracking-[.12em] text-text-dim mb-2">Center finding</div>
+          <div className="text-[13px] font-bold uppercase tracking-[.12em] text-text-dim mb-2">{__uiText("components.ProbePanel.center_finding.1", "Center finding")}</div>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             {CYCLES.filter(c => c.group === 'center').map(c => <button key={c.id} onClick={() => selectCycle(c.id)}
               disabled={!!running || toolsetterOnly}
@@ -884,22 +885,22 @@ export function ProbePanel({ isTablet, embedded = false }: { isTablet?: boolean;
             )}
           </div>
           <div className={`rounded-md border border-border bg-elevated/30 p-3 ${isTablet ? 'space-y-4' : 'space-y-2'}`}>
-            <ParamRow isTablet={isTablet} label="Probe feed" value={toDisplayInput(probeFeed, units, units === 'in' ? 2 : 0)}
+            <ParamRow isTablet={isTablet} label={__uiText("components.ProbePanel.prop_label.1", "Probe feed")} value={toDisplayInput(probeFeed, units, units === 'in' ? 2 : 0)}
               onChange={v => setProbeFeed(displayToMm(v, units))} unit={feedUnitLabel(units)} min={units === 'in' ? .1 : 1} />
-            <ParamRow isTablet={isTablet} label="Max travel" value={toDisplayInput(maxTravel, units, units === 'in' ? 3 : 1)}
+            <ParamRow isTablet={isTablet} label={__uiText("components.ProbePanel.prop_label.2", "Max travel")} value={toDisplayInput(maxTravel, units, units === 'in' ? 3 : 1)}
               onChange={v => setMaxTravel(displayToMm(v, units))} unit={linearUnitLabel(units)} min={units === 'in' ? .1 : 1} />
-            <ParamRow isTablet={isTablet} label="Retract" value={toDisplayInput(retract, units, units === 'in' ? 4 : 2)}
+            <ParamRow isTablet={isTablet} label={__uiText("components.ProbePanel.prop_label.3", "Retract")} value={toDisplayInput(retract, units, units === 'in' ? 4 : 2)}
               onChange={v => setRetract(displayToMm(v, units))} unit={linearUnitLabel(units)} min={units === 'in' ? .01 : .5} />
-            {usesDiameter && <ParamRow isTablet={isTablet} label="Probe diameter" value={toDisplayInput(probeDiameter, units, units === 'in' ? 4 : 2)}
+            {usesDiameter && <ParamRow isTablet={isTablet} label={__uiText("components.ProbePanel.prop_label.4", "Probe diameter")} value={toDisplayInput(probeDiameter, units, units === 'in' ? 4 : 2)}
               onChange={v => setProbeDiameter(displayToMm(v, units))} unit={linearUnitLabel(units)} min={0} />}
-            {selected === 'z-surface' && <ParamRow isTablet={isTablet} label="Plate thickness" value={toDisplayInput(plateThick, units, units === 'in' ? 4 : 2)}
+            {selected === 'z-surface' && <ParamRow isTablet={isTablet} label={__uiText("components.ProbePanel.prop_label.5", "Plate thickness")} value={toDisplayInput(plateThick, units, units === 'in' ? 4 : 2)}
               onChange={v => setPlateThick(displayToMm(v, units))} unit={linearUnitLabel(units)} min={0} />}
             {isEdgeCenter && <>
-              <ParamRow isTablet={isTablet} label="Work size" value={toDisplayInput(edgeWorkSize, units, units === 'in' ? 3 : 1)}
+              <ParamRow isTablet={isTablet} label={__uiText("components.ProbePanel.prop_label.6", "Work size")} value={toDisplayInput(edgeWorkSize, units, units === 'in' ? 3 : 1)}
                 onChange={v => setEdgeWorkSize(displayToMm(v, units))} unit={linearUnitLabel(units)} min={units === 'in' ? .1 : 1} />
-              <ParamRow isTablet={isTablet} label="Z lift" value={toDisplayInput(edgeZLift, units, units === 'in' ? 4 : 2)}
+              <ParamRow isTablet={isTablet} label={__uiText("components.ProbePanel.prop_label.7", "Z lift")} value={toDisplayInput(edgeZLift, units, units === 'in' ? 4 : 2)}
                 onChange={v => setEdgeZLift(displayToMm(v, units))} unit={linearUnitLabel(units)} min={units === 'in' ? .01 : .5} />
-              <ParamRow isTablet={isTablet} label="Slow feed" value={toDisplayInput(slowFeed, units, units === 'in' ? 2 : 0)}
+              <ParamRow isTablet={isTablet} label={__uiText("components.ProbePanel.prop_label.8", "Slow feed")} value={toDisplayInput(slowFeed, units, units === 'in' ? 2 : 0)}
                 onChange={v => setSlowFeed(displayToMm(v, units))} unit={feedUnitLabel(units)} min={units === 'in' ? .1 : 1} />
             </>}
           </div>
@@ -914,19 +915,19 @@ export function ProbePanel({ isTablet, embedded = false }: { isTablet?: boolean;
           <button className={`btn flex-1 justify-center font-semibold gap-2 ${isTablet ? 'h-16 text-xl' : 'h-11 text-base'} ${canRunSelectedCycle && !running ? 'btn-warn' : 'btn-ghost'}`}
             onClick={runProbe} disabled={!canRunSelectedCycle || !!running}>
             <Target size={isTablet ? 22 : 17} />
-            {running ? probeHeld ? 'Cycle held' : 'Cycle active' : selectedCycleUnavailable ? 'General probe required' : canProbe ? `Run ${selectedCycle.label}` : connected ? 'Machine not Idle' : 'Controller offline'}
+            {running ? probeHeld ? __uiText("components.ProbePanel.cycle_held.1", "Cycle held") : __uiText("components.ProbePanel.cycle_active.1", "Cycle active") : selectedCycleUnavailable ? __uiText("components.ProbePanel.general_probe_required.1", "General probe required") : canProbe ? formatUi(__uiText("components.ProbePanel.dynamic.2", "Run {v0}"), { v0: selectedCycle.label }) : connected ? __uiText("components.ProbePanel.machine_not_idle.1", "Machine not Idle") : __uiText("components.ProbePanel.controller_offline.1", "Controller offline")}
           </button>
           {running && !probeHeld && <button
             className={`btn btn-danger justify-center gap-2 ${isTablet ? 'h-16 px-6 text-xl' : 'h-11 px-4'}`}
             onClick={holdProbe}>
-            <Pause size={isTablet ? 22 : 17} /> Feed hold
+            <Pause size={isTablet ? 22 : 17} /> {__uiText("components.ProbePanel.feed_hold.1", "Feed hold")}
           </button>}
           {running && probeHeld && <>
             <button className={`btn btn-ok justify-center gap-2 ${isTablet ? 'h-16 px-6 text-xl' : 'h-11 px-4'}`} onClick={resumeProbe}>
-              <Play size={isTablet ? 22 : 17} /> Resume
+              <Play size={isTablet ? 22 : 17} /> {__uiText("components.ProbePanel.resume.1", "Resume")}
             </button>
             <button className={`btn btn-danger justify-center gap-2 ${isTablet ? 'h-16 px-6 text-xl' : 'h-11 px-4'}`} onClick={abortProbe}>
-              <Square className="fill-current" size={isTablet ? 20 : 15} /> Abort
+              <Square className="fill-current" size={isTablet ? 20 : 15} /> {__uiText("components.ProbePanel.abort.1", "Abort")}
             </button>
           </>}
         </div>

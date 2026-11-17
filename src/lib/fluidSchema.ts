@@ -1,3 +1,4 @@
+import { uiText as __uiText, formatUi } from './i18n'
 // FluidNC's config item reference, generated from the firmware source's
 // // @config annotations (tools/build_config_docs.py) and committed beside
 // config_items.yaml. It replaces the retired hand-maintained
@@ -360,7 +361,7 @@ async function fetchConfig(ref: string): Promise<FluidConfigResult> {
       response = await fetchConfigItems(FALLBACK_REF, controller.signal);
     }
     if (!response.ok)
-      throw new Error(`Config items request failed: ${response.status}`);
+      throw new Error(formatUi(__uiText("lib.fluidSchema.template_coverage.1", "Config items request failed: {v0}"), { v0: response.status }));
     const text = await response.text();
     const config = parseConfig(text);
     if (!config) throw new Error("Invalid FluidNC config items response");

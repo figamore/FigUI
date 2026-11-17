@@ -1,0 +1,34 @@
+{
+  "store.gcodeSender.ignored": {
+    "one": "{count} ausführbare Zeile nach M2/M30 wird nicht gesendet.",
+    "other": "{count} ausführbare Zeilen nach M2/M30 werden nicht gesendet."
+  },
+  "components.LimitsTab.active_inputs": {
+    "one": "{count} aktiver Eingang",
+    "other": "{count} aktive Eingänge"
+  },
+  "components.FileManager.folder_warning": {
+    "one": "\n\nDies umfasst {count} Ordner und seinen Inhalt.",
+    "other": "\n\nDies umfasst {count} Ordner und ihren Inhalt."
+  },
+  "components.Macros.more_line.1": {
+    "one": "+{count} weitere Zeile",
+    "other": "+{count} weitere Zeilen"
+  },
+  "components.Macros.more_line.2": {
+    "one": "+{count} weitere Zeile",
+    "other": "+{count} weitere Zeilen"
+  },
+  "components.Macros.line.1": {
+    "one": "{count} Zeile",
+    "other": "{count} Zeilen"
+  },
+  "components.SettingsPanel.result.1": {
+    "one": "{count} Ergebnis",
+    "other": "{count} Ergebnisse"
+  },
+  "components.SettingsPanel.save_config_prompt": {
+    "one": "Die Maschinenkonfiguration wurde geändert. Diese Änderung in {filename} speichern?\n\n",
+    "other": "Die Maschinenkonfiguration wurde geändert. Diese Änderungen in {filename} speichern?\n\n"
+  }
+}

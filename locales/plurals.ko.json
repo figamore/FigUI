@@ -1,0 +1,26 @@
+{
+  "store.gcodeSender.ignored": {
+    "other": "M2/M30 이후 실행 가능한 행 {count}개는 전송되지 않습니다."
+  },
+  "components.LimitsTab.active_inputs": {
+    "other": "활성 입력 {count}개"
+  },
+  "components.FileManager.folder_warning": {
+    "other": "\n\n폴더 {count}개와 그 내용이 포함됩니다."
+  },
+  "components.Macros.more_line.1": {
+    "other": "+{count}행 더"
+  },
+  "components.Macros.more_line.2": {
+    "other": "+{count}행 더"
+  },
+  "components.Macros.line.1": {
+    "other": "{count}행"
+  },
+  "components.SettingsPanel.result.1": {
+    "other": "결과 {count}개"
+  },
+  "components.SettingsPanel.save_config_prompt": {
+    "other": "기계 설정이 변경되었습니다. 변경 사항을 {filename}에 저장하시겠습니까?\n\n"
+  }
+}

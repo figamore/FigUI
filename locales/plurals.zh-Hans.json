@@ -1,0 +1,26 @@
+{
+  "store.gcodeSender.ignored": {
+    "other": "M2/M30 后的 {count} 行可执行代码不会发送。"
+  },
+  "components.LimitsTab.active_inputs": {
+    "other": "{count} 个活动输入"
+  },
+  "components.FileManager.folder_warning": {
+    "other": "\n\n包含 {count} 个文件夹及其内容。"
+  },
+  "components.Macros.more_line.1": {
+    "other": "另外 {count} 行"
+  },
+  "components.Macros.more_line.2": {
+    "other": "另外 {count} 行"
+  },
+  "components.Macros.line.1": {
+    "other": "{count} 行"
+  },
+  "components.SettingsPanel.result.1": {
+    "other": "{count} 个结果"
+  },
+  "components.SettingsPanel.save_config_prompt": {
+    "other": "机器配置已更改。要将这些更改保存到 {filename} 吗？\n\n"
+  }
+}

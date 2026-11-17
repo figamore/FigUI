@@ -29,8 +29,9 @@ function TabletLeftColumn({
   jogPlugin: Plugin | null
   onCloseJogPlugin: () => void
 }) {
+  const contentDirection = typeof document === 'undefined' ? 'ltr' : (document.documentElement.dir || 'ltr')
   return (
-    <div className={TABLET_LEFT_COLUMN_CLASS}>
+    <div dir={contentDirection} className={TABLET_LEFT_COLUMN_CLASS}>
       <div className="tablet-control-slot min-w-0 min-h-0">
         <DRO isTablet />
       </div>
@@ -59,6 +60,7 @@ export function TabletMainShell({
   onCloseControlsPlugin,
 }: TabletMainShellProps) {
   const isCompactLandscape = useIsCompactLandscape()
+  const contentDirection = typeof document === 'undefined' ? 'ltr' : (document.documentElement.dir || 'ltr')
 
   if (isCompactLandscape) {
     return (
@@ -81,9 +83,9 @@ export function TabletMainShell({
 
   if (workspacePlugin) {
     return (
-      <div className={shellClass}>
+      <div dir="ltr" className={shellClass}>
         <TabletLeftColumn jogPlugin={jogPlugin} onCloseJogPlugin={onCloseJogPlugin} />
-        <div className="panel flex flex-col landscape:flex-1 landscape:basis-1/2 landscape:min-h-0 portrait:min-h-[55vh] landscape:overflow-hidden">
+        <div dir={contentDirection} className="panel flex flex-col landscape:flex-1 landscape:basis-1/2 landscape:min-h-0 portrait:min-h-[55vh] landscape:overflow-hidden">
           <PluginFrame plugin={workspacePlugin} onClose={onCloseWorkspacePlugin} inline />
         </div>
       </div>
@@ -92,8 +94,8 @@ export function TabletMainShell({
 
   if (controlsPlugin) {
     return (
-      <div className={shellClass}>
-        <div className="panel flex flex-col portrait:shrink-0 landscape:flex-1 landscape:basis-1/2 landscape:min-h-0 portrait:min-h-[55vh] landscape:overflow-hidden">
+      <div dir="ltr" className={shellClass}>
+        <div dir={contentDirection} className="panel flex flex-col portrait:shrink-0 landscape:flex-1 landscape:basis-1/2 landscape:min-h-0 portrait:min-h-[55vh] landscape:overflow-hidden">
           <PluginFrame plugin={controlsPlugin} onClose={onCloseControlsPlugin} inline />
         </div>
         <TabletAccordion
@@ -106,7 +108,7 @@ export function TabletMainShell({
   }
 
   return (
-    <div className={shellClass}>
+    <div dir="ltr" className={shellClass}>
       <TabletLeftColumn jogPlugin={jogPlugin} onCloseJogPlugin={onCloseJogPlugin} />
       <TabletAccordion tabletTab={tabletTab} setTabletTab={setTabletTab} onLaunchPanel={onLaunchPanel} />
     </div>

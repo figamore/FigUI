@@ -1,3 +1,4 @@
+import { uiText as __uiText, formatUi } from '../lib/i18n'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { X, Download, CheckCircle2, AlertCircle, ArrowUp, RefreshCw, Heart } from 'lucide-react'
 import fluidncLogo from '../assets/fluidnc-logo.svg'
@@ -5,8 +6,8 @@ import { useMachineStore } from '../store'
 import { useGCodeSenderStore } from '../store/gcodeSender'
 import { uploadFile, uiDir, putUiFile } from '../lib/http'
 import { CURRENT_VERSION, GITHUB_REPO, DISMISSED_VERSION_KEY, semverGt } from '../lib/updateCheck'
+import { UI_LANGUAGE, LANGUAGE_NAMES, SUPPORTED_LANGUAGES, firmwareUrl, type UiLanguage } from '../lib/language'
 
-const FIRMWARE_URL = 'https://figamore.github.io/FigUI/firmware/index.html.gz'
 // Pinned with a hash: this script runs with the page's access to the machine.
 const MARKED_CDN_URL = 'https://cdn.jsdelivr.net/npm/marked@15.0.12/marked.min.js'
 const MARKED_SRI = 'sha384-948ahk4ZmxYVYOc+rxN1H2gM1EJ2Duhp7uHtZ4WSLkV4Vtx5MUqnV+l7u9B+jFv+'
@@ -35,7 +36,7 @@ function loadMarkedFromCdn(): Promise<void> {
     script.crossOrigin = 'anonymous'
     script.async = true
     script.onload = () => resolve()
-    script.onerror = () => reject(new Error('Failed to load markdown renderer'))
+    script.onerror = () => reject(new Error(__uiText("components.AboutModal.late_coverage.1", "Failed to load markdown renderer")))
     document.head.appendChild(script)
   })
 
@@ -43,7 +44,7 @@ function loadMarkedFromCdn(): Promise<void> {
 }
 
 // Writing the web UI to flash mid-job only adds load to the controller.
-const UPDATE_AFTER_JOB = 'A job is running. Update after it has finished.'
+const UPDATE_AFTER_JOB = __uiText("components.AboutModal.job_running.1", "A job is running. Update after it has finished.")
 
 function jobActive(state: string, sdFilename: string | undefined, senderPhase: string) {
   return state === 'Run' || state === 'Hold' || Boolean(sdFilename) ||
@@ -54,6 +55,58 @@ type UpdateState = 'idle' | 'checking' | 'up-to-date' | 'available' | 'downloadi
 
 interface Props {
   onClose: () => void
+}
+
+interface InstallFeedbackProps {
+  state: UpdateState
+  progress: number
+  error: string
+  languageChange?: boolean
+  onDismiss: () => void
+}
+
+function InstallFeedback({ state, progress, error, languageChange, onDismiss }: InstallFeedbackProps) {
+  if (state === 'checking' || state === 'downloading' || state === 'uploading') {
+    const label = state === 'checking'
+      ? __uiText("components.AboutModal.language_checking.1", "Checking latest version…")
+      : state === 'downloading'
+        ? __uiText("components.AboutModal.downloading_status.1", "Downloading…")
+        : formatUi(__uiText("components.AboutModal.uploading_progress.1", "Uploading… {progress}%"), { progress })
+    return (
+      <div className="flex flex-col gap-2" role="status">
+        <div className="flex items-center gap-2 text-[13px] text-text-muted">
+          <RefreshCw size={13} className="animate-spin shrink-0" />{label}
+        </div>
+        {state === 'uploading' && (
+          <div className="w-full bg-[var(--bg)] rounded-full h-1.5 overflow-hidden">
+            <div className="h-full bg-accent rounded-full transition-all duration-200" style={{ width: `${progress}%` }} />
+          </div>
+        )}
+      </div>
+    )
+  }
+  if (state === 'done') return (
+    <div className="flex flex-col gap-3" role="status">
+      <span className="flex items-center gap-1.5 text-[13px] text-green-400">
+        <CheckCircle2 size={14} />
+        {languageChange
+          ? __uiText("components.AboutModal.language_complete.1", "Language installed — reload to apply")
+          : __uiText("components.AboutModal.update_complete_reload_to_apply.1", "Update complete — reload to apply")}
+      </span>
+      <button className="btn-primary self-start text-[13px] py-1.5 px-3" onClick={() => window.location.reload()}>
+        {__uiText("components.AboutModal.reload_now.1", "Reload Now")}
+      </button>
+    </div>
+  )
+  if (state === 'error') return (
+    <div className="flex flex-col gap-2" role="alert">
+      <span className="flex items-center gap-1.5 text-[13px] text-red-400"><AlertCircle size={14} className="shrink-0" />{error}</span>
+      <button className="btn btn-ghost self-start text-[13px] py-1.5 px-3" onClick={onDismiss}>
+        {__uiText("components.AboutModal.dismiss.2", "Dismiss")}
+      </button>
+    </div>
+  )
+  return null
 }
 
 interface Tip {
@@ -178,71 +231,61 @@ function MarkdownReleaseNotes({ markdown, rendererReady }: { markdown: string; r
 
 const TIPS: Tip[] = [
   {
-    title: 'Keyboard jogging',
+    title: __uiText("components.AboutModal.tip_keyboard.1", "Keyboard jogging"),
     body: (
       <>
-        In the Jog panel, switch to <em>Continuous</em> mode and click the keyboard
-        icon to enable. Use <kbd className="kbd">←</kbd><kbd className="kbd">→</kbd>
-        <kbd className="kbd">↑</kbd><kbd className="kbd">↓</kbd> for X/Y and{' '}
-        <kbd className="kbd">+</kbd><kbd className="kbd">−</kbd> for Z. Hold to jog,
-        release to stop.
+        {__uiText("components.AboutModal.jog_instructions.1", "In the Jog panel, switch to")}{' '}<em>{__uiText("components.AboutModal.continuous.1", "Continuous")}</em>{' '}{__uiText("components.AboutModal.jog_instructions.2", "mode and click the keyboard icon to enable. Use")}{' '}
+        <kbd className="kbd">←</kbd><kbd className="kbd">→</kbd><kbd className="kbd">↑</kbd><kbd className="kbd">↓</kbd>{' '}{__uiText("components.AboutModal.jog_instructions.3", "for X/Y and")}{' '}
+        <kbd className="kbd">+</kbd><kbd className="kbd">−</kbd>{' '}{__uiText("components.AboutModal.jog_instructions.4", "for Z. Hold to jog, release to stop.")}
       </>
     ),
   },
   {
-    title: 'Cancel a jog',
+    title: __uiText("components.AboutModal.tip_cancel_jog.1", "Cancel a jog"),
     body: (
       <>
-        While the machine is jogging, the center of the jog rose turns into a stop
-        button — click it (or release the held key) to cancel.
+        {__uiText("components.AboutModal.while_the_machine_is_jogging_the_ce.1", "While the machine is jogging, the center of the jog rose turns into a stop button — click it (or release the held key) to cancel.")}
       </>
     ),
   },
   {
-    title: 'Units (mm ↔ in)',
+    title: __uiText("components.AboutModal.tip_units.1", "Units (mm ↔ in)"),
     body: (
       <>
-        Open <em>Settings</em> and use the <em>WebUI units</em> toggle near the top.
-        Display only — controller communication always stays in mm.
+        {__uiText("components.AboutModal.open.1", "Open")}{' '}<em>{__uiText("components.AboutModal.settings.1", "Settings")}</em>{' '}{__uiText("components.AboutModal.units_instructions.1", "and use the")}{' '}<em>{__uiText("components.AboutModal.webui_units.1", "WebUI units")}</em>{' '}{__uiText("components.AboutModal.units_instructions.2", "toggle near the top. Display only — controller communication always stays in mm.")}
       </>
     ),
   },
   {
-    title: 'Clear an alarm',
+    title: __uiText("components.AboutModal.tip_clear_alarm.1", "Clear an alarm"),
     body: (
       <>
-        When the status pill in the header shows <em>Alarm</em>, click it to send{' '}
-        <code className="font-mono text-text-primary">$X</code> and unlock.
+        {__uiText("components.AboutModal.alarm_instructions.1", "When the status pill in the header shows")}{' '}<em>{__uiText("components.AboutModal.alarm.1", "Alarm")}</em>{__uiText("components.AboutModal.alarm_instructions.2", ", click it to send")}{' '}
+        <code className="font-mono text-text-primary">$X</code>{' '}{__uiText("components.AboutModal.alarm_instructions.3", "and unlock.")}
       </>
     ),
   },
   {
-    title: 'Soft reset',
+    title: __uiText("components.AboutModal.tip_reset.1", "Soft reset"),
     body: (
       <>
-        The <em>RST</em> button in the header sends Ctrl+X — equivalent to a soft
-        reset of FluidNC.
+        {__uiText("components.AboutModal.reset_instructions.1", "The")}{' '}<em>RST</em>{' '}{__uiText("components.AboutModal.reset_instructions.2", "button in the header sends Ctrl+X — equivalent to a soft reset of FluidNC.")}
       </>
     ),
   },
   {
-    title: 'Per-axis zero / home',
+    title: __uiText("components.AboutModal.tip_axis_zero.1", "Per-axis zero / home"),
     body: (
       <>
-        In the DRO, click an axis label to zero just that axis, or use the small
-        icons next to it to go to its zero or home it individually.
+        {__uiText("components.AboutModal.in_the_dro_click_an_axis_label_to_z.1", "In the DRO, click an axis label to zero just that axis, or use the small icons next to it to go to its zero or home it individually.")}
       </>
     ),
   },
   {
-    title: 'Large files',
+    title: __uiText("components.AboutModal.tip_large_files.1", "Large files"),
     body: (
       <>
-        On jobs over 100,000 segments, the toolpath completion overlay (green
-        "done" trail) is automatically disabled while running. This avoids
-        flooding FluidNC with position queries — the toolhead marker still
-        tracks position normally, and Program Execution still follows the
-        executing line.
+        {__uiText("components.AboutModal.on_jobs_over_100_000_segments_the_t.1", "On jobs over 100,000 segments, the toolpath completion overlay (green \"done\" trail) is automatically disabled while running. This avoids flooding FluidNC with position queries — the toolhead marker still tracks position normally, and Program Execution still follows the executing line.")}
       </>
     ),
   },
@@ -267,6 +310,9 @@ export function AboutModal({ onClose }: Props) {
   const [markdownReady, setMarkdownReady] = useState(() => Boolean(window.marked))
   const [uploadProgress, setUploadProgress] = useState(0)
   const [updateError, setUpdateError] = useState('')
+  const [languageState, setLanguageState] = useState<UpdateState>('idle')
+  const [languageError, setLanguageError] = useState('')
+  const [targetLanguage, setTargetLanguage] = useState<UiLanguage>(UI_LANGUAGE)
   const downloadedBuffer = useRef<ArrayBuffer | null>(null)
 
   function dismissUpdate() {
@@ -316,14 +362,14 @@ export function AboutModal({ onClose }: Props) {
     setUpdateError('')
     try {
       const { latestVersion: version, notes } = await fetchReleaseHistory()
-      if (!version) throw new Error('No stable releases found')
+      if (!version) throw new Error(__uiText("components.AboutModal.no_stable_release.1", "No stable releases found"))
       setLatestVersion(version)
       setReleaseNotes(notes)
       setUpdateState(semverGt(version, CURRENT_VERSION) ? 'available' : 'up-to-date')
     } catch (e) {
       const msg = e instanceof TypeError
-        ? 'No internet connection — connect and try again'
-        : e instanceof Error ? e.message : 'Failed to check for updates'
+        ? __uiText("components.AboutModal.no_internet.1", "No internet connection — connect and try again")
+        : e instanceof Error ? e.message : __uiText("components.AboutModal.check_failed.1", "Failed to check for updates")
       setUpdateError(msg)
       setUpdateState('error')
     }
@@ -334,13 +380,18 @@ export function AboutModal({ onClose }: Props) {
    * when served outside /ui/<name>/, reporting upload progress and errors.
    * Clear the dismissed and pending update state after a successful upload.
    */
-  async function performUpdate() {
+  async function performUpdate(language: UiLanguage = UI_LANGUAGE, version = latestVersion, languageChange = false) {
+    const setState = languageChange ? setLanguageState : setUpdateState
+    const setError = languageChange ? setLanguageError : setUpdateError
     downloadedBuffer.current = null
     try {
-      setUpdateState('downloading')
-      const dlRes = await fetch(FIRMWARE_URL)
-      if (!dlRes.ok) throw new Error(`Download failed: ${dlRes.status}`)
+      setState('downloading')
+      if (!version || semverGt(CURRENT_VERSION, version)) throw new Error(__uiText("components.AboutModal.older_release.1", "The selected release is older than the installed UI"))
+      const dlRes = await fetch(firmwareUrl(version, language), { cache: 'no-store' })
+      if (!dlRes.ok) throw new Error(formatUi(__uiText("components.AboutModal.template_coverage.1", "Download failed: {v0}"), { v0: dlRes.status }))
       downloadedBuffer.current = await dlRes.arrayBuffer()
+      const bytes = new Uint8Array(downloadedBuffer.current)
+      if (bytes.length < 100 || bytes[0] !== 0x1f || bytes[1] !== 0x8b) throw new Error(__uiText("components.AboutModal.invalid_download.1", "Invalid UI download"))
 
       // A job may have started while the file was downloading.
       const { status } = useMachineStore.getState()
@@ -348,7 +399,7 @@ export function AboutModal({ onClose }: Props) {
         throw new Error(UPDATE_AFTER_JOB)
       }
 
-      setUpdateState('uploading')
+      setState('uploading')
       setUploadProgress(0)
       const file = new File([downloadedBuffer.current], 'index.html.gz', { type: 'application/gzip' })
       // Update this copy of FigUI: under /ui/<name>/, the one in that
@@ -358,20 +409,16 @@ export function AboutModal({ onClose }: Props) {
 
       localStorage.removeItem(DISMISSED_VERSION_KEY)
       setPendingUpdateVersion(null)
-      setUpdateState('done')
+      setState('done')
     } catch (e) {
-      setUpdateError(e instanceof Error ? e.message : 'Update failed')
-      setUpdateState('error')
+      setError(e instanceof Error ? e.message : __uiText("components.AboutModal.update_failed.1", "Update failed"))
+      setState('error')
     }
   }
 
-  const busy = updateState === 'downloading' || updateState === 'uploading'
-
-  function statusLabel() {
-    if (updateState === 'downloading') return 'Downloading…'
-    if (updateState === 'uploading') return `Uploading… ${uploadProgress}%`
-    return null
-  }
+  const busy = ['checking', 'downloading', 'uploading'].includes(updateState) ||
+    ['checking', 'downloading', 'uploading'].includes(languageState)
+  const installationDone = updateState === 'done' || languageState === 'done'
 
   return (
     <div
@@ -386,11 +433,11 @@ export function AboutModal({ onClose }: Props) {
                       shadow-2xl flex flex-col overflow-hidden animate-in">
 
         <div className="panel-header shrink-0">
-          <span>About</span>
+          <span>{__uiText("components.AboutModal.about.1", "About")}</span>
           <button
             className="btn-ghost px-2 py-1 ml-auto"
             onClick={onClose}
-            title="Close"
+            title={__uiText("components.AboutModal.close.1", "Close")}
           >
             <X size={14} />
           </button>
@@ -406,7 +453,7 @@ export function AboutModal({ onClose }: Props) {
               style={theme !== 'light' ? { filter: 'invert(1) hue-rotate(180deg)' } : undefined}
             />
             <div className="text-[12px] text-text-muted">
-              <span>Web UI: </span>
+              <span>{__uiText("components.AboutModal.coverage.1", "Web UI:")} </span>
               <a
                 href={`https://github.com/${GITHUB_REPO}`}
                 target="_blank"
@@ -418,7 +465,7 @@ export function AboutModal({ onClose }: Props) {
             </div>
             {espInfo?.version && (
               <div className="text-[12px] text-text-muted font-mono">
-                Firmware: {espInfo.version}
+                {__uiText("components.AboutModal.firmware.1", "Firmware:")} {espInfo.version}
               </div>
             )}
           </div>
@@ -436,21 +483,21 @@ export function AboutModal({ onClose }: Props) {
               </span>
               <span className="min-w-0">
                 <span className="block text-[13px] font-semibold text-text-primary">
-                  Support this project
+                  {__uiText("components.AboutModal.support_this_project.1", "Support this project")}
                 </span>
                 <span className="block text-[12px] text-text-muted">
-                  Donations help fund new features and improvements.
+                  {__uiText("components.AboutModal.donations_help_fund_new_features_an.1", "Donations help fund new features and improvements.")}
                 </span>
               </span>
-              <span className="ml-auto text-[12px] font-semibold text-accent">Sponsor ↗</span>
+              <span className="ml-auto text-[12px] font-semibold text-accent">{__uiText("components.AboutModal.sponsor.1", "Sponsor ↗")}</span>
             </a>
           </div>
 
           {/* Update checker */}
           {!IS_DEMO && (
-            <div className="px-5 py-4 border-b border-border">
-              <h3 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-text-muted mb-3">
-                WebUI Update
+            <section className="px-5 py-4 border-b border-border" aria-labelledby="figui-update-heading">
+              <h3 id="figui-update-heading" className="text-[11px] font-semibold uppercase tracking-[0.12em] text-text-muted mb-3">
+                {__uiText("components.AboutModal.webui_update.1", "WebUI Update")}
               </h3>
 
               {/* idle / up-to-date / checking */}
@@ -459,17 +506,17 @@ export function AboutModal({ onClose }: Props) {
                   <button
                     className="btn-primary flex items-center gap-1.5 text-[13px] py-1.5 px-3 disabled:opacity-50 disabled:cursor-not-allowed"
                     onClick={checkForUpdates}
-                    disabled={updateState === 'checking'}
+                    disabled={busy || installationDone}
                   >
                     {updateState === 'checking'
                       ? <RefreshCw size={13} className="animate-spin" />
                       : <Download size={13} />}
-                    {updateState === 'checking' ? 'Checking…' : 'Check for Updates'}
+                    {updateState === 'checking' ? __uiText("components.AboutModal.checking.1", "Checking…") : __uiText("components.AboutModal.check_for_updates.1", "Check for Updates")}
                   </button>
                   {updateState === 'up-to-date' && (
                     <span className="flex items-center gap-1.5 text-[13px] text-green-400">
                       <CheckCircle2 size={14} />
-                      Up to date
+                      {__uiText("components.AboutModal.up_to_date.1", "Up to date")}
                     </span>
                   )}
                 </div>
@@ -480,10 +527,10 @@ export function AboutModal({ onClose }: Props) {
                 <div className="flex flex-col gap-3">
                   <div className="flex items-center justify-between">
                     <span className="text-[13px] text-accent font-semibold">
-                      v{latestVersion} available
+                      v{latestVersion} {__uiText("components.AboutModal.available.1", "available")}
                     </span>
                     <span className="text-[11px] text-text-dim">
-                      current: v{CURRENT_VERSION}
+                      {__uiText("components.AboutModal.current_v.1", "current: v")}{CURRENT_VERSION}
                     </span>
                   </div>
                   {releaseNotes.length > 0 && (
@@ -507,18 +554,18 @@ export function AboutModal({ onClose }: Props) {
                   <div className="flex items-center gap-2">
                     <button
                       className="btn-primary self-start flex items-center gap-1.5 text-[13px] py-1.5 px-3 disabled:opacity-50 disabled:cursor-not-allowed"
-                      onClick={performUpdate}
-                      disabled={updateBlocked}
-                      title={updateBlocked ? 'Update after the running job has finished' : undefined}
+                      onClick={() => performUpdate()}
+                      disabled={updateBlocked || busy || installationDone}
+                      title={updateBlocked ? __uiText("components.AboutModal.update_after_the_running_job_has_fi.1", "Update after the running job has finished") : undefined}
                     >
                       <ArrowUp size={13} />
-                      Update to v{latestVersion}
+                      {__uiText("components.AboutModal.update_to_v.1", "Update to v")}{latestVersion}
                     </button>
                     <button
                       className="btn btn-ghost self-start text-[13px] py-1.5 px-3"
                       onClick={dismissUpdate}
                     >
-                      Dismiss
+                      {__uiText("components.AboutModal.dismiss.1", "Dismiss")}
                     </button>
                   </div>
                   {updateBlocked && (
@@ -527,62 +574,56 @@ export function AboutModal({ onClose }: Props) {
                 </div>
               )}
 
-              {/* in-progress */}
-              {busy && (
-                <div className="flex flex-col gap-2">
-                  <div className="flex items-center gap-2 text-[13px] text-text-muted">
-                    <RefreshCw size={13} className="animate-spin shrink-0" />
-                    {statusLabel()}
-                  </div>
-                  {updateState === 'uploading' && (
-                    <div className="w-full bg-[var(--bg)] rounded-full h-1.5 overflow-hidden">
-                      <div
-                        className="h-full bg-accent rounded-full transition-all duration-200"
-                        style={{ width: `${uploadProgress}%` }}
-                      />
-                    </div>
-                  )}
-                </div>
+              {updateState !== 'checking' && (
+                <InstallFeedback state={updateState} progress={uploadProgress} error={updateError} onDismiss={() => setUpdateState('idle')} />
               )}
+            </section>
+          )}
 
-              {/* done */}
-              {updateState === 'done' && (
-                <div className="flex flex-col gap-3">
-                  <span className="flex items-center gap-1.5 text-[13px] text-green-400">
-                    <CheckCircle2 size={14} />
-                    Update complete — reload to apply
-                  </span>
-                  <button
-                    className="btn-primary self-start text-[13px] py-1.5 px-3"
-                    onClick={() => window.location.reload()}
-                  >
-                    Reload Now
-                  </button>
+          {!IS_DEMO && (
+            <section className="px-5 py-4 border-b border-border" aria-labelledby="figui-language-heading">
+              <h3 id="figui-language-heading" className="text-[11px] font-semibold uppercase tracking-[0.12em] text-text-muted mb-3">
+                {__uiText("components.AboutModal.language_section.1", "Language")}
+              </h3>
+              <div className="flex flex-wrap items-end gap-2">
+                <label className="text-[13px] text-text-muted">
+                  <span className="sr-only">Language / Idioma</span>
+                  <select className="block bg-elevated text-text-primary border border-border rounded p-1.5"
+                    value={targetLanguage} onChange={e => setTargetLanguage(e.currentTarget.value as UiLanguage)} disabled={busy || installationDone}>
+                    {SUPPORTED_LANGUAGES.map(language => <option key={language.code} value={language.code}>{language.name}</option>)}
+                  </select>
+                </label>
+                <button className="btn-primary text-[13px] py-1.5 px-3 disabled:opacity-50"
+                  disabled={busy || installationDone || updateBlocked || targetLanguage === UI_LANGUAGE}
+                  onClick={async () => {
+                    setLanguageState('checking')
+                    setLanguageError('')
+                    try {
+                      const { latestVersion: version } = await fetchReleaseHistory()
+                      if (!version) throw new Error(__uiText("components.AboutModal.no_stable_release.2", "No stable releases found"))
+                      await performUpdate(targetLanguage, version, true)
+                    } catch (e) {
+                      setLanguageError(e instanceof Error ? e.message : __uiText("components.AboutModal.check_failed.2", "Failed to check for updates"))
+                      setLanguageState('error')
+                    }
+                  }}>
+                  {__uiText("components.AboutModal.install_language.1", "Install language (latest version)")}
+                </button>
+              </div>
+              <p className="mt-2 text-[11px] text-text-dim">{formatUi(__uiText("components.AboutModal.language_notice.1", "Installed: {language}. Translations may be incomplete. Changes apply to all users and require a reload."), { language: LANGUAGE_NAMES[UI_LANGUAGE] })}</p>
+              {updateBlocked && <p className="mt-2 text-[11px] text-text-dim">{UPDATE_AFTER_JOB}</p>}
+              {languageState !== 'idle' && (
+                <div className="mt-3">
+                  <InstallFeedback state={languageState} progress={uploadProgress} error={languageError} languageChange onDismiss={() => setLanguageState('idle')} />
                 </div>
               )}
-
-              {/* error */}
-              {updateState === 'error' && (
-                <div className="flex flex-col gap-2">
-                  <span className="flex items-center gap-1.5 text-[13px] text-red-400">
-                    <AlertCircle size={14} className="shrink-0" />
-                    {updateError}
-                  </span>
-                  <button
-                    className="btn btn-ghost self-start text-[13px] py-1.5 px-3"
-                    onClick={() => setUpdateState('idle')}
-                  >
-                    Dismiss
-                  </button>
-                </div>
-              )}
-            </div>
+            </section>
           )}
 
           {/* Tips */}
           <div className="px-5 py-4">
             <h3 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-text-muted mb-3">
-              Basic Usage
+              {__uiText("components.AboutModal.basic_usage.1", "Basic Usage")}
             </h3>
             <dl className="space-y-3">
               {TIPS.map(tip => (
@@ -600,7 +641,7 @@ export function AboutModal({ onClose }: Props) {
 
           {/* Footer */}
           <div className="px-5 py-3 border-t border-border text-center text-[11px] text-text-dim">
-            © 2026 Figamore &amp; FluidNC Contributors
+            {__uiText("components.AboutModal.coverage.2", "© 2026 Figamore & FluidNC Contributors")}
           </div>
         </div>
       </div>

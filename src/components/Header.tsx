@@ -1,3 +1,4 @@
+import { uiText as __uiText, formatUi } from '../lib/i18n'
 import { Sun, Moon, Wifi, WifiOff, Settings, Maximize, Minimize, HelpCircle, Play, Square, RotateCcw, Zap, Power, Home, Target, Crosshair, ArrowLeft, ArrowUp, ArrowRight, ArrowDown, Lightbulb, LayoutDashboard, type LucideIcon } from 'lucide-react'
 import fluidncLogo from '../assets/fluidnc-logo.svg'
 import { useMachineStore, stateColor, stateBg } from '../store'
@@ -61,11 +62,11 @@ export function Header({ onSettingsClick, onAboutClick, isTablet, sticky }: Prop
   }
 
   function handleSoftReset() {
-    if (confirm('Send soft reset (Ctrl+X)?')) sendRealtime(0x18)
+    if (confirm(__uiText("components.Header.notice.1", "Send soft reset (Ctrl+X)?"))) sendRealtime(0x18)
   }
 
   return (
-    <header className={`h-12 bg-surface border-b border-border flex items-center px-3 xl:px-4 gap-2 xl:gap-4 shrink-0 overflow-x-auto ${sticky ? 'sticky top-0 z-50' : ''}`}>
+    <header dir="ltr" className={`h-12 bg-surface border-b border-border flex items-center px-3 xl:px-4 gap-2 xl:gap-4 shrink-0 overflow-x-auto ${sticky ? 'sticky top-0 z-50' : ''}`}>
       <div className="flex items-center gap-2 shrink-0">
         <img src={fluidncLogo} alt="FluidNC" className="h-8 w-auto shrink-0" style={theme !== 'light' ? { filter: 'invert(1) hue-rotate(180deg)' } : undefined} />
       </div>
@@ -86,7 +87,7 @@ export function Header({ onSettingsClick, onAboutClick, isTablet, sticky }: Prop
           <span className={`w-1.5 h-1.5 rounded-full ${
             controllerJobStarting || controllerResetPending || status.state === 'Run' || status.state === 'Jog' ? 'bg-current animate-pulse' : 'bg-current'
           }`} />
-          {controllerResetPending ? 'Resetting' : controllerJobStarting ? 'Starting' : status.state}
+          {controllerResetPending ? __uiText("components.Header.resetting.1", "Resetting") : controllerJobStarting ? __uiText("components.Header.starting.1", "Starting") : status.state}
         </div>
       )}
 
@@ -101,7 +102,7 @@ export function Header({ onSettingsClick, onAboutClick, isTablet, sticky }: Prop
                 />
               </div>
               <span className="min-w-9 text-right font-mono tabular-nums shrink-0"
-                title={runtime.source === 'sd' ? 'File progress reported by FluidNC' : 'Estimated job progress'}>
+                title={runtime.source === 'sd' ? __uiText("components.Header.file_progress_reported_by_fluidnc.1", "File progress reported by FluidNC") : __uiText("components.Header.estimated_job_progress.1", "Estimated job progress")}>
                 {formatJobProgress(headerProgressPercent, runtime.source)}
               </span>
             </>
@@ -138,7 +139,7 @@ export function Header({ onSettingsClick, onAboutClick, isTablet, sticky }: Prop
         {connected ? (
           <div className={`flex items-center gap-1 text-base text-ok mr-2`}>
             <Wifi size={isTablet ? 18 : 14} />
-            <span className="hidden sm:inline">Connected</span>
+            <span className="hidden sm:inline">{__uiText("components.Header.connected.1", "Connected")}</span>
           </div>
         ) : (
           <div className={`flex items-center gap-1 ${isTablet ? 'text-base' : 'text-sm'} text-text-muted mr-2`}>
@@ -149,7 +150,7 @@ export function Header({ onSettingsClick, onAboutClick, isTablet, sticky }: Prop
         <button
           className={`btn-ghost ${isTablet ? 'px-3 py-2' : 'px-2 py-1.5'} text-base`}
           onClick={handleSoftReset}
-          title="Soft Reset"
+          title={__uiText("components.Header.soft_reset.1", "Soft Reset")}
         >
           RST
         </button>
@@ -157,7 +158,7 @@ export function Header({ onSettingsClick, onAboutClick, isTablet, sticky }: Prop
         <button
           className={`btn-ghost ${isTablet ? 'px-3 py-2' : 'px-2 py-1.5'}`}
           onClick={toggleTheme}
-          title="Toggle theme"
+          title={__uiText("components.Header.toggle_theme.1", "Toggle theme")}
         >
           {theme !== 'light' ? <Sun size={isTablet ? 18 : 14} /> : <Moon size={isTablet ? 18 : 14} />}
         </button>
@@ -165,7 +166,7 @@ export function Header({ onSettingsClick, onAboutClick, isTablet, sticky }: Prop
         <button
           className={`hidden md:inline-flex btn-ghost ${isTablet ? 'px-3 py-2' : 'px-2 py-1.5'}`}
           onClick={toggleFullscreen}
-          title={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+          title={isFullscreen ? __uiText("components.Header.exit_fullscreen.1", "Exit fullscreen") : __uiText("components.Header.enter_fullscreen.1", "Enter fullscreen")}
         >
           {isFullscreen ? <Minimize size={18} /> : <Maximize size={18} />}
         </button>
@@ -174,7 +175,7 @@ export function Header({ onSettingsClick, onAboutClick, isTablet, sticky }: Prop
           <button
             className="hidden md:inline-flex btn-ghost px-2 py-1.5"
             onClick={() => window.dispatchEvent(new CustomEvent('reset-layout'))}
-            title="Reset layout to default"
+            title={__uiText("components.Header.reset_layout_to_default.1", "Reset layout to default")}
           >
             <LayoutDashboard size={18} />
           </button>
@@ -183,7 +184,7 @@ export function Header({ onSettingsClick, onAboutClick, isTablet, sticky }: Prop
         <button
           className={`btn-ghost relative ${isTablet ? 'px-3 py-2' : 'px-2 py-1.5'}`}
           onClick={onAboutClick}
-          title={pendingUpdateVersion ? `FigUI v${pendingUpdateVersion} available` : 'About'}
+          title={pendingUpdateVersion ? formatUi(__uiText("components.Header.dynamic.1", "FigUI v{v0} available"), { v0: pendingUpdateVersion }) : __uiText("components.Header.about.1", "About")}
         >
           <HelpCircle size={18} />
           {pendingUpdateVersion && (
@@ -194,7 +195,7 @@ export function Header({ onSettingsClick, onAboutClick, isTablet, sticky }: Prop
         <button
           className={`btn-ghost ${isTablet ? 'px-3 py-2' : 'px-2 py-1.5'}`}
           onClick={onSettingsClick}
-          title="Settings"
+          title={__uiText("components.Header.settings.1", "Settings")}
         >
           <Settings size={18} />
         </button>

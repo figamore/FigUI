@@ -1,3 +1,4 @@
+import { uiText as __uiText } from '../lib/i18n'
 import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown } from 'lucide-react'
 import { useResizeHandle } from '../hooks/useResizeHandle'
 
@@ -52,7 +53,7 @@ export function ResizeHandle({
           onClick={e => { e.stopPropagation(); onCollapseToggle() }}
           onMouseDown={e => e.stopPropagation()}
           tabIndex={-1}
-          aria-label={collapsed ? 'Expand panel' : 'Collapse panel'}
+          aria-label={collapsed ? __uiText("components.ResizeHandle.expand_panel.1", "Expand panel") : __uiText("components.ResizeHandle.collapse_panel.1", "Collapse panel")}
         >
           <CollapseIcon size={10} strokeWidth={2.5} />
         </button>

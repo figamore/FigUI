@@ -1,0 +1,42 @@
+{
+  "store.gcodeSender.ignored": {
+    "one": "No se enviará {count} línea ejecutable después de M2/M30.",
+    "many": "No se enviarán {count} líneas ejecutables después de M2/M30.",
+    "other": "No se enviarán {count} líneas ejecutables después de M2/M30."
+  },
+  "components.LimitsTab.active_inputs": {
+    "one": "{count} entrada activa",
+    "many": "{count} entradas activas",
+    "other": "{count} entradas activas"
+  },
+  "components.FileManager.folder_warning": {
+    "one": "\n\nEsto incluye {count} carpeta y su contenido.",
+    "many": "\n\nEsto incluye {count} carpetas y su contenido.",
+    "other": "\n\nEsto incluye {count} carpetas y su contenido."
+  },
+  "components.Macros.more_line.1": {
+    "one": "+{count} línea más",
+    "many": "+{count} líneas más",
+    "other": "+{count} líneas más"
+  },
+  "components.Macros.more_line.2": {
+    "one": "+{count} línea más",
+    "many": "+{count} líneas más",
+    "other": "+{count} líneas más"
+  },
+  "components.Macros.line.1": {
+    "one": "{count} línea",
+    "many": "{count} líneas",
+    "other": "{count} líneas"
+  },
+  "components.SettingsPanel.result.1": {
+    "one": "{count} resultado",
+    "many": "{count} resultados",
+    "other": "{count} resultados"
+  },
+  "components.SettingsPanel.save_config_prompt": {
+    "one": "Cambió la configuración. ¿Guardar este cambio en {filename}?\n\n",
+    "many": "Cambió la configuración. ¿Guardar estos cambios en {filename}?\n\n",
+    "other": "Cambió la configuración. ¿Guardar estos cambios en {filename}?\n\n"
+  }
+}

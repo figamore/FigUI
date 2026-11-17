@@ -1,3 +1,4 @@
+import { uiText as __uiText, formatUi } from '../lib/i18n'
 import { create } from 'zustand'
 import { onLine } from '../lib/ws'
 import { classifyLine } from '../lib/parser'
@@ -59,7 +60,7 @@ export const useTerminalStore = create<TerminalStore>((set, get) => ({
       // The Grbl welcome banner means the controller just reset. Keep the lines
       // before it, since they often say why, and mark the reset with the time.
       if (text.startsWith('Grbl ') && state.lines.length > 0) {
-        added.push({ id: lineId++, text: `--- Controller reset ${new Date().toLocaleTimeString()} ---`, kind: 'normal' })
+        added.push({ id: lineId++, text: formatUi(__uiText("store.terminal.template_coverage.1", "--- Controller reset {v0} ---"), { v0: new Date().toLocaleTimeString() }), kind: 'normal' })
       }
       added.push({ id: lineId++, text, kind })
       return { lines: [...state.lines, ...added].slice(-MAX_LINES) }

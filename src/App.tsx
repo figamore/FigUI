@@ -1,3 +1,4 @@
+import { uiText as __uiText } from './lib/i18n'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useMachineStore } from './store'
 import { useGCodeStore } from './store/gcode'
@@ -38,9 +39,9 @@ import { ViewportProvider, useViewportMetrics } from './lib/viewport'
 import type { TabletTabId } from './lib/tabletTabs'
 
 const SIDEBAR_TABS: { id: SidebarTab; label: string }[] = [
-  { id: 'files',   label: 'Files'   },
-  { id: 'macros',  label: 'Macros'  },
-  { id: 'plugins', label: 'Plugins' },
+  { id: 'files',   label: __uiText("App.files.1", "Files")   },
+  { id: 'macros',  label: __uiText("App.macros.1", "Macros")  },
+  { id: 'plugins', label: __uiText("App.plugins.1", "Plugins") },
 ]
 
 type MobilePanel = 'control' | 'viewer' | 'right' | 'terminal'
@@ -758,7 +759,7 @@ function AppContent() {
     return (
       <div className="fixed inset-0 flex flex-col items-center justify-center gap-4 bg-[var(--bg)]">
         <RefreshCw size={28} className="text-accent animate-spin" />
-        <span className="text-text-muted text-base">Connecting to FluidNC…</span>
+        <span className="text-text-muted text-base">{__uiText("App.connecting_to_fluidnc.1", "Connecting to FluidNC…")}</span>
         <span className="text-text-dim text-sm font-mono">{window.location.host}</span>
       </div>
     )
@@ -771,11 +772,11 @@ function AppContent() {
     return (
       <div className="fixed inset-0 flex flex-col items-center justify-center gap-4 bg-[var(--bg)]">
         <WifiOff size={28} className="text-danger" />
-        <span className="text-text-primary text-base font-medium">Could not connect</span>
+        <span className="text-text-primary text-base font-medium">{__uiText("App.could_not_connect.1", "Could not connect")}</span>
         <span className="text-danger text-sm max-w-xs text-center">{errMsg}</span>
         <span className="text-text-dim text-sm font-mono">{window.location.host}</span>
         <button className="btn-primary mt-2" onClick={retryFromError}>
-          Retry
+          {__uiText("App.retry.1", "Retry")}
         </button>
       </div>
     )
@@ -787,14 +788,15 @@ function AppContent() {
         <button
           key={tab.id}
           onClick={() => setSidebarTab(tab.id)}
-          className={`flex-1 py-2.5 text-xl font-medium uppercase tracking-wide
+          title={tab.label}
+          className={`min-w-0 flex-1 py-2.5 text-sm xl:text-base font-medium uppercase tracking-wide
                       transition-colors border-b-2 -mb-px ${
             sidebarTab === tab.id
               ? 'border-accent text-accent'
               : 'border-transparent text-text-muted'
           }`}
         >
-          {tab.label}
+          <span className="block truncate">{tab.label}</span>
         </button>
       ))}
     </div>
@@ -804,20 +806,20 @@ function AppContent() {
     <div className="mx-4 w-full max-w-md rounded-lg border border-warn/40 bg-surface px-4 py-3.5 shadow-2xl">
       <div className="flex items-center gap-2 text-warn font-semibold">
         <AlertTriangle size={17} className="shrink-0" />
-        Local job interrupted
+        {__uiText("App.local_job_interrupted.1", "Local job interrupted")}
       </div>
       {senderFileName && <div className="mt-2 truncate font-mono text-sm text-text-primary">{senderFileName}</div>}
       <div className="mt-2 text-sm text-text-primary">
         {senderFailureLineSource === 'position' ? (
-          <>Suggested recovery line: <span className="font-mono font-semibold text-accent">{senderFailureLine}</span></>
+          <>{__uiText("App.suggested_recovery_line.1", "Suggested recovery line:")} <span className="font-mono font-semibold text-accent">{senderFailureLine}</span></>
         ) : (
-          <>Last acknowledged line: <span className="font-mono font-semibold">{senderFailureLine}</span></>
+          <>{__uiText("App.last_acknowledged_line.1", "Last acknowledged line:")} <span className="font-mono font-semibold">{senderFailureLine}</span></>
         )}
       </div>
       <p className="mt-1.5 text-xs leading-relaxed text-text-muted">
         {senderFailureLineSource === 'position'
-          ? 'Keep this page open. After reconnecting, review this line against the machine’s actual stop position before preparing a restart.'
-          : 'Execution position was unavailable, so this is not a safe restart suggestion. Keep this page open until the controller reconnects.'}
+          ? __uiText("App.keep_this_page_open_after_reconnect.1", "Keep this page open. After reconnecting, review this line against the machine’s actual stop position before preparing a restart.")
+          : __uiText("App.execution_position_was_unavailable_.1", "Execution position was unavailable, so this is not a safe restart suggestion. Keep this page open until the controller reconnects.")}
       </p>
       {senderError && <div className="mt-2 border-t border-border pt-2 font-mono text-[11px] text-text-dim">{senderError}</div>}
     </div>
@@ -833,15 +835,15 @@ function AppContent() {
         <div className="fixed md:absolute inset-0 z-[120] bg-[color-mix(in_srgb,var(--bg)_80%,transparent)] backdrop-blur-sm
                         flex flex-col items-center justify-center gap-3">
           <RefreshCw size={24} className="text-accent animate-spin" />
-          <span className="text-text-primary text-base font-medium">Restarting controller…</span>
-          <span className="text-text-muted text-sm">Waiting for FluidNC to come back online</span>
+          <span className="text-text-primary text-base font-medium">{__uiText("App.restarting_controller.1", "Restarting controller…")}</span>
+          <span className="text-text-muted text-sm">{__uiText("App.waiting_for_fluidnc_to_come_back_on.1", "Waiting for FluidNC to come back online")}</span>
           {streamRecoveryNotice}
         </div>
       ) : showReconnectOverlay && (
         <div className="fixed md:absolute inset-0 z-[120] bg-[color-mix(in_srgb,var(--bg)_80%,transparent)] backdrop-blur-sm
                         flex flex-col items-center justify-center gap-3">
           <RefreshCw size={24} className="text-accent animate-spin" />
-          <span className="text-text-muted text-base">Reconnecting…</span>
+          <span className="text-text-muted text-base">{__uiText("App.reconnecting.1", "Reconnecting…")}</span>
           {streamRecoveryNotice}
         </div>
       )}
@@ -905,12 +907,12 @@ function AppContent() {
         )}
       </div>}
 
-      {!fullPlugin && activeLayout === 'mobile' && <nav className="fixed bottom-0 left-0 right-0 z-40 h-16 bg-surface border-t border-border flex items-stretch">
+      {!fullPlugin && activeLayout === 'mobile' && <nav dir="ltr" className="fixed bottom-0 left-0 right-0 z-40 h-16 bg-surface border-t border-border flex items-stretch">
         {([
-          { id: 'control'  as MobilePanel, Icon: Crosshair,    label: 'Control' },
-          { id: 'viewer'   as MobilePanel, Icon: Monitor,      label: 'Viewer'  },
-          { id: 'right'    as MobilePanel, Icon: FolderOpen,   label: 'Files'   },
-          { id: 'terminal' as MobilePanel, Icon: TerminalSquare, label: 'Term'  },
+          { id: 'control'  as MobilePanel, Icon: Crosshair,    label: __uiText("App.control.1", "Control") },
+          { id: 'viewer'   as MobilePanel, Icon: Monitor,      label: __uiText("App.viewer.1", "Viewer")  },
+          { id: 'right'    as MobilePanel, Icon: FolderOpen,   label: __uiText("App.files.2", "Files")   },
+          { id: 'terminal' as MobilePanel, Icon: TerminalSquare, label: __uiText("App.terminal_short.1", "Term")  },
         ] as const).map(({ id, Icon, label }) => (
           <button
             key={id}
@@ -991,15 +993,15 @@ function AppContent() {
                           shadow-2xl flex flex-col overflow-hidden animate-in">
             <div className="flex items-center gap-3 px-5 py-4 border-b border-border">
               <AlertTriangle size={20} className="text-red-400 shrink-0" />
-              <h2 className="text-2xl font-semibold text-text-primary flex-1">Configuration Errors</h2>
+              <h2 className="text-2xl font-semibold text-text-primary flex-1">{__uiText("App.configuration_errors.1", "Configuration Errors")}</h2>
               <button
                 onClick={() => setStartupErrorsOpen(false)}
                 className="text-text-muted hover:text-text-primary transition-colors"
-                aria-label="Dismiss"
+                aria-label={__uiText("App.dismiss.1", "Dismiss")}
               >✕</button>
             </div>
             <p className="px-5 pt-4 pb-2 text-xl text-text-muted">
-              FluidNC reported the following errors while loading <code className="text-text-primary">config.yaml</code>:
+              {__uiText("App.fluidnc_reported_the_following_erro.1", "FluidNC reported the following errors while loading")} <code className="text-text-primary">config.yaml</code>:
             </p>
             <div className="px-5 pb-5 flex flex-col gap-2 overflow-y-auto max-h-72">
               {startupErrors.map((line, i) => (
@@ -1013,7 +1015,7 @@ function AppContent() {
                 onClick={() => setStartupErrorsOpen(false)}
                 className="px-4 py-2 text-base font-medium bg-accent text-white rounded hover:opacity-90 transition-opacity"
               >
-                Dismiss
+                {__uiText("App.dismiss.2", "Dismiss")}
               </button>
             </div>
           </div>

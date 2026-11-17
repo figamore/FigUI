@@ -1,0 +1,26 @@
+{
+  "store.gcodeSender.ignored": {
+    "other": "M2/M30 以降の実行可能な行は {count} 行送信されません。"
+  },
+  "components.LimitsTab.active_inputs": {
+    "other": "アクティブな入力: {count} 件"
+  },
+  "components.FileManager.folder_warning": {
+    "other": "\n\n{count} 個のフォルダーとその内容が含まれます。"
+  },
+  "components.Macros.more_line.1": {
+    "other": "他 {count} 行"
+  },
+  "components.Macros.more_line.2": {
+    "other": "他 {count} 行"
+  },
+  "components.Macros.line.1": {
+    "other": "{count} 行"
+  },
+  "components.SettingsPanel.result.1": {
+    "other": "{count} 件"
+  },
+  "components.SettingsPanel.save_config_prompt": {
+    "other": "機械の設定が変更されました。この変更を {filename} に保存しますか？\n\n"
+  }
+}

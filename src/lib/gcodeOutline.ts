@@ -1,3 +1,4 @@
+import { uiText as __uiText } from './i18n'
 import { MOVE_FEED, type GCodeModel, type Segment, type SegmentTable } from './gcode'
 import { getArcGeometry, getArcPoint, type ArcGeometry } from './gcodeBuild'
 import { linearUnitLabel, mmToDisplay } from './units'
@@ -82,7 +83,7 @@ export function buildFramingGCode(model: GCodeModel, options: FramingOptions): s
   }
 
   const frameZ = envelope.topZ + options.clearanceMm
-  if (!Number.isFinite(options.travelZMm)) throw new Error('Safe travel height must be valid.')
+  if (!Number.isFinite(options.travelZMm)) throw new Error(__uiText("lib.gcodeOutline.notice.1", "Safe travel height must be valid."))
   if (options.travelZMm < frameZ) {
     const units = options.displayUnits ?? 'mm'
     const unit = linearUnitLabel(units)

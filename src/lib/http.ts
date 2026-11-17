@@ -1,3 +1,4 @@
+import { uiText as __uiText, formatUi } from './i18n'
 import { getPageId } from './ws'
 import { invalidateCachedGCode } from './gcodeCache'
 import type { FileListResult, Macro } from '../types'
@@ -40,12 +41,12 @@ export function putUiFile(name: string, data: Blob, onProgress?: (pct: number) =
     }
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) resolve()
-      else if (xhr.status === 503) reject(new Error('Cannot save while the machine is moving'))
-      else reject(new Error(`Upload ${xhr.status}`))
+      else if (xhr.status === 503) reject(new Error(__uiText("lib.http.coverage.1", "Cannot save while the machine is moving")))
+      else reject(new Error(formatUi(__uiText("lib.http.upload_status.1", "Upload {status}"), { status: xhr.status })))
     }
-    xhr.onerror = () => reject(new Error('Upload failed'))
-    xhr.onabort = () => reject(new Error('Upload cancelled'))
-    xhr.ontimeout = () => reject(new Error('Upload timed out'))
+    xhr.onerror = () => reject(new Error(__uiText("lib.http.coverage.2", "Upload failed")))
+    xhr.onabort = () => reject(new Error(__uiText("lib.http.coverage.3", "Upload cancelled")))
+    xhr.ontimeout = () => reject(new Error(__uiText("lib.http.coverage.4", "Upload timed out")))
     xhr.timeout = Math.max(120_000, Math.ceil(data.size / 65_536) * 1_000)
     xhr.open('PUT', `${base}${uiDir}${name}`)
     xhr.send(data)
@@ -54,7 +55,7 @@ export function putUiFile(name: string, data: Blob, onProgress?: (pct: number) =
 
 export class WebUIBlockedError extends Error {
   constructor() {
-    super('Cannot load WebUI while GCode Program is Running')
+    super(__uiText("lib.http.system_coverage.1", "Cannot load WebUI while GCode Program is Running"))
     this.name = 'WebUIBlockedError'
   }
 }
@@ -348,16 +349,16 @@ export function uploadFile(
 
       xhr.onload = () => {
         if (xhr.status >= 300) {
-          finish(new Error(`Upload ${xhr.status}`))
+          finish(new Error(formatUi(__uiText("lib.http.upload_status.2", "Upload {status}"), { status: xhr.status })))
           return
         }
         const statusError = uploadStatusError(xhr.responseText)
         finish(statusError ? new Error(statusError) : undefined)
       }
-      xhr.onerror = () => finish(new Error('Upload failed'))
+      xhr.onerror = () => finish(new Error(__uiText("lib.http.coverage.5", "Upload failed")))
       xhr.onabort = () => finish(new Error(stalled
-        ? `Upload stalled: no data moved for ${UPLOAD_STALL_TIMEOUT_MS / 1000} s`
-        : 'Upload cancelled'))
+        ? formatUi(__uiText("lib.http.stalled.1", "Upload stalled: no data moved for {seconds} s"), { seconds: UPLOAD_STALL_TIMEOUT_MS / 1000 })
+        : __uiText("lib.http.coverage.6", "Upload cancelled")))
       xhr.open('POST', `${base}${fsEndpoint(fs)}`)
       xhr.send(fd)
     })
@@ -400,7 +401,7 @@ export function downloadFile(fullPath: string, filename: string, fs: Filesystem)
         cache: 'no-store',
         signal: controller.signal,
       })
-      if (!res.ok) throw new Error(`Download failed (${res.status})`)
+      if (!res.ok) throw new Error(formatUi(__uiText("lib.http.template_coverage.1", "Download failed ({v0})"), { v0: res.status }))
 
       objectUrl = URL.createObjectURL(await res.blob())
       const link = document.createElement('a')
@@ -410,7 +411,7 @@ export function downloadFile(fullPath: string, filename: string, fs: Filesystem)
       link.click()
       link.remove()
     } catch (error) {
-      if (timedOut) throw new Error('Download timed out')
+      if (timedOut) throw new Error(__uiText("lib.http.coverage.7", "Download timed out"))
       throw error
     } finally {
       clearTimeout(timer)
@@ -455,7 +456,7 @@ export async function replaceFileContent(
     const names = new Set((await listFiles(path, fs)).files.map(file => file.name))
     if (!names.has(temporary) && names.has(filename)) return
     if (!names.has(filename)) throw e
-    if (names.has(backup)) throw new Error(`${backup} is left from an earlier save; ${filename} was not changed`)
+    if (names.has(backup)) throw new Error(formatUi(__uiText("lib.http.template_coverage.2", "{v0} is left from an earlier save; {v1} was not changed"), { v0: backup, v1: filename }))
   }
   await renameFile(path, filename, backup, fs)
   try {
@@ -493,7 +494,7 @@ export function uploadFirmware(
     let lastMoveTime = Date.now()
     const stallTimer = setInterval(() => {
       if (Date.now() - lastMoveTime > 30_000)
-        settle(() => { xhr.abort(); reject(new Error('Upload stalled — no progress for 30 s. The device may be busy; try again.')) })
+        settle(() => { xhr.abort(); reject(new Error(__uiText("lib.http.coverage.8", "Upload stalled — no progress for 30 s. The device may be busy; try again."))) })
     }, 5_000)
 
     if (onProgress) {
@@ -509,14 +510,14 @@ export function uploadFirmware(
     // too large) and puts the result in the JSON status: "3" means flashed,
     // any other number means the old firmware is still running.
     xhr.onload    = () => settle(() => {
-      if (xhr.status >= 300) return reject(new Error(`Upload failed (${xhr.status})`))
+      if (xhr.status >= 300) return reject(new Error(formatUi(__uiText("lib.http.template_coverage.3", "Upload failed ({v0})"), { v0: xhr.status })))
       const status = uploadStatusError(xhr.responseText)
       if (status && /^\d+$/.test(status) && status !== '3')
-        return reject(new Error('The controller rejected the firmware image; the current firmware is still running.'))
+        return reject(new Error(__uiText("lib.http.coverage.9", "The controller rejected the firmware image; the current firmware is still running.")))
       resolve()
     })
-    xhr.onerror   = () => settle(() => reject(new Error('Upload failed')))
-    xhr.ontimeout = () => settle(() => reject(new Error('Upload timed out')))
+    xhr.onerror   = () => settle(() => reject(new Error(__uiText("lib.http.coverage.10", "Upload failed"))))
+    xhr.ontimeout = () => settle(() => reject(new Error(__uiText("lib.http.coverage.11", "Upload timed out"))))
     xhr.onabort   = () => settle(() => {})
     xhr.timeout   = 120_000
     xhr.open('POST', `${base}/updatefw`)

@@ -52,11 +52,10 @@ jobs:
       - name: Run tests
         run: npm test
 
-      - name: Build ESP32 firmware
-        run: npm run build:esp32
-
-      - name: Save firmware gz
-        run: cp dist/index.html.gz /tmp/index.html.gz
+      - name: Build each enabled UI language
+        run: node scripts/build-release-languages.mjs
+        env:
+          FIGUI_RELEASE_DIR: /tmp/figui-firmware
 
       - name: Build demo
         run: npm run build:demo
@@ -68,7 +67,13 @@ jobs:
         run: node scripts/prepare-config-studio-pages.mjs
 
       - name: Add firmware to Pages output
-        run: mkdir -p dist/firmware && cp /tmp/index.html.gz dist/firmware/index.html.gz
+        env:
+          RELEASE_VERSION: ${{ github.event.inputs.version }}
+        run: |
+          [[ "$RELEASE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || exit 1
+          mkdir -p "dist/firmware/v$RELEASE_VERSION"
+          cp /tmp/figui-firmware/*.gz "dist/firmware/v$RELEASE_VERSION/"
+          cp /tmp/figui-firmware/index.html.gz dist/firmware/index.html.gz
 
       - name: Tag version
         run: |
@@ -91,6 +96,6 @@ jobs:
         with:
           tag_name: "v${{ github.event.inputs.version }}"
           name: "v${{ github.event.inputs.version }}"
-          files: /tmp/index.html.gz
+          files: /tmp/figui-firmware/*.gz
           body: ${{ toJSON(github.event.inputs.notes) }}
           generate_release_notes: true

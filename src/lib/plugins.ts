@@ -1,10 +1,11 @@
+import { uiText as __uiText, formatUi } from './i18n'
 import { listFiles, fetchFileContent, getBase, createDir, deleteFile, deleteDir, uploadFile } from './http'
 import type { Plugin, PluginManifest, StoreEntry } from '../types'
 
 const PLUGINS_PATH = '/plugins'
 /** Where the host's saveSettings stores a plugin's settings, inside its folder. */
 const PLUGIN_SETTINGS_FILE = 'settings.json'
-export const PLUGIN_SD_REQUIRED_MESSAGE = 'Plugins can only be installed on SD storage. Please insert an SD card and try again.'
+export const PLUGIN_SD_REQUIRED_MESSAGE = __uiText("lib.plugins.coverage.1", "Plugins can only be installed on SD storage. Please insert an SD card and try again.")
 
 export const STORE_REGISTRY_URL = import.meta.env.DEV
   ? '/plugins/registry.json'
@@ -61,15 +62,15 @@ export async function uploadFolderPlugin(
   const all = Array.from(files)
 
   const manifestFile = all.find(f => f.name === 'plugin.json')
-  if (!manifestFile) throw new Error('No plugin.json found in folder root')
+  if (!manifestFile) throw new Error(__uiText("lib.plugins.coverage.2", "No plugin.json found in folder root"))
 
   let manifest: PluginManifest
   try {
     manifest = JSON.parse(await manifestFile.text())
   } catch {
-    throw new Error('plugin.json is not valid JSON')
+    throw new Error(__uiText("lib.plugins.coverage.3", "plugin.json is not valid JSON"))
   }
-  if (!manifest.name) throw new Error('plugin.json must have a "name" field')
+  if (!manifest.name) throw new Error(__uiText("lib.plugins.coverage.4", "plugin.json must have a \"name\" field"))
 
   const firstPath = all[0]?.webkitRelativePath ?? ''
   const folderName = firstPath.includes('/')
@@ -103,7 +104,7 @@ export async function installStorePlugin(
   options: { cleanExisting?: boolean } = {},
 ): Promise<void> {
   const manifestRes = await fetch(entry.base + 'plugin.json')
-  if (!manifestRes.ok) throw new Error(`Failed to fetch plugin.json: HTTP ${manifestRes.status}`)
+  if (!manifestRes.ok) throw new Error(formatUi(__uiText("lib.plugins.template_coverage.1", "Failed to fetch plugin.json: HTTP {v0}"), { v0: manifestRes.status }))
   const manifest: PluginManifest = await manifestRes.json()
   const files: string[] = manifest.files?.length
     ? ['plugin.json', ...manifest.files.filter(f => f !== 'plugin.json')]
@@ -130,7 +131,7 @@ export async function installStorePlugin(
   const blobs: Blob[] = []
   for (const filename of downloads) {
     const res = await fetch(entry.base + filename)
-    if (!res.ok) throw new Error(`Failed to fetch ${filename}: HTTP ${res.status}`)
+    if (!res.ok) throw new Error(formatUi(__uiText("lib.plugins.template_coverage.2", "Failed to fetch {v0}: HTTP {v1}"), { v0: filename, v1: res.status }))
     blobs.push(await res.blob())
   }
 
@@ -167,6 +168,6 @@ export async function fetchRegistry(): Promise<StoreEntry[]> {
   const res = await fetch(STORE_REGISTRY_URL)
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
   const data = await res.json()
-  if (!Array.isArray(data?.plugins)) throw new Error('Invalid registry format')
+  if (!Array.isArray(data?.plugins)) throw new Error(__uiText("lib.plugins.coverage.5", "Invalid registry format"))
   return data.plugins as StoreEntry[]
 }

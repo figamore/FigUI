@@ -52,14 +52,26 @@ jobs:
       - name: Preserve firmware from latest release
         run: |
           mkdir -p dist/firmware
-          ASSET_URL=$(gh api repos/${{ github.repository }}/releases/latest \
-            --jq '.assets[] | select(.name == "index.html.gz") | .browser_download_url' 2>/dev/null || echo "")
-          if [ -n "$ASSET_URL" ]; then
-            curl -fsSL "$ASSET_URL" -o dist/firmware/index.html.gz
-            echo "Firmware preserved from latest release."
-          else
-            echo "No firmware release found, skipping."
+          if ! RELEASE=$(gh api "repos/${{ github.repository }}/releases/latest"); then
+            echo "Cannot restore the latest UI release; refusing to remove published downloads." >&2
+            exit 1
           fi
+          VERSION=$(printf '%s' "$RELEASE" | jq -r .tag_name)
+          [[ "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || exit 1
+          mkdir -p "dist/firmware/$VERSION"
+          HAS_LOCALIZED=$(printf '%s' "$RELEASE" | jq '[.assets[].name | select(test("^index\\.[A-Za-z0-9-]+\\.html\\.gz$"))] | length')
+          for LOCALE in $(node --input-type=module -e 'import { enabledLanguages } from "./scripts/languages.mjs"; console.log(enabledLanguages().map(x => x.code).join(" "))'); do
+            NAME="index.$LOCALE.html.gz"
+            if [ "$LOCALE" = en ]; then NAME=index.html.gz; fi
+            URL=$(printf '%s' "$RELEASE" | jq -r --arg name "$NAME" '.assets[] | select(.name == $name) | .browser_download_url')
+            if [ -n "$URL" ]; then
+              curl -fsSL "$URL" -o "dist/firmware/$VERSION/$NAME"
+            elif [ "$LOCALE" = en ] || [ "$HAS_LOCALIZED" -gt 0 ]; then
+              echo "Required $LOCALE UI is missing from the latest release" >&2
+              exit 1
+            fi
+          done
+          cp "dist/firmware/$VERSION/index.html.gz" dist/firmware/index.html.gz
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

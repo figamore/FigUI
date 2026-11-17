@@ -1,3 +1,4 @@
+import { uiText as __uiText, formatUi } from '../lib/i18n'
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { RotateCcw, Play, Square, ArrowLeft } from 'lucide-react'
 import { useMachineStore } from '../store'
@@ -119,7 +120,7 @@ function FineJogButton({ fine, onToggle, className }: { fine: boolean; onToggle:
     <button
       type="button"
       aria-pressed={fine}
-      title={fine ? 'Fine jog ON: the 0.1 mm step moves 0.01 mm' : 'Fine jog: make the 0.1 mm step 0.01 mm'}
+      title={fine ? __uiText("components.JogPad.fine_jog_on_the_0_1_mm_step_moves_0.1", "Fine jog ON: the 0.1 mm step moves 0.01 mm") : __uiText("components.JogPad.fine_jog_make_the_0_1_mm_step_0_01_.1", "Fine jog: make the 0.1 mm step 0.01 mm")}
       onClick={onToggle}
       className={`${className} font-bold transition-all ${
         fine
@@ -127,7 +128,7 @@ function FineJogButton({ fine, onToggle, className }: { fine: boolean; onToggle:
           : 'text-text-muted hover:text-text-primary'
       }`}
     >
-      Fine
+      {__uiText("components.JogPad.fine.1", "Fine")}
     </button>
   )
 }
@@ -479,7 +480,7 @@ function JogRose({ xyFeed, continuous, disabled, isJogging, activeKeys, units, f
       ) : continuous && (hover && !hover.startsWith('c:') && hover !== 'home') || (activeKeys && activeKeys.size > 0 && [...activeKeys].some(k => k[0] !== 'Z')) ? (
         <text x="0" y="1" textAnchor="middle" dominantBaseline="middle"
           fill={DIRS.find(d => d.axis === hAxis)?.color ?? 'var(--accent)'}
-          fontSize="8" fontWeight="700" pointerEvents="none">HOLD</text>
+          fontSize="8" fontWeight="700" pointerEvents="none">{__uiText("components.JogPad.hold.1", "HOLD")}</text>
       ) : (
         <g pointerEvents="none" opacity="0.35">
           <line x1="-8" y1="0" x2="8" y2="0" stroke="var(--text-muted)" strokeWidth="1.5" strokeLinecap="round" />
@@ -611,7 +612,7 @@ function OverrideRow({ label, value, maxValue = 200, onMinus, onReset, onPlus, i
     <div className={`flex items-center ${isTablet ? 'gap-3 py-2' : 'gap-1.5'}`}>
       <span className={`text-text-muted ${isTablet ? 'font-bold' : 'font-medium'} shrink-0 ${isTablet ? 'text-xl w-24' : 'text-lg w-20'}`}>{label}</span>
       <button className={`${isTablet ? 'w-12 h-12 rounded-lg' : 'w-6 h-6 rounded'} border border-border text-text-muted hover:text-text-primary
-                         hover:bg-elevated flex items-center justify-center`} onClick={onReset} title="Reset to 100%">
+                         hover:bg-elevated flex items-center justify-center`} onClick={onReset} title={__uiText("components.JogPad.reset_to_100.1", "Reset to 100%")}>
         <RotateCcw className={isTablet ? 'w-5 h-5' : 'w-3 h-3'} />
       </button>
       <button className={`${isTablet ? 'w-12 h-12 rounded-lg text-2xl' : 'w-6 h-6 rounded text-base'} border border-border text-text-muted hover:text-text-primary
@@ -742,7 +743,7 @@ function FeedButton({
                   onClick={commitCustom}
                   disabled={!((parseDecimalInput(customValue) ?? 0) > 0)}
                 >
-                  Set
+                  {__uiText("components.JogPad.set.1", "Set")}
                 </button>
               </div>
             ) : (
@@ -750,7 +751,7 @@ function FeedButton({
                 className="w-full px-3 py-1.5 text-left text-base text-text-muted hover:text-text-primary hover:bg-elevated border-t border-border transition-colors"
                 onClick={openCustom}
               >
-                Custom…
+                {__uiText("components.JogPad.custom.1", "Custom…")}
               </button>
             )
           )}
@@ -1036,27 +1037,27 @@ export function JogPad() {
             localStorage.setItem('jog.desktopStyle', 'rose')
           }} />
         : !jobRunning && <div ref={jogPanelRef} className="panel flex flex-col">
-              <div className="panel-header flex items-center justify-between text-lg font-bold">
-                <span>Jog</span>
-                <div className="inline-flex rounded border border-border overflow-hidden">
+              <div className="panel-header flex flex-wrap items-center justify-between text-lg font-bold">
+                <span>{__uiText("components.JogPad.jog.1", "Jog")}</span>
+                <div className="inline-flex max-w-full flex-wrap rounded border border-border">
                     <button className={`px-2 py-0.5 text-base font-bold transition-all ${
                       !continuous ? 'bg-accent/15 text-accent' : 'bg-transparent text-text-muted hover:text-text-primary'
-                    }`} onClick={() => setContinuous(false)}>Step</button>
+                    }`} onClick={() => setContinuous(false)}>{__uiText("components.JogPad.step.1", "Step")}</button>
                     <button className={`px-2 py-0.5 text-base font-bold border-l border-border transition-all ${
                       continuous ? 'bg-accent/15 text-accent' : 'bg-transparent text-text-muted hover:text-text-primary'
-                    }`} onClick={() => setContinuous(true)}>Continuous</button>
+                    }`} onClick={() => setContinuous(true)}>{__uiText("components.JogPad.continuous.1", "Continuous")}</button>
                     <button className="px-2 py-0.5 text-base font-bold border-l border-border transition-all bg-transparent text-text-muted hover:text-text-primary" onClick={() => {
                       setCompact(true)
                       localStorage.setItem('jog.desktopStyle', 'compact')
-                    }}>Compact</button>
+                    }}>{__uiText("components.JogPad.compact.1", "Compact")}</button>
                   </div>
               </div>
               <div className="flex flex-col p-3 gap-3">
 
-                <div className="relative flex items-center justify-center gap-3 shrink-0">
+                <div dir="ltr" className="relative flex items-center justify-center gap-3 shrink-0">
                   {continuous && (
                     <button
-                      title={keyboardJog ? 'Keyboard jog ON — Arrows: X/Y · −/+: Z' : 'Enable keyboard jogging'}
+                      title={keyboardJog ? __uiText("components.JogPad.keyboard_jog_on_arrows_x_y_z.1", "Keyboard jog ON — Arrows: X/Y · −/+: Z") : __uiText("components.JogPad.enable_keyboard_jogging.1", "Enable keyboard jogging")}
                       onClick={() => setKeyboardJog(k => !k)}
                       className={`absolute top-0 left-0 flex items-center justify-center w-7 h-7 rounded border transition-all ${
                         keyboardJog
@@ -1120,8 +1121,8 @@ export function JogPad() {
                 <div className="text-center text-base text-text-dim leading-tight">
                   {continuous
                     ? keyboardJog
-                      ? 'Arrows: X/Y · −/+: Z · Hold to jog'
-                      : <>Hold to jog · <button className="underline hover:text-text-primary transition-colors" onClick={() => setKeyboardJog(true)}>enable keyboard</button></>
+                      ? __uiText("components.JogPad.arrows_x_y_z_hold_to_jog.1", "Arrows: X/Y · −/+: Z · Hold to jog")
+                      : <>{__uiText("components.JogPad.hold_to_jog.1", "Hold to jog ·")} <button className="underline hover:text-text-primary transition-colors" onClick={() => setKeyboardJog(true)}>{__uiText("components.JogPad.enable_keyboard.1", "enable keyboard")}</button></>
                     : ''
                   }
                 </div>
@@ -1131,11 +1132,11 @@ export function JogPad() {
   }
 
       <div className="panel flex flex-col">
-        <div className="panel-header text-lg font-bold">Overrides</div>
+        <div className="panel-header text-lg font-bold">{__uiText("components.JogPad.overrides.1", "Overrides")}</div>
         <div className="flex flex-col p-3 gap-2">
-          <OverrideRow label="Feed" value={status.feedOverride}
+          <OverrideRow label={__uiText("components.JogPad.prop_label.1", "Feed")} value={status.feedOverride}
             onMinus={() => sendRealtime(0x92)} onReset={() => sendRealtime(0x90)} onPlus={() => sendRealtime(0x91)} />
-          <OverrideRow label="Rapid" value={status.rapidOverride} maxValue={100}
+          <OverrideRow label={__uiText("components.JogPad.prop_label.2", "Rapid")} value={status.rapidOverride} maxValue={100}
             onMinus={() => sendRealtime(status.rapidOverride >= 100 ? 0x96 : 0x97)}
             onReset={() => sendRealtime(0x95)}
             onPlus={() => sendRealtime(status.rapidOverride <= 25 ? 0x96 : 0x95)} />
@@ -1144,7 +1145,7 @@ export function JogPad() {
 
       {spindleMax ? <div className="panel flex flex-col">
         <div className="panel-header">
-          <span className='text-lg font-bold'>Spindle</span>
+          <span className='text-lg font-bold'>{__uiText("components.JogPad.spindle.1", "Spindle")}</span>
           {(() => {
             const actualRpm = Math.round(status.spindle * status.spindleOverride / 100)
             return (
@@ -1156,7 +1157,7 @@ export function JogPad() {
                 {spindleActive && (
                   <div className="w-1.5 h-1.5 rounded-full bg-ok animate-pulse" />
                 )}
-                {spindleActive ? `${actualRpm} RPM` : 'STOPPED'}
+                {spindleActive ? `${actualRpm} RPM` : __uiText("components.JogPad.stopped.1", "STOPPED")}
                 {spindleActive && status.spindleOverride !== 100 && (
                   <span className="opacity-60">(cmd: {status.spindle})</span>
                 )}
@@ -1200,7 +1201,7 @@ export function JogPad() {
             ))}
           </div>
 
-          <OverrideRow label="Override" value={status.spindleOverride}
+          <OverrideRow label={__uiText("components.JogPad.prop_label.3", "Override")} value={status.spindleOverride}
             onMinus={() => sendRealtime(0x9B)} onReset={() => sendRealtime(0x99)} onPlus={() => sendRealtime(0x9A)} />
 
           {spindleActive ? (
@@ -1211,7 +1212,7 @@ export function JogPad() {
               className="btn w-full justify-center bg-danger/20 hover:bg-danger/30 text-danger border-danger/50"
             >
               <Square className="w-3.5 h-3.5 shrink-0 fill-current" />
-              Stop Spindle
+              {__uiText("components.JogPad.stop_spindle.1", "Stop Spindle")}
             </button>
           ) : laserMode ? (
             <LaserModeNote />
@@ -1223,7 +1224,7 @@ export function JogPad() {
               className="btn w-full gap-1.5 justify-center bg-ok/20 hover:bg-ok/30 text-ok border-ok/50"
             >
               <Play className="w-3.5 h-3.5 shrink-0 fill-current" />
-              Start Spindle (CW)
+              {__uiText("components.JogPad.start_spindle_cw.1", "Start Spindle (CW)")}
             </button>
           )}
 
@@ -1238,7 +1239,7 @@ export function JogPad() {
 function LaserModeNote() {
   return (
     <p className="text-sm text-text-dim text-center">
-      Laser mode ($32=1): start the laser from a program.
+      {__uiText("components.JogPad.laser_mode_32_1_start_the_laser_fro.1", "Laser mode ($32=1): start the laser from a program.")}
     </p>
   )
 }
@@ -1302,7 +1303,7 @@ export function SpindlePanel({ className, isTablet }: { className?: string; isTa
               {spindleActive && (
                 <div className="w-1.5 h-1.5 rounded-full bg-ok animate-pulse" />
               )}
-              {spindleActive ? `${actualRpm} RPM` : 'STOPPED'}
+              {spindleActive ? `${actualRpm} RPM` : __uiText("components.JogPad.stopped.2", "STOPPED")}
               {spindleActive && status.spindleOverride !== 100 && (
                 <span className="opacity-60">(cmd: {status.spindle})</span>
               )}
@@ -1346,7 +1347,7 @@ export function SpindlePanel({ className, isTablet }: { className?: string; isTa
             ))}
           </div>
 
-          <OverrideRow label="Override" value={status.spindleOverride} isTablet={isTablet}
+          <OverrideRow label={__uiText("components.JogPad.prop_label.4", "Override")} value={status.spindleOverride} isTablet={isTablet}
             onMinus={() => sendRealtime(0x9B)} onReset={() => sendRealtime(0x99)} onPlus={() => sendRealtime(0x9A)} />
 
           {spindleActive ? (
@@ -1357,7 +1358,7 @@ export function SpindlePanel({ className, isTablet }: { className?: string; isTa
               className={`btn w-full justify-center bg-danger/20 hover:bg-danger/30 text-danger border-danger/50 ${isTablet ? 'h-12 text-lg' : ''}`}
             >
               <Square className={`${isTablet ? 'w-4 h-4' : 'w-3.5 h-3.5'} shrink-0 fill-current`} />
-              Stop Spindle
+              {__uiText("components.JogPad.stop_spindle.2", "Stop Spindle")}
             </button>
           ) : laserMode ? (
             <LaserModeNote />
@@ -1369,7 +1370,7 @@ export function SpindlePanel({ className, isTablet }: { className?: string; isTa
               className={`btn w-full gap-1.5 justify-center bg-ok/20 hover:bg-ok/30 text-ok border-ok/50 ${isTablet ? 'h-12 text-lg' : ''}`}
             >
               <Play className={`${isTablet ? 'w-4 h-4' : 'w-3.5 h-3.5'} shrink-0 fill-current`} />
-              Start Spindle (CW)
+              {__uiText("components.JogPad.start_spindle_cw.2", "Start Spindle (CW)")}
             </button>
           )}
 
@@ -1383,12 +1384,12 @@ export function OverridesPanel({ className, isTablet }: { className?: string; is
   return (
     <div className={`flex flex-col ${className ?? ''}`}>
       <div className="panel-header w-full flex items-center justify-between px-4 py-2 border-b border-border bg-surface/80 text-base uppercase tracking-wide">
-        <span className="text-xl uppercase tracking-wide">Overrides</span>
+        <span className="text-xl uppercase tracking-wide">{__uiText("components.JogPad.overrides.2", "Overrides")}</span>
       </div>
       <div className={`flex flex-col p-3 ${isTablet ? 'gap-3' : 'gap-2'}`}>
-          <OverrideRow label="Feed" value={status.feedOverride} isTablet={isTablet}
+          <OverrideRow label={__uiText("components.JogPad.prop_label.5", "Feed")} value={status.feedOverride} isTablet={isTablet}
             onMinus={() => sendRealtime(0x92)} onReset={() => sendRealtime(0x90)} onPlus={() => sendRealtime(0x91)} />
-          <OverrideRow label="Rapid" value={status.rapidOverride} maxValue={100} isTablet={isTablet}
+          <OverrideRow label={__uiText("components.JogPad.prop_label.6", "Rapid")} value={status.rapidOverride} maxValue={100} isTablet={isTablet}
             onMinus={() => sendRealtime(status.rapidOverride >= 100 ? 0x96 : 0x97)}
             onReset={() => sendRealtime(0x95)}
             onPlus={() => sendRealtime(status.rapidOverride <= 25 ? 0x96 : 0x95)} />
@@ -1412,10 +1413,10 @@ function CompactRotaryJogControls({ axis, color, feed, step, continuous, disable
     <>
       <button {...tabletJogPointerHandlers(negative.start, negative.stop, continuous)}
         className="jog-cluster-btn" style={{ color }}
-        disabled={disabled} aria-label={`Jog ${axis} negative`}>{axis}-</button>
+        disabled={disabled} aria-label={formatUi(__uiText("components.JogPad.dynamic.1", "Jog {v0} negative"), { v0: axis })}>{axis}-</button>
       <button {...tabletJogPointerHandlers(positive.start, positive.stop, continuous)}
         className="jog-cluster-btn" style={{ color }}
-        disabled={disabled} aria-label={`Jog ${axis} positive`}>{axis}+</button>
+        disabled={disabled} aria-label={formatUi(__uiText("components.JogPad.dynamic.2", "Jog {v0} positive"), { v0: axis })}>{axis}+</button>
     </>
   )
 }
@@ -1508,8 +1509,8 @@ export function TabletJogPad({
   const { start: startZm, stop: stopZm } = useHoldJog('Z', -1, zFeed, commandStepSize, continuous, jogDisabled)
 
   const stepBtnClass = topBand
-    ? 'flex-1 px-1 py-2 font-bold text-sm transition-colors'
-    : 'flex-1 min-w-0 px-1 py-2 font-bold text-sm sm:px-2 sm:text-lg transition-colors'
+    ? 'flex-1 min-w-0 px-1 py-2 font-bold text-sm break-words [overflow-wrap:anywhere] transition-colors'
+    : 'flex-1 min-w-0 px-1 py-2 font-bold text-sm sm:px-2 sm:text-lg break-words [overflow-wrap:anywhere] transition-colors'
   const jogClusterClass = topBand ? 'jog-cluster jog-cluster--top-band' : 'jog-cluster jog-cluster--default'
   const jogPadRootClass = onSwitchStyle
     ? 'flex-none h-[440px]'
@@ -1539,21 +1540,21 @@ export function TabletJogPad({
 
   return (
     <>
-    <div className={`tablet-jog-pad panel w-full min-w-0 flex flex-col portrait:flex-none portrait:h-[440px] ${jogPadRootClass}`}>
-      <div className="panel-header flex flex-row items-stretch justify-between shrink-0 !p-0 border-b border-border overflow-hidden">
-        <div className={`flex flex-col items-center justify-center border-r border-border shrink-0 gap-2 font-bold tracking-wider ${topBand ? 'w-12 py-1.5 text-sm' : 'w-16 max-sm:w-12 py-2 text-lg'}`}>
-          JOG
+    <div dir="ltr" className={`tablet-jog-pad panel w-full min-w-0 flex flex-col portrait:flex-none portrait:h-[440px] ${jogPadRootClass}`}>
+      <div className="panel-header flex flex-col items-stretch !gap-0 shrink-0 !p-0 border-b border-border">
+        <div className={`flex items-center justify-between gap-2 px-2 py-1 border-b border-border font-bold tracking-wider break-words [overflow-wrap:anywhere] ${topBand ? 'text-sm' : 'text-xs sm:text-base'}`}>
+          {__uiText("components.JogPad.coverage.1", "JOG")}
           {onSwitchStyle && (
             <button
               onClick={onSwitchStyle}
-              title="Switch to rose view"
+              title={__uiText("components.JogPad.switch_to_rose_view.1", "Switch to rose view")}
               className="text-text-muted hover:text-accent transition-colors"
             >
               <ArrowLeft size={16} />
             </button>
           )}
         </div>
-        <div className="flex flex-1 items-stretch divide-x divide-border bg-surface">
+        <div className="flex min-w-0 items-stretch divide-x divide-border bg-surface">
           {steps.map((s, i) => (
             <button
               key={s}
@@ -1565,9 +1566,10 @@ export function TabletJogPad({
           ))}
           <button
             className={`${stepBtnClass} ${continuous ? 'bg-accent text-white shadow-inner' : 'bg-transparent text-text-primary hover:bg-elevated'}`}
+            aria-label={__uiText("components.JogPad.continuous_mode_label.1", "Continuous jog")}
             onClick={() => setContinuous(true)}
           >
-            Cont
+            {__uiText("components.JogPad.coverage.2", "Cont")}
           </button>
         </div>
       </div>
@@ -1585,7 +1587,7 @@ export function TabletJogPad({
         >
           {onSwitchStyle && continuous && (
             <button
-              title={keyboardJog ? 'Keyboard jog ON — Arrows: X/Y · −/+: Z' : 'Enable keyboard jogging'}
+              title={keyboardJog ? __uiText("components.JogPad.keyboard_jog_on_arrows_x_y_z.2", "Keyboard jog ON — Arrows: X/Y · −/+: Z") : __uiText("components.JogPad.enable_keyboard_jogging.2", "Enable keyboard jogging")}
               onClick={() => setKeyboardJog(k => !k)}
               className={`absolute left-2 top-2 z-10 flex items-center justify-center w-8 h-8 rounded border transition-all ${
                 keyboardJog
@@ -1613,7 +1615,7 @@ export function TabletJogPad({
             <div aria-hidden="true" />
             <button {...tabletJogPointerHandlers(startZp, stopZp, continuous)} className="jog-cluster-btn text-info">Z+</button>
             <button {...tabletJogPointerHandlers(startXm, stopXm, continuous)} className="jog-cluster-btn text-danger">X-</button>
-            <button onClick={() => { stopContinuousJogs(); sendRealtime(0x85) }} className="jog-cluster-stop" aria-label="Stop jog">
+            <button onClick={() => { stopContinuousJogs(); sendRealtime(0x85) }} className="jog-cluster-stop" aria-label={__uiText("components.JogPad.stop_jog.1", "Stop jog")}>
               <Square className="jog-cluster-stop-icon" />
             </button>
             <button {...tabletJogPointerHandlers(startXp, stopXp, continuous)} className="jog-cluster-btn text-danger">X+</button>
@@ -1641,7 +1643,7 @@ export function TabletJogPad({
           return (
             <button key={group} onClick={() => openFeedModal(group)}
               className={`flex flex-wrap items-center justify-between gap-x-2 px-3 py-2 hover:bg-accent/5 transition-colors ${topBand ? 'text-sm' : 'text-base'}`}
-              aria-label={`Set ${group.toUpperCase()} feedrate`}>
+              aria-label={formatUi(__uiText("components.JogPad.dynamic.3", "Set {v0} feedrate"), { v0: group.toUpperCase() })}>
               <span className="font-bold text-text-muted">{group.toUpperCase()}</span>
               <span className="font-mono text-text-primary">{formatDisplayNumber(group === 'abc' ? feed : mmToDisplay(feed, units), 0)}</span>
               <span className="jog-feed-unit text-right text-xs text-text-dim">{group === 'abc' ? 'mm/min' : feedUnitLabel(units)}</span>
@@ -1663,7 +1665,7 @@ export function TabletJogPad({
         >
           <div className="flex items-center justify-between mb-6">
             <span className="text-3xl font-bold">
-              {feedModal.toUpperCase()} Feedrate
+              {feedModal.toUpperCase()} {__uiText("components.JogPad.feedrate.1", "Feedrate")}
             </span>
             <span className="text-2xl text-text-muted font-mono">{feedModal === 'abc' ? 'mm/min' : feedUnitLabel(units)}</span>
           </div>
@@ -1691,7 +1693,7 @@ export function TabletJogPad({
             })}
           </div>
           <div className="mt-5 pt-5 border-t border-border">
-            <label className="block text-xl text-text-muted mb-2">Custom</label>
+            <label className="block text-xl text-text-muted mb-2">{__uiText("components.JogPad.custom.2", "Custom")}</label>
             <div className="flex items-center gap-3">
               <input
                 type="text"
@@ -1709,7 +1711,7 @@ export function TabletJogPad({
                 onClick={commitCustomFeed}
                 disabled={!((parseDecimalInput(customFeedValue) ?? 0) > 0)}
               >
-                Set
+                {__uiText("components.JogPad.set.2", "Set")}
               </button>
             </div>
           </div>

@@ -2,6 +2,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { gzipSync, gunzipSync } from "node:zlib";
 import { fileURLToPath } from "node:url";
 import { configStudioBuildId } from "./config-studio-build-id.mjs";
+import { enabledLanguages } from "./languages.mjs";
 
 const ARCHIVE_URL =
   "https://figamore.github.io/FigUI/config-studio/archive.json.gz";
@@ -33,7 +34,8 @@ export function parseArchive(bytes) {
 export async function prepareStudioPages({
   outDir = "dist/config-studio",
   archiveUrl = ARCHIVE_URL,
-  buildId = configStudioBuildId(),
+  buildId,
+  buildIds = buildId ? [buildId] : enabledLanguages().map(language => configStudioBuildId(language.code)),
 } = {}) {
   // Both Pages workflows are serialized. Restore previous builds before each
   // deployment, since Pages replaces the entire site, including old assets.
@@ -49,18 +51,17 @@ export async function prepareStudioPages({
     response.status === 404
       ? {}
       : parseArchive(Buffer.from(await response.arrayBuffer()));
-  const current = {
-    script: await readFile(`${outDir}/${buildId}/config-studio.js`, "utf8"),
-    style: await readFile(`${outDir}/${buildId}/config-studio.css`, "utf8"),
-  };
-  if (
-    archive[buildId] &&
-    (archive[buildId].script !== current.script ||
-      archive[buildId].style !== current.style)
-  ) {
-    throw new Error(`Refusing to overwrite immutable Studio build ${buildId}`);
+  for (const id of buildIds) {
+    if (!BUILD_ID.test(id)) throw new Error("Invalid Studio build ID");
+    const current = {
+      script: await readFile(`${outDir}/${id}/config-studio.js`, "utf8"),
+      style: await readFile(`${outDir}/${id}/config-studio.css`, "utf8"),
+    };
+    if (archive[id] && (archive[id].script !== current.script || archive[id].style !== current.style)) {
+      throw new Error(`Refusing to overwrite immutable Studio build ${id}`);
+    }
+    archive[id] = current;
   }
-  archive[buildId] = current;
   for (const [id, assets] of Object.entries(archive)) {
     await mkdir(`${outDir}/${id}`, { recursive: true });
     await writeFile(`${outDir}/${id}/config-studio.js`, assets.script);

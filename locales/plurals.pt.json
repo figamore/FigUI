@@ -1,0 +1,42 @@
+{
+  "store.gcodeSender.ignored": {
+    "one": "{count} linha executável após M2/M30 não será enviada.",
+    "many": "{count} linhas executáveis após M2/M30 não serão enviadas.",
+    "other": "{count} linhas executáveis após M2/M30 não serão enviadas."
+  },
+  "components.LimitsTab.active_inputs": {
+    "one": "{count} entrada ativa",
+    "many": "{count} entradas ativas",
+    "other": "{count} entradas ativas"
+  },
+  "components.FileManager.folder_warning": {
+    "one": "\n\nIsso inclui {count} pasta e seu conteúdo.",
+    "many": "\n\nIsso inclui {count} pastas e seus conteúdos.",
+    "other": "\n\nIsso inclui {count} pastas e seus conteúdos."
+  },
+  "components.Macros.more_line.1": {
+    "one": "+{count} linha adicional",
+    "many": "+{count} linhas adicionais",
+    "other": "+{count} linhas adicionais"
+  },
+  "components.Macros.more_line.2": {
+    "one": "+{count} linha adicional",
+    "many": "+{count} linhas adicionais",
+    "other": "+{count} linhas adicionais"
+  },
+  "components.Macros.line.1": {
+    "one": "{count} linha",
+    "many": "{count} linhas",
+    "other": "{count} linhas"
+  },
+  "components.SettingsPanel.result.1": {
+    "one": "{count} resultado",
+    "many": "{count} resultados",
+    "other": "{count} resultados"
+  },
+  "components.SettingsPanel.save_config_prompt": {
+    "one": "A configuração da máquina foi alterada. Salvar esta alteração em {filename}?\n\n",
+    "many": "A configuração da máquina foi alterada. Salvar estas alterações em {filename}?\n\n",
+    "other": "A configuração da máquina foi alterada. Salvar estas alterações em {filename}?\n\n"
+  }
+}

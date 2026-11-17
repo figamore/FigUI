@@ -1,3 +1,4 @@
+import { uiText as __uiText, formatUi } from './i18n'
 import { parseControllerSettingLine, parseGcStateLine, parseStatusReport } from './parser'
 import { useMachineStore } from '../store'
 import { sendCommand } from './http'
@@ -187,11 +188,11 @@ export function isLineInputHeldByJob() {
 
 /** Why sendRaw() refuses a line at this moment, for the message shown to the user. */
 export function lineRefusalReason(): string {
-  if (isLineInputHeldByJob()) return 'FluidNC would run it only after the SD job ends'
-  if (responseTrafficSuspensions > 0) return 'a G-code stream from this page owns the connection'
-  if (useMachineStore.getState().controllerResetPending) return 'a controller reset is in progress'
-  if (socket?.readyState !== WebSocket.OPEN) return 'not connected to the controller'
-  return 'the controller is not accepting commands right now'
+  if (isLineInputHeldByJob()) return __uiText("lib.ws.refusal.1", "FluidNC would run it only after the SD job ends")
+  if (responseTrafficSuspensions > 0) return __uiText("lib.ws.refusal.2", "a G-code stream from this page owns the connection")
+  if (useMachineStore.getState().controllerResetPending) return __uiText("lib.ws.refusal.3", "a controller reset is in progress")
+  if (socket?.readyState !== WebSocket.OPEN) return __uiText("lib.ws.refusal.4", "not connected to the controller")
+  return __uiText("lib.ws.refusal.5", "the controller is not accepting commands right now")
 }
 
 function beginSoftResetCooldown() {
@@ -402,7 +403,7 @@ export function connect(host: string): Promise<void> {
     try {
       ws = new WebSocket(url.toString(), 'arduino')
     } catch (e) {
-      reject(e instanceof Error ? e : new Error('WebSocket constructor failed'))
+      reject(e instanceof Error ? e : new Error(__uiText("lib.ws.system_coverage.1", "WebSocket constructor failed")))
       return
     }
     ws.binaryType = 'arraybuffer'
@@ -416,13 +417,13 @@ export function connect(host: string): Promise<void> {
       if (socket === ws) {
         try { ws.close() } catch { /* noop */ }
       }
-      reject(new Error('WebSocket connection timed out'))
+      reject(new Error(__uiText("lib.ws.system_coverage.2", "WebSocket connection timed out")))
     }, OPEN_TIMEOUT_MS)
     cancelPendingConnect = () => {
       if (settled) return
       settled = true
       clearTimeout(openTimeout)
-      reject(new Error('WebSocket closed before opening'))
+      reject(new Error(__uiText("lib.ws.system_coverage.3", "WebSocket closed before opening")))
     }
 
     ws.onopen = () => {
@@ -449,17 +450,17 @@ export function connect(host: string): Promise<void> {
       if (myGen !== generation) return
       const silentForMs = Math.max(0, Date.now() - connectionHealth.lastResponseTime)
       const closeDetail = event.code === 1006
-        ? 'abnormal close without a controller close frame'
-        : event.wasClean ? 'clean close' : 'unclean close'
-      const transportDetail = `last controller traffic ${silentForMs} ms earlier; browser queue ${ws.bufferedAmount} bytes`
+        ? __uiText("lib.ws.system_coverage.4", "abnormal close without a controller close frame")
+        : event.wasClean ? __uiText("lib.ws.system_coverage.5", "clean close") : __uiText("lib.ws.system_coverage.6", "unclean close")
+      const transportDetail = formatUi(__uiText("lib.ws.template_coverage.1", "last controller traffic {v0} ms earlier; browser queue {v1} bytes"), { v0: silentForMs, v1: ws.bufferedAmount })
       lastDisconnectReason = event.reason
-        ? `WebSocket closed (${event.code}: ${event.reason}; ${closeDetail}; ${transportDetail})`
-        : `WebSocket closed (${event.code}: ${closeDetail}; ${transportDetail})`
+        ? formatUi(__uiText("lib.ws.closed_reason.1", "WebSocket closed ({code}: {reason}; {detail}; {transport})"), { code: event.code, reason: event.reason, detail: closeDetail, transport: transportDetail })
+        : formatUi(__uiText("lib.ws.closed_no_reason.1", "WebSocket closed ({code}: {detail}; {transport})"), { code: event.code, detail: closeDetail, transport: transportDetail })
       handleDisconnect()
       if (!settled) {
         settled = true
         clearTimeout(openTimeout)
-        reject(new Error('WebSocket closed before opening'))
+        reject(new Error(__uiText("lib.ws.system_coverage.7", "WebSocket closed before opening")))
       }
     }
 
@@ -470,7 +471,7 @@ export function connect(host: string): Promise<void> {
         settled = true
         clearTimeout(openTimeout)
         try { ws.close() } catch { /* noop */ }
-        reject(new Error(`WebSocket error connecting to ${url.toString()}`))
+        reject(new Error(formatUi(__uiText("lib.ws.template_coverage.2", "WebSocket error connecting to {v0}"), { v0: url.toString() })))
       }
     }
 
@@ -624,7 +625,7 @@ function startLivenessWatchdog() {
       // Bump generation first so the impending onclose is ignored as stale,
       // then run the cleanup ourselves.
       generation++
-      lastDisconnectReason = `No controller traffic for ${Math.round(LIVENESS_TIMEOUT_MS / 1000)} seconds`
+      lastDisconnectReason = formatUi(__uiText("lib.ws.template_coverage.3", "No controller traffic for {v0} seconds"), { v0: Math.round(LIVENESS_TIMEOUT_MS / 1000) })
       try { ws.close() } catch { /* noop */ }
       socket = null
       handleDisconnect()

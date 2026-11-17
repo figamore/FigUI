@@ -1,3 +1,4 @@
+import { uiText as __uiText } from '../lib/i18n'
 import { Play, Pause, Square, RotateCcw, DoorOpen, StepForward } from 'lucide-react'
 import { useMachineStore } from '../store'
 import { useGCodeStore } from '../store/gcode'
@@ -40,7 +41,7 @@ export function JobControl() {
 
   function pause()      { if (senderActive) pauseSender(); else sendRealtime(0x21) }
   function softReset()  {
-    if (!confirm('Abort job and reset?')) return
+    if (!confirm(__uiText("components.JobControl.notice.1", "Abort job and reset?"))) return
     if (senderActive) abortSender()
     else if (sendRealtimeNow(0x18)) cancelTrackedJob('controller')
   }
@@ -50,7 +51,7 @@ export function JobControl() {
 
   return (
     <div className="panel">
-      <div className="panel-header">Job Control</div>
+      <div className="panel-header">{__uiText("components.JobControl.job_control.1", "Job Control")}</div>
       <div className="p-4 space-y-3">
         <SingleBlockToggle unavailable={senderActive} />
         <SingleBlockNotice unavailable={senderActive} />
@@ -68,22 +69,22 @@ export function JobControl() {
                   />
                 </div>
                 <span className="text-sm font-mono text-text-muted tabular-nums shrink-0">
-                  {runtime.source === 'sd' ? 'File ' : ''}{formatJobProgress(progressPercent, runtime.source)}
+                  {runtime.source === 'sd' ? __uiText("components.JobControl.file.1", "File ") : ''}{formatJobProgress(progressPercent, runtime.source)}
                 </span>
               </div>
             )}
             {runtime.source === 'estimated' && (
               <div className="flex justify-between text-sm font-mono text-text-muted tabular-nums">
-                <span>Elapsed {formatRuntime(runtime.elapsedSeconds)}</span>
-                <span>Remain {formatRuntime(runtime.remainingSeconds)}</span>
-                <span>Total {formatRuntime(runtime.totalSeconds)}</span>
+                <span>{__uiText("components.JobControl.elapsed.1", "Elapsed")} {formatRuntime(runtime.elapsedSeconds)}</span>
+                <span>{__uiText("components.JobControl.remain.1", "Remain")} {formatRuntime(runtime.remainingSeconds)}</span>
+                <span>{__uiText("components.JobControl.total.1", "Total")} {formatRuntime(runtime.totalSeconds)}</span>
               </div>
             )}
             {runtime.source === 'sd' && progressPercent != null && (
               <div className="flex justify-between text-xs font-mono text-text-muted tabular-nums">
                 <span>{progressPercent.toFixed(1)}%</span>
                 {runtime.remainingSeconds != null && (
-                  <span title="Estimated from SD file progress">Remain ~{formatRuntime(runtime.remainingSeconds)}</span>
+                  <span title={__uiText("components.JobControl.estimated_from_sd_file_progress.1", "Estimated from SD file progress")}>{__uiText("components.JobControl.remain.2", "Remain ~")}{formatRuntime(runtime.remainingSeconds)}</span>
                 )}
               </div>
             )}
@@ -95,7 +96,7 @@ export function JobControl() {
           <div className="flex items-center gap-2 px-3 py-2 rounded bg-warn/10
                           border border-warn/30 text-sm text-warn">
             <DoorOpen size={13} className="shrink-0" />
-            <span>Door open — close door then resume</span>
+            <span>{__uiText("components.JobControl.door_open_close_door_then_resume.1", "Door open — close door then resume")}</span>
           </div>
         )}
 
@@ -103,7 +104,7 @@ export function JobControl() {
         {isAlarm && (
           <div className="px-3 py-2 rounded bg-danger/10 border border-danger/30
                           text-sm text-danger text-center">
-            ALARM — check machine before unlocking
+            {__uiText("components.JobControl.alarm_check_machine_before_unlockin.1", "ALARM — check machine before unlocking")}
           </div>
         )}
 
@@ -112,11 +113,11 @@ export function JobControl() {
           <div className="flex gap-2">
             <button className="btn btn-warn-solid job-action gap-1.5 text-sm justify-center flex-1" onClick={pause} disabled={!connected}>
               <Pause size={13} />
-              Hold
+              {__uiText("components.JobControl.hold.1", "Hold")}
             </button>
             <button className="btn btn-danger-solid job-action gap-1.5 text-sm justify-center flex-1" onClick={softReset}>
               <Square size={13} />
-              Abort
+              {__uiText("components.JobControl.abort.1", "Abort")}
             </button>
           </div>
         ) : (
@@ -124,24 +125,24 @@ export function JobControl() {
             {(isHold || isDoor) ? (
               <button className={`btn ${stepHold ? 'btn-step' : 'btn-ok-solid'} job-action gap-1.5 text-sm justify-center flex-1`} onClick={resume} disabled={resumeDisabled}>
                 {stepHold ? <StepForward size={13} /> : <Play size={13} />}
-                {stepHold ? 'Next block' : 'Resume'}
+                {stepHold ? __uiText("components.JobControl.next_block.1", "Next block") : __uiText("components.JobControl.resume.1", "Resume")}
               </button>
             ) : (
               <button className="btn btn-warn-solid job-action gap-1.5 text-sm justify-center flex-1" onClick={pause} disabled>
                 <Pause size={13} />
-                Hold
+                {__uiText("components.JobControl.hold.2", "Hold")}
               </button>
             )}
 
             <button className="btn btn-danger-solid job-action gap-1.5 text-sm justify-center flex-1" onClick={softReset}>
               <Square size={13} />
-              Abort
+              {__uiText("components.JobControl.abort.2", "Abort")}
             </button>
 
             {(isAlarm || isDoor) && (
               <button className="btn btn-ghost gap-1.5 text-sm justify-center flex-1 min-h-[44px]" onClick={clearAlarm}>
                 <RotateCcw size={13} />
-                Unlock
+                {__uiText("components.JobControl.unlock.1", "Unlock")}
               </button>
             )}
           </div>

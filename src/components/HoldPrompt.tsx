@@ -1,3 +1,4 @@
+import { uiText as __uiText } from '../lib/i18n'
 import { useEffect, useRef, useState } from 'react'
 import { Pause, Play } from 'lucide-react'
 import { useMachineStore } from '../store'
@@ -42,10 +43,10 @@ export function HoldPrompt() {
   const resumeLabel = resuming ? 'Resuming…' : state === 'Door' ? 'Close door' : disabled ? 'Waiting…' : stepHold ? 'Next block' : 'Resume'
 
   return <>
-    {dismissed && <button onClick={reopen} className="flex items-center gap-3 border-b border-warn/30 bg-warn/10 px-4 py-2 text-left text-sm text-warn shrink-0" title="Open pause instructions">
+    {dismissed && <button onClick={reopen} className="flex items-center gap-3 border-b border-warn/30 bg-warn/10 px-4 py-2 text-left text-sm text-warn shrink-0" title={__uiText("components.HoldPrompt.open_pause_instructions.1", "Open pause instructions")}>
       <Pause size={16} className="shrink-0" />
       <span className="truncate flex-1">{message}</span>
-      <span className="shrink-0 font-medium">View pause</span>
+      <span className="shrink-0 font-medium">{__uiText("components.HoldPrompt.view_pause.1", "View pause")}</span>
     </button>}
     <dialog ref={dialogRef} aria-labelledby="hold-title" aria-describedby="hold-message"
       onCancel={event => { event.preventDefault(); dismiss() }}
@@ -53,11 +54,11 @@ export function HoldPrompt() {
       <div className="p-5 sm:p-6">
         <div className="flex items-center gap-3">
           <span className="flex h-10 w-10 items-center justify-center rounded-full bg-warn/10 text-warn shrink-0"><Pause size={20} /></span>
-          <h2 id="hold-title" ref={titleRef} tabIndex={-1} className="text-lg font-semibold outline-none">Program paused</h2>
+          <h2 id="hold-title" ref={titleRef} tabIndex={-1} className="text-lg font-semibold outline-none">{__uiText("components.HoldPrompt.program_paused.1", "Program paused")}</h2>
         </div>
         <p id="hold-message" className="mt-5 text-base leading-relaxed whitespace-pre-wrap break-words">{message}</p>
         <div className="mt-6 flex flex-wrap gap-2">
-          <button className="btn btn-ghost h-11 flex-1 justify-center" onClick={dismiss}>Stay paused</button>
+          <button className="btn btn-ghost h-11 flex-1 justify-center" onClick={dismiss}>{__uiText("components.HoldPrompt.stay_paused.1", "Stay paused")}</button>
           <button className="btn btn-ok-solid h-11 flex-1 justify-center gap-2" disabled={disabled || resuming || state === 'Door'} onClick={() => { if (resume()) setResuming(true) }}>
             <Play size={16} className="shrink-0" />{resumeLabel}
           </button>

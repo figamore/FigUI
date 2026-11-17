@@ -1,3 +1,4 @@
+import { uiText as __uiText } from '../lib/i18n'
 import { useEffect, useRef, useState } from 'react'
 import { Puzzle, X, RefreshCw } from 'lucide-react'
 import { useMachineStore } from '../store'
@@ -249,7 +250,7 @@ export function PluginFrame({ plugin, onClose, inline }: { plugin: Plugin; onClo
     <div className="flex h-full w-full flex-col items-center justify-center gap-3 bg-[var(--bg)] px-6 text-center">
       <RefreshCw size={28} className="animate-spin text-accent" />
       <div>
-        <div className="text-base font-semibold text-text-primary">Loading plugin…</div>
+        <div className="text-base font-semibold text-text-primary">{__uiText("components.PluginFrame.loading_plugin.1", "Loading plugin…")}</div>
         <div className="mt-1 text-sm text-text-muted">{plugin.manifest.name}</div>
       </div>
     </div>
@@ -257,8 +258,8 @@ export function PluginFrame({ plugin, onClose, inline }: { plugin: Plugin; onClo
 
   const frameContent = loadError ? (
     <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center px-6">
-      <span className="text-danger text-sm">Failed to load plugin: {loadError}</span>
-      <button className="btn btn-ghost text-sm" onClick={onClose}>Close</button>
+      <span className="text-danger text-sm">{__uiText("components.PluginFrame.failed_to_load_plugin.1", "Failed to load plugin:")} {loadError}</span>
+      <button className="btn btn-ghost text-sm" onClick={onClose}>{__uiText("components.PluginFrame.close.1", "Close")}</button>
     </div>
   ) : srcDoc === null ? (
     <div className="flex-1">{loadingIndicator}</div>
@@ -286,7 +287,7 @@ export function PluginFrame({ plugin, onClose, inline }: { plugin: Plugin; onClo
           {plugin.manifest.version && (
             <span className="text-xs text-text-dim font-mono">v{plugin.manifest.version}</span>
           )}
-          <button onClick={onClose} className="text-text-muted hover:text-text-primary transition-colors p-1" aria-label="Close plugin">
+          <button onClick={onClose} className="text-text-muted hover:text-text-primary transition-colors p-1" aria-label={__uiText("components.PluginFrame.close_plugin.1", "Close plugin")}>
             <X size={18} />
           </button>
         </div>
@@ -304,7 +305,7 @@ export function PluginFrame({ plugin, onClose, inline }: { plugin: Plugin; onClo
           {plugin.manifest.version && (
             <span className="text-xs text-text-dim font-mono">v{plugin.manifest.version}</span>
           )}
-          <button onClick={onClose} className="text-text-muted hover:text-text-primary transition-colors p-1" aria-label="Close plugin">
+          <button onClick={onClose} className="text-text-muted hover:text-text-primary transition-colors p-1" aria-label={__uiText("components.PluginFrame.close_plugin.2", "Close plugin")}>
             <X size={18} />
           </button>
         </div>
@@ -346,7 +347,7 @@ export function PluginFrame({ plugin, onClose, inline }: { plugin: Plugin; onClo
           onPointerDown={e => e.stopPropagation()}
           onClick={onClose}
           className="text-text-muted hover:text-text-primary transition-colors p-1"
-          aria-label="Close plugin"
+          aria-label={__uiText("components.PluginFrame.close_plugin.3", "Close plugin")}
         >
           <X size={18} />
         </button>

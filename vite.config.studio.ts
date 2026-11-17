@@ -2,11 +2,12 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { fileURLToPath } from "url";
 import { configStudioBuildId } from "./scripts/config-studio-build-id.mjs";
+import { translateJsx } from "./scripts/translate-jsx.mjs";
 
 const buildId = configStudioBuildId();
 
 export default defineConfig({
-  define: { __CONFIG_STUDIO_BUILD__: JSON.stringify(buildId) },
+  define: { __FIGUI_LOCALE__: JSON.stringify(process.env.VITE_FIGUI_LOCALE || "en"), __CONFIG_STUDIO_BUILD__: JSON.stringify(buildId) },
   resolve: {
     alias: {
       react: "preact/compat",
@@ -18,7 +19,7 @@ export default defineConfig({
       ),
     },
   },
-  plugins: [react()],
+  plugins: [translateJsx(process.env.VITE_FIGUI_LOCALE || "en"), react()],
   build: {
     outDir: `dist/config-studio/${buildId}`,
     target: "es2022",

@@ -1,3 +1,4 @@
+import { uiText as __uiText, formatUi } from '../lib/i18n'
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Box,
@@ -71,6 +72,84 @@ type FieldDef = {
   description?: string;
 };
 
+const STUDIO_DISPLAY_NAMES: Record<string, string> = {
+  "New child component": __uiText("components.ConfigStudio.display_final.1", "New child component"),
+  "Select spindle type": __uiText("components.ConfigStudio.display_final.2", "Select spindle type"),
+  "New component": __uiText("components.ConfigStudio.display_final.3", "New component"),
+  "RMT · 4 µs pulse": __uiText("components.ConfigStudio.display_extra.1", "RMT · 4 µs pulse"),
+  "Shared axis configuration": __uiText("components.ConfigStudio.display_extra.2", "Shared axis configuration"),
+  "Motion axis": __uiText("components.ConfigStudio.display_extra.3", "Motion axis"),
+  "stepstick · pins not assigned": __uiText("components.ConfigStudio.display_extra.4", "stepstick · pins not assigned"),
+  "Loaded from config.yaml": __uiText("components.ConfigStudio.display_extra.5", "Loaded from config.yaml"),
+  "Spindle / tool output": __uiText("components.ConfigStudio.display_extra.6", "Spindle / tool output"),
+  "machine": __uiText("components.ConfigStudio.display_extra.7", "machine"),
+  "stepping": __uiText("components.ConfigStudio.display_extra.8", "stepping"),
+  "axes": __uiText("components.ConfigStudio.display_extra.9", "axes"),
+  "axis": __uiText("components.ConfigStudio.display_extra.10", "axis"),
+  "motor": __uiText("components.ConfigStudio.display_extra.11", "motor"),
+  "driver": __uiText("components.ConfigStudio.display_extra.12", "driver"),
+  "kinematics": __uiText("components.ConfigStudio.display_extra.13", "kinematics"),
+  "spindle": __uiText("components.ConfigStudio.display_extra.14", "spindle"),
+  "bus": __uiText("components.ConfigStudio.display_extra.15", "bus"),
+  "storage": __uiText("components.ConfigStudio.display_extra.16", "storage"),
+  "control": __uiText("components.ConfigStudio.display_extra.17", "control"),
+  "probe": __uiText("components.ConfigStudio.display_extra.18", "probe"),
+  "coolant": __uiText("components.ConfigStudio.display_extra.19", "coolant"),
+  "macro": __uiText("components.ConfigStudio.display_extra.20", "macro"),
+  "io": __uiText("components.ConfigStudio.display_extra.21", "io"),
+  "start": __uiText("components.ConfigStudio.display_extra.22", "start"),
+  "parking": __uiText("components.ConfigStudio.display_extra.23", "parking"),
+  "display": __uiText("components.ConfigStudio.display_extra.24", "display"),
+  "atc": __uiText("components.ConfigStudio.display_extra.25", "atc"),
+  "Motion": __uiText("components.ConfigStudio.display.1", "Motion"),
+  "Axis": __uiText("components.ConfigStudio.display.2", "Axis"),
+  "X, Y, Z, A, B or C": __uiText("components.ConfigStudio.display.3", "X, Y, Z, A, B or C"),
+  "Motor": __uiText("components.ConfigStudio.display.4", "Motor"),
+  "Kinematics": __uiText("components.ConfigStudio.display.5", "Kinematics"),
+  "Tooling": __uiText("components.ConfigStudio.display.6", "Tooling"),
+  "Spindle / Laser": __uiText("components.ConfigStudio.display.7", "Spindle / Laser"),
+  "PWM, VFD, relay, plasma": __uiText("components.ConfigStudio.display.8", "PWM, VFD, relay, plasma"),
+  "Probe": __uiText("components.ConfigStudio.display.9", "Probe"),
+  "Touch probe input": __uiText("components.ConfigStudio.display.10", "Touch probe input"),
+  "Tool changer": __uiText("components.ConfigStudio.display.11", "Tool changer"),
+  "Manual ATC workflow": __uiText("components.ConfigStudio.display.12", "Manual ATC workflow"),
+  "Coolant": __uiText("components.ConfigStudio.display.13", "Coolant"),
+  "Flood and mist outputs": __uiText("components.ConfigStudio.display.14", "Flood and mist outputs"),
+  "Hardware": __uiText("components.ConfigStudio.display.15", "Hardware"),
+  "Hardware bus": __uiText("components.ConfigStudio.display.16", "Hardware bus"),
+  "SD card": __uiText("components.ConfigStudio.display.17", "SD card"),
+  "SPI storage interface": __uiText("components.ConfigStudio.display.18", "SPI storage interface"),
+  "User I/O": __uiText("components.ConfigStudio.display.19", "User I/O"),
+  "Digital and analog I/O": __uiText("components.ConfigStudio.display.20", "Digital and analog I/O"),
+  "OLED display": __uiText("components.ConfigStudio.display.21", "OLED display"),
+  "I²C status display": __uiText("components.ConfigStudio.display.22", "I²C status display"),
+  "Machine": __uiText("components.ConfigStudio.display.23", "Machine"),
+  "Control inputs": __uiText("components.ConfigStudio.display.24", "Control inputs"),
+  "Reset, hold, start, E-stop": __uiText("components.ConfigStudio.display.25", "Reset, hold, start, E-stop"),
+  "Startup": __uiText("components.ConfigStudio.display.26", "Startup"),
+  "Boot and reset behavior": __uiText("components.ConfigStudio.display.27", "Boot and reset behavior"),
+  "Parking": __uiText("components.ConfigStudio.display.28", "Parking"),
+  "Safety-door motion": __uiText("components.ConfigStudio.display.29", "Safety-door motion"),
+  "Macros": __uiText("components.ConfigStudio.display.30", "Macros"),
+  "Startup and event commands": __uiText("components.ConfigStudio.display.31", "Startup and event commands"),
+  "Safety & automation": __uiText("components.ConfigStudio.display.32", "Safety & automation"),
+  "Motor driver": __uiText("components.ConfigStudio.display.33", "Motor driver"),
+  "Stepping": __uiText("components.ConfigStudio.display.34", "Stepping"),
+  "Axes": __uiText("components.ConfigStudio.display.35", "Axes"),
+  "User inputs": __uiText("components.ConfigStudio.display.36", "User inputs"),
+  "User outputs": __uiText("components.ConfigStudio.display.37", "User outputs"),
+  "FluidNC configuration": __uiText("components.ConfigStudio.display.38", "FluidNC configuration"),
+};
+
+function studioDisplay(value: string): string {
+  const axis = /^([XYZABC]) Axis$/.exec(value);
+  if (axis) return formatUi(__uiText("components.ConfigStudio.axis_title.1", "{axis} Axis"), { axis: axis[1] });
+  const engine = /^(.+) stepping engine$/.exec(value);
+  if (engine) return formatUi(__uiText("components.ConfigStudio.stepping_subtitle.1", "{engine} stepping engine"), { engine: engine[1] });
+  const configured = /^(.+) · configured$/.exec(value);
+  if (configured) return formatUi(__uiText("components.ConfigStudio.configured_subtitle.1", "{driver} · configured"), { driver: configured[1] });
+  return Object.prototype.hasOwnProperty.call(STUDIO_DISPLAY_NAMES, value) ? STUDIO_DISPLAY_NAMES[value] : value;
+}
 const PALETTE: {
   group: string;
   items: { kind: NodeKind; title: string; sub: string }[];
@@ -130,28 +209,28 @@ const PALETTE: {
 
 const FIELDS: Record<NodeKind, FieldDef[]> = {
   machine: [
-    { key: "name", label: "Machine name" },
-    { key: "board", label: "Board" },
-    { key: "meta", label: "Description" },
+    { key: "name", label: __uiText("components.ConfigStudio.machine_name.1", "Machine name") },
+    { key: "board", label: __uiText("components.ConfigStudio.board.1", "Board") },
+    { key: "meta", label: __uiText("components.ConfigStudio.description.1", "Description") },
   ],
   stepping: [
     {
       key: "engine",
-      label: "Engine",
+      label: __uiText("components.ConfigStudio.engine.1", "Engine"),
       type: "select",
       options: ["RMT", "TIMED", "I2S_STATIC", "I2S_STREAM"],
     },
-    { key: "idle_ms", label: "Idle delay", type: "number", unit: "ms" },
-    { key: "pulse_us", label: "Pulse width", type: "number", unit: "µs" },
+    { key: "idle_ms", label: __uiText("components.ConfigStudio.idle_delay.1", "Idle delay"), type: "number", unit: "ms" },
+    { key: "pulse_us", label: __uiText("components.ConfigStudio.pulse_width.1", "Pulse width"), type: "number", unit: "µs" },
     {
       key: "dir_delay_us",
-      label: "Direction delay",
+      label: __uiText("components.ConfigStudio.direction_delay.1", "Direction delay"),
       type: "number",
       unit: "µs",
     },
     {
       key: "disable_delay_us",
-      label: "Disable delay",
+      label: __uiText("components.ConfigStudio.disable_delay.1", "Disable delay"),
       type: "number",
       unit: "µs",
     },
@@ -159,57 +238,57 @@ const FIELDS: Record<NodeKind, FieldDef[]> = {
   axes: [
     {
       key: "shared_stepper_disable_pin",
-      label: "Shared stepper disable",
+      label: __uiText("components.ConfigStudio.shared_stepper_disable.1", "Shared stepper disable"),
       type: "pin",
     },
   ],
   axis: [
     {
       key: "axis",
-      label: "Axis",
+      label: __uiText("components.ConfigStudio.axis.1", "Axis"),
       type: "select",
       options: ["x", "y", "z", "a", "b", "c"],
     },
-    { key: "steps_per_mm", label: "Steps per mm", type: "number" },
+    { key: "steps_per_mm", label: __uiText("components.ConfigStudio.steps_per_mm.1", "Steps per mm"), type: "number" },
     {
       key: "max_rate_mm_per_min",
-      label: "Maximum rate",
+      label: __uiText("components.ConfigStudio.maximum_rate.1", "Maximum rate"),
       type: "number",
       unit: "mm/min",
     },
     {
       key: "acceleration_mm_per_sec2",
-      label: "Acceleration",
+      label: __uiText("components.ConfigStudio.acceleration.1", "Acceleration"),
       type: "number",
       unit: "mm/s²",
     },
     {
       key: "max_travel_mm",
-      label: "Maximum travel",
+      label: __uiText("components.ConfigStudio.maximum_travel.1", "Maximum travel"),
       type: "number",
       unit: "mm",
     },
-    { key: "soft_limits", label: "Soft limits", type: "boolean" },
-    { key: "homing_cycle", label: "Homing cycle", type: "number" },
-    { key: "homing_positive", label: "Positive homing", type: "boolean" },
+    { key: "soft_limits", label: __uiText("components.ConfigStudio.soft_limits.1", "Soft limits"), type: "boolean" },
+    { key: "homing_cycle", label: __uiText("components.ConfigStudio.homing_cycle.1", "Homing cycle"), type: "number" },
+    { key: "homing_positive", label: __uiText("components.ConfigStudio.positive_homing.1", "Positive homing"), type: "boolean" },
     {
       key: "homing_mpos_mm",
-      label: "Home position",
+      label: __uiText("components.ConfigStudio.home_position.1", "Home position"),
       type: "number",
       unit: "mm",
     },
   ],
   motor: [
-    { key: "limit_neg_pin", label: "Negative limit", type: "pin" },
-    { key: "limit_pos_pin", label: "Positive limit", type: "pin" },
-    { key: "limit_all_pin", label: "Combined limit", type: "pin" },
-    { key: "hard_limits", label: "Hard limits", type: "boolean" },
-    { key: "pulloff_mm", label: "Pull-off", type: "number", unit: "mm" },
+    { key: "limit_neg_pin", label: __uiText("components.ConfigStudio.negative_limit.1", "Negative limit"), type: "pin" },
+    { key: "limit_pos_pin", label: __uiText("components.ConfigStudio.positive_limit.1", "Positive limit"), type: "pin" },
+    { key: "limit_all_pin", label: __uiText("components.ConfigStudio.combined_limit.1", "Combined limit"), type: "pin" },
+    { key: "hard_limits", label: __uiText("components.ConfigStudio.hard_limits.1", "Hard limits"), type: "boolean" },
+    { key: "pulloff_mm", label: __uiText("components.ConfigStudio.pull_off.1", "Pull-off"), type: "number", unit: "mm" },
   ],
   driver: [
     {
       key: "type",
-      label: "Driver type",
+      label: __uiText("components.ConfigStudio.driver_type.1", "Driver type"),
       type: "select",
       options: [
         "stepstick",
@@ -227,97 +306,97 @@ const FIELDS: Record<NodeKind, FieldDef[]> = {
         "null_motor",
       ],
     },
-    { key: "cs_pin", label: "Chip select pin", type: "pin" },
-    { key: "step_pin", label: "Step pin", type: "pin" },
-    { key: "direction_pin", label: "Direction pin", type: "pin" },
-    { key: "disable_pin", label: "Disable pin", type: "pin" },
-    { key: "ms1_pin", label: "Microstep 1 pin", type: "pin" },
-    { key: "ms2_pin", label: "Microstep 2 pin", type: "pin" },
-    { key: "ms3_pin", label: "Microstep 3 pin", type: "pin" },
-    { key: "reset_pin", label: "Reset pin", type: "pin" },
-    { key: "spi_index", label: "SPI index", type: "number" },
-    { key: "uart_num", label: "UART bus", type: "number" },
-    { key: "addr", label: "Driver address", type: "number" },
+    { key: "cs_pin", label: __uiText("components.ConfigStudio.chip_select_pin.1", "Chip select pin"), type: "pin" },
+    { key: "step_pin", label: __uiText("components.ConfigStudio.step_pin.1", "Step pin"), type: "pin" },
+    { key: "direction_pin", label: __uiText("components.ConfigStudio.direction_pin.1", "Direction pin"), type: "pin" },
+    { key: "disable_pin", label: __uiText("components.ConfigStudio.disable_pin.1", "Disable pin"), type: "pin" },
+    { key: "ms1_pin", label: __uiText("components.ConfigStudio.microstep_1_pin.1", "Microstep 1 pin"), type: "pin" },
+    { key: "ms2_pin", label: __uiText("components.ConfigStudio.microstep_2_pin.1", "Microstep 2 pin"), type: "pin" },
+    { key: "ms3_pin", label: __uiText("components.ConfigStudio.microstep_3_pin.1", "Microstep 3 pin"), type: "pin" },
+    { key: "reset_pin", label: __uiText("components.ConfigStudio.reset_pin.1", "Reset pin"), type: "pin" },
+    { key: "spi_index", label: __uiText("components.ConfigStudio.spi_index.1", "SPI index"), type: "number" },
+    { key: "uart_num", label: __uiText("components.ConfigStudio.uart_bus.1", "UART bus"), type: "number" },
+    { key: "addr", label: __uiText("components.ConfigStudio.driver_address.1", "Driver address"), type: "number" },
     {
       key: "r_sense_ohms",
-      label: "Sense resistance",
+      label: __uiText("components.ConfigStudio.sense_resistance.1", "Sense resistance"),
       type: "number",
       unit: "Ω",
     },
-    { key: "run_amps", label: "Run current", type: "number", unit: "A" },
-    { key: "hold_amps", label: "Hold current", type: "number", unit: "A" },
+    { key: "run_amps", label: __uiText("components.ConfigStudio.run_current.1", "Run current"), type: "number", unit: "A" },
+    { key: "hold_amps", label: __uiText("components.ConfigStudio.hold_current.1", "Hold current"), type: "number", unit: "A" },
     {
       key: "homing_amps",
-      label: "Homing current",
+      label: __uiText("components.ConfigStudio.homing_current.1", "Homing current"),
       type: "number",
       unit: "A",
     },
-    { key: "microsteps", label: "Microsteps", type: "number" },
+    { key: "microsteps", label: __uiText("components.ConfigStudio.microsteps.1", "Microsteps"), type: "number" },
     { key: "stallguard", label: "StallGuard", type: "number" },
-    { key: "stallguard_debug", label: "StallGuard debug", type: "boolean" },
-    { key: "toff_disable", label: "Disable TOFF", type: "number" },
+    { key: "stallguard_debug", label: __uiText("components.ConfigStudio.stallguard_debug.1", "StallGuard debug"), type: "boolean" },
+    { key: "toff_disable", label: __uiText("components.ConfigStudio.disable_toff.1", "Disable TOFF"), type: "number" },
     { key: "toff_stealthchop", label: "StealthChop TOFF", type: "number" },
     { key: "toff_coolstep", label: "CoolStep TOFF", type: "number" },
     {
       key: "run_mode",
-      label: "Run mode",
+      label: __uiText("components.ConfigStudio.run_mode.1", "Run mode"),
       type: "select",
       options: ["StealthChop", "CoolStep", "StallGuard"],
     },
     {
       key: "homing_mode",
-      label: "Homing mode",
+      label: __uiText("components.ConfigStudio.homing_mode.1", "Homing mode"),
       type: "select",
       options: ["StealthChop", "CoolStep", "StallGuard"],
     },
-    { key: "use_enable", label: "Use enable", type: "boolean" },
-    { key: "diag0_error", label: "DIAG0 error", type: "boolean" },
-    { key: "diag0_otpw", label: "DIAG0 overtemperature", type: "boolean" },
+    { key: "use_enable", label: __uiText("components.ConfigStudio.use_enable.1", "Use enable"), type: "boolean" },
+    { key: "diag0_error", label: __uiText("components.ConfigStudio.diag0_error.1", "DIAG0 error"), type: "boolean" },
+    { key: "diag0_otpw", label: __uiText("components.ConfigStudio.diag0_overtemperature.1", "DIAG0 overtemperature"), type: "boolean" },
     {
       key: "diag0_int_pushpull",
       label: "DIAG0 push-pull",
       type: "boolean",
     },
-    { key: "tpfd", label: "Passive fast decay time", type: "number" },
-    { key: "CHOPCONF", label: "CHOPCONF register", type: "number" },
-    { key: "COOLCONF", label: "COOLCONF register", type: "number" },
-    { key: "THIGH", label: "THIGH register", type: "number" },
-    { key: "TCOOLTHRS", label: "TCOOLTHRS register", type: "number" },
-    { key: "GCONF", label: "GCONF register", type: "number" },
-    { key: "PWMCONF", label: "PWMCONF register", type: "number" },
-    { key: "IHOLD_IRUN", label: "IHOLD_IRUN register", type: "number" },
-    { key: "output_pin", label: "Output pin", type: "pin" },
-    { key: "pwm_hz", label: "PWM frequency", type: "number", unit: "Hz" },
+    { key: "tpfd", label: __uiText("components.ConfigStudio.passive_fast_decay_time.1", "Passive fast decay time"), type: "number" },
+    { key: "CHOPCONF", label: __uiText("components.ConfigStudio.chopconf_register.1", "CHOPCONF register"), type: "number" },
+    { key: "COOLCONF", label: __uiText("components.ConfigStudio.coolconf_register.1", "COOLCONF register"), type: "number" },
+    { key: "THIGH", label: __uiText("components.ConfigStudio.thigh_register.1", "THIGH register"), type: "number" },
+    { key: "TCOOLTHRS", label: __uiText("components.ConfigStudio.tcoolthrs_register.1", "TCOOLTHRS register"), type: "number" },
+    { key: "GCONF", label: __uiText("components.ConfigStudio.gconf_register.1", "GCONF register"), type: "number" },
+    { key: "PWMCONF", label: __uiText("components.ConfigStudio.pwmconf_register.1", "PWMCONF register"), type: "number" },
+    { key: "IHOLD_IRUN", label: __uiText("components.ConfigStudio.ihold_irun_register.1", "IHOLD_IRUN register"), type: "number" },
+    { key: "output_pin", label: __uiText("components.ConfigStudio.output_pin.1", "Output pin"), type: "pin" },
+    { key: "pwm_hz", label: __uiText("components.ConfigStudio.pwm_frequency.1", "PWM frequency"), type: "number", unit: "Hz" },
     {
       key: "min_pulse_us",
-      label: "Minimum pulse",
+      label: __uiText("components.ConfigStudio.minimum_pulse.1", "Minimum pulse"),
       type: "number",
       unit: "µs",
     },
     {
       key: "max_pulse_us",
-      label: "Maximum pulse",
+      label: __uiText("components.ConfigStudio.maximum_pulse.1", "Maximum pulse"),
       type: "number",
       unit: "µs",
     },
-    { key: "timer_ms", label: "Timer period", type: "number", unit: "ms" },
-    { key: "off_percent", label: "Off power", type: "number", unit: "%" },
-    { key: "pull_percent", label: "Pull power", type: "number", unit: "%" },
-    { key: "hold_percent", label: "Hold power", type: "number", unit: "%" },
-    { key: "pull_ms", label: "Pull duration", type: "number", unit: "ms" },
+    { key: "timer_ms", label: __uiText("components.ConfigStudio.timer_period.1", "Timer period"), type: "number", unit: "ms" },
+    { key: "off_percent", label: __uiText("components.ConfigStudio.off_power.1", "Off power"), type: "number", unit: "%" },
+    { key: "pull_percent", label: __uiText("components.ConfigStudio.pull_power.1", "Pull power"), type: "number", unit: "%" },
+    { key: "hold_percent", label: __uiText("components.ConfigStudio.hold_power.1", "Hold power"), type: "number", unit: "%" },
+    { key: "pull_ms", label: __uiText("components.ConfigStudio.pull_duration.1", "Pull duration"), type: "number", unit: "ms" },
     {
       key: "direction_invert",
-      label: "Invert direction",
+      label: __uiText("components.ConfigStudio.invert_direction.1", "Invert direction"),
       type: "boolean",
     },
-    { key: "id", label: "Servo ID", type: "number" },
-    { key: "count_min", label: "Minimum count", type: "number" },
-    { key: "count_max", label: "Maximum count", type: "number" },
+    { key: "id", label: __uiText("components.ConfigStudio.servo_id.1", "Servo ID"), type: "number" },
+    { key: "count_min", label: __uiText("components.ConfigStudio.minimum_count.1", "Minimum count"), type: "number" },
+    { key: "count_max", label: __uiText("components.ConfigStudio.maximum_count.1", "Maximum count"), type: "number" },
   ],
   kinematics: [
     {
       key: "type",
-      label: "Type",
+      label: __uiText("components.ConfigStudio.type.1", "Type"),
       type: "select",
       options: [
         "Cartesian",
@@ -329,7 +408,7 @@ const FIELDS: Record<NodeKind, FieldDef[]> = {
     },
     {
       key: "kinematic_segment_len_mm",
-      label: "Segment length",
+      label: __uiText("components.ConfigStudio.segment_length.1", "Segment length"),
       type: "number",
       unit: "mm",
     },
@@ -337,7 +416,7 @@ const FIELDS: Record<NodeKind, FieldDef[]> = {
   spindle: [
     {
       key: "type",
-      label: "Spindle type",
+      label: __uiText("components.ConfigStudio.spindle_type.1", "Spindle type"),
       type: "select",
       options: [
         "PWM",
@@ -363,26 +442,26 @@ const FIELDS: Record<NodeKind, FieldDef[]> = {
         "DanfossVLT2800",
       ],
     },
-    { key: "tool_num", label: "Tool number", type: "number" },
-    { key: "output_pin", label: "Output pin", type: "pin" },
-    { key: "enable_pin", label: "Enable pin", type: "pin" },
-    { key: "direction_pin", label: "Direction pin", type: "pin" },
-    { key: "pwm_hz", label: "PWM frequency", type: "number", unit: "Hz" },
-    { key: "speed_map", label: "Speed map" },
-    { key: "spinup_ms", label: "Spin-up delay", type: "number", unit: "ms" },
+    { key: "tool_num", label: __uiText("components.ConfigStudio.tool_number.1", "Tool number"), type: "number" },
+    { key: "output_pin", label: __uiText("components.ConfigStudio.output_pin.2", "Output pin"), type: "pin" },
+    { key: "enable_pin", label: __uiText("components.ConfigStudio.enable_pin.1", "Enable pin"), type: "pin" },
+    { key: "direction_pin", label: __uiText("components.ConfigStudio.direction_pin.2", "Direction pin"), type: "pin" },
+    { key: "pwm_hz", label: __uiText("components.ConfigStudio.pwm_frequency.2", "PWM frequency"), type: "number", unit: "Hz" },
+    { key: "speed_map", label: __uiText("components.ConfigStudio.speed_map.1", "Speed map") },
+    { key: "spinup_ms", label: __uiText("components.ConfigStudio.spin_up_delay.1", "Spin-up delay"), type: "number", unit: "ms" },
     {
       key: "spindown_ms",
-      label: "Spin-down delay",
+      label: __uiText("components.ConfigStudio.spin_down_delay.1", "Spin-down delay"),
       type: "number",
       unit: "ms",
     },
-    { key: "uart_num", label: "UART bus", type: "number" },
-    { key: "modbus_id", label: "Modbus ID", type: "number" },
+    { key: "uart_num", label: __uiText("components.ConfigStudio.uart_bus.2", "UART bus"), type: "number" },
+    { key: "modbus_id", label: __uiText("components.ConfigStudio.modbus_id.1", "Modbus ID"), type: "number" },
   ],
   bus: [
     {
       key: "type",
-      label: "Bus type",
+      label: __uiText("components.ConfigStudio.bus_type.1", "Bus type"),
       type: "select",
       options: [
         "uart1",
@@ -395,69 +474,69 @@ const FIELDS: Record<NodeKind, FieldDef[]> = {
         "i2so",
       ],
     },
-    { key: "txd_pin", label: "TX pin", type: "pin" },
-    { key: "rxd_pin", label: "RX pin", type: "pin" },
-    { key: "rts_pin", label: "RTS pin", type: "pin" },
-    { key: "cts_pin", label: "CTS pin", type: "pin" },
-    { key: "sda_pin", label: "SDA pin", type: "pin" },
-    { key: "scl_pin", label: "SCL pin", type: "pin" },
-    { key: "sck_pin", label: "Clock pin", type: "pin" },
-    { key: "mosi_pin", label: "MOSI pin", type: "pin" },
-    { key: "miso_pin", label: "MISO pin", type: "pin" },
-    { key: "baud", label: "Baud rate", type: "number" },
-    { key: "mode", label: "UART mode" },
-    { key: "passthrough_baud", label: "Passthrough baud", type: "number" },
-    { key: "passthrough_mode", label: "Passthrough mode" },
-    { key: "uart_num", label: "UART bus", type: "number" },
+    { key: "txd_pin", label: __uiText("components.ConfigStudio.tx_pin.1", "TX pin"), type: "pin" },
+    { key: "rxd_pin", label: __uiText("components.ConfigStudio.rx_pin.1", "RX pin"), type: "pin" },
+    { key: "rts_pin", label: __uiText("components.ConfigStudio.rts_pin.1", "RTS pin"), type: "pin" },
+    { key: "cts_pin", label: __uiText("components.ConfigStudio.cts_pin.1", "CTS pin"), type: "pin" },
+    { key: "sda_pin", label: __uiText("components.ConfigStudio.sda_pin.1", "SDA pin"), type: "pin" },
+    { key: "scl_pin", label: __uiText("components.ConfigStudio.scl_pin.1", "SCL pin"), type: "pin" },
+    { key: "sck_pin", label: __uiText("components.ConfigStudio.clock_pin.1", "Clock pin"), type: "pin" },
+    { key: "mosi_pin", label: __uiText("components.ConfigStudio.mosi_pin.1", "MOSI pin"), type: "pin" },
+    { key: "miso_pin", label: __uiText("components.ConfigStudio.miso_pin.1", "MISO pin"), type: "pin" },
+    { key: "baud", label: __uiText("components.ConfigStudio.baud_rate.1", "Baud rate"), type: "number" },
+    { key: "mode", label: __uiText("components.ConfigStudio.uart_mode.1", "UART mode") },
+    { key: "passthrough_baud", label: __uiText("components.ConfigStudio.passthrough_baud.1", "Passthrough baud"), type: "number" },
+    { key: "passthrough_mode", label: __uiText("components.ConfigStudio.passthrough_mode.1", "Passthrough mode") },
+    { key: "uart_num", label: __uiText("components.ConfigStudio.uart_bus.3", "UART bus"), type: "number" },
     {
       key: "report_interval_ms",
-      label: "Report interval",
+      label: __uiText("components.ConfigStudio.report_interval.1", "Report interval"),
       type: "number",
       unit: "ms",
     },
     {
       key: "message_level",
-      label: "Message level",
+      label: __uiText("components.ConfigStudio.message_level.1", "Message level"),
       type: "select",
       options: ["None", "Error", "Warn", "Info", "Debug", "Verbose"],
     },
-    { key: "frequency", label: "Frequency", type: "number", unit: "Hz" },
+    { key: "frequency", label: __uiText("components.ConfigStudio.frequency.1", "Frequency"), type: "number", unit: "Hz" },
   ],
   storage: [
-    { key: "cs_pin", label: "Chip select", type: "pin" },
-    { key: "card_detect_pin", label: "Card detect", type: "pin" },
-    { key: "frequency_hz", label: "Frequency", type: "number", unit: "Hz" },
+    { key: "cs_pin", label: __uiText("components.ConfigStudio.chip_select.1", "Chip select"), type: "pin" },
+    { key: "card_detect_pin", label: __uiText("components.ConfigStudio.card_detect.1", "Card detect"), type: "pin" },
+    { key: "frequency_hz", label: __uiText("components.ConfigStudio.frequency.2", "Frequency"), type: "number", unit: "Hz" },
   ],
   control: [
-    { key: "reset_pin", label: "Reset", type: "pin" },
-    { key: "feed_hold_pin", label: "Feed hold", type: "pin" },
-    { key: "cycle_start_pin", label: "Cycle start", type: "pin" },
-    { key: "safety_door_pin", label: "Safety door", type: "pin" },
-    { key: "estop_pin", label: "Emergency stop", type: "pin" },
-    { key: "fault_pin", label: "Fault", type: "pin" },
+    { key: "reset_pin", label: __uiText("components.ConfigStudio.reset.1", "Reset"), type: "pin" },
+    { key: "feed_hold_pin", label: __uiText("components.ConfigStudio.feed_hold.1", "Feed hold"), type: "pin" },
+    { key: "cycle_start_pin", label: __uiText("components.ConfigStudio.cycle_start.1", "Cycle start"), type: "pin" },
+    { key: "safety_door_pin", label: __uiText("components.ConfigStudio.safety_door.1", "Safety door"), type: "pin" },
+    { key: "estop_pin", label: __uiText("components.ConfigStudio.emergency_stop.1", "Emergency stop"), type: "pin" },
+    { key: "fault_pin", label: __uiText("components.ConfigStudio.fault.1", "Fault"), type: "pin" },
   ],
   probe: [
-    { key: "pin", label: "Probe pin", type: "pin" },
-    { key: "toolsetter_pin", label: "Tool setter pin", type: "pin" },
-    { key: "check_mode_start", label: "Allow check mode", type: "boolean" },
-    { key: "hard_stop", label: "Stop immediately", type: "boolean" },
+    { key: "pin", label: __uiText("components.ConfigStudio.probe_pin.1", "Probe pin"), type: "pin" },
+    { key: "toolsetter_pin", label: __uiText("components.ConfigStudio.tool_setter_pin.1", "Tool setter pin"), type: "pin" },
+    { key: "check_mode_start", label: __uiText("components.ConfigStudio.allow_check_mode.1", "Allow check mode"), type: "boolean" },
+    { key: "hard_stop", label: __uiText("components.ConfigStudio.stop_immediately.1", "Stop immediately"), type: "boolean" },
     {
       key: "probe_hard_limit",
-      label: "Probe hard limit",
+      label: __uiText("components.ConfigStudio.probe_hard_limit.1", "Probe hard limit"),
       type: "boolean",
     },
   ],
   coolant: [
-    { key: "flood_pin", label: "Flood pin", type: "pin" },
-    { key: "mist_pin", label: "Mist pin", type: "pin" },
-    { key: "delay_ms", label: "Delay", type: "number", unit: "ms" },
+    { key: "flood_pin", label: __uiText("components.ConfigStudio.flood_pin.1", "Flood pin"), type: "pin" },
+    { key: "mist_pin", label: __uiText("components.ConfigStudio.mist_pin.1", "Mist pin"), type: "pin" },
+    { key: "delay_ms", label: __uiText("components.ConfigStudio.delay.1", "Delay"), type: "number", unit: "ms" },
   ],
   macro: [
-    { key: "startup_line0", label: "Startup line 0" },
-    { key: "startup_line1", label: "Startup line 1" },
-    { key: "after_homing", label: "After homing" },
-    { key: "after_reset", label: "After reset" },
-    { key: "after_unlock", label: "After unlock" },
+    { key: "startup_line0", label: __uiText("components.ConfigStudio.startup_line_0.1", "Startup line 0") },
+    { key: "startup_line1", label: __uiText("components.ConfigStudio.startup_line_1.1", "Startup line 1") },
+    { key: "after_homing", label: __uiText("components.ConfigStudio.after_homing.1", "After homing") },
+    { key: "after_reset", label: __uiText("components.ConfigStudio.after_reset.1", "After reset") },
+    { key: "after_unlock", label: __uiText("components.ConfigStudio.after_unlock.1", "After unlock") },
     { key: "macro0", label: "Macro 0" },
     { key: "macro1", label: "Macro 1" },
     { key: "macro2", label: "Macro 2" },
@@ -476,47 +555,47 @@ const FIELDS: Record<NodeKind, FieldDef[]> = {
     })),
   ],
   start: [
-    { key: "must_home", label: "Must home", type: "boolean" },
+    { key: "must_home", label: __uiText("components.ConfigStudio.must_home.1", "Must home"), type: "boolean" },
     {
       key: "deactivate_parking",
-      label: "Deactivate parking at startup",
+      label: __uiText("components.ConfigStudio.deactivate_parking_at_startup.1", "Deactivate parking at startup"),
       type: "boolean",
     },
     {
       key: "check_limits",
-      label: "Check limits at startup",
+      label: __uiText("components.ConfigStudio.check_limits_at_startup.1", "Check limits at startup"),
       type: "boolean",
     },
   ],
   parking: [
-    { key: "enable", label: "Parking enabled", type: "boolean" },
+    { key: "enable", label: __uiText("components.ConfigStudio.parking_enabled.1", "Parking enabled"), type: "boolean" },
     {
       key: "axis",
-      label: "Parking axis",
+      label: __uiText("components.ConfigStudio.parking_axis.1", "Parking axis"),
       type: "select",
       options: ["x", "y", "z", "a", "b", "c"],
     },
     {
       key: "target_mpos_mm",
-      label: "Parking position",
+      label: __uiText("components.ConfigStudio.parking_position.1", "Parking position"),
       type: "number",
       unit: "mm",
     },
     {
       key: "rate_mm_per_min",
-      label: "Parking rate",
+      label: __uiText("components.ConfigStudio.parking_rate.1", "Parking rate"),
       type: "number",
       unit: "mm/min",
     },
     {
       key: "pullout_distance_mm",
-      label: "Pull-out distance",
+      label: __uiText("components.ConfigStudio.pull_out_distance.1", "Pull-out distance"),
       type: "number",
       unit: "mm",
     },
     {
       key: "pullout_rate_mm_per_min",
-      label: "Pull-out rate",
+      label: __uiText("components.ConfigStudio.pull_out_rate.1", "Pull-out rate"),
       type: "number",
       unit: "mm/min",
     },
@@ -524,42 +603,42 @@ const FIELDS: Record<NodeKind, FieldDef[]> = {
   display: [
     {
       key: "report_interval_ms",
-      label: "Report interval",
+      label: __uiText("components.ConfigStudio.report_interval.2", "Report interval"),
       type: "number",
       unit: "ms",
     },
-    { key: "i2c_num", label: "I²C bus", type: "number" },
-    { key: "i2c_address", label: "Address (decimal)", type: "number" },
-    { key: "width", label: "Width", type: "number", unit: "px" },
-    { key: "height", label: "Height", type: "number", unit: "px" },
-    { key: "flip", label: "Flip", type: "boolean" },
-    { key: "mirror", label: "Mirror", type: "boolean" },
+    { key: "i2c_num", label: __uiText("components.ConfigStudio.i2c_bus.1", "I²C bus"), type: "number" },
+    { key: "i2c_address", label: __uiText("components.ConfigStudio.address_decimal.1", "Address (decimal)"), type: "number" },
+    { key: "width", label: __uiText("components.ConfigStudio.width.1", "Width"), type: "number", unit: "px" },
+    { key: "height", label: __uiText("components.ConfigStudio.height.1", "Height"), type: "number", unit: "px" },
+    { key: "flip", label: __uiText("components.ConfigStudio.flip.1", "Flip"), type: "boolean" },
+    { key: "mirror", label: __uiText("components.ConfigStudio.mirror.1", "Mirror"), type: "boolean" },
     {
       key: "radio_delay_ms",
-      label: "Radio delay",
+      label: __uiText("components.ConfigStudio.radio_delay.1", "Radio delay"),
       type: "number",
       unit: "ms",
     },
   ],
   atc: [
-    { key: "safe_z_mpos_mm", label: "Safe Z", type: "number", unit: "mm" },
+    { key: "safe_z_mpos_mm", label: __uiText("components.ConfigStudio.safe_z.1", "Safe Z"), type: "number", unit: "mm" },
     {
       key: "probe_seek_rate_mm_per_min",
-      label: "Probe seek rate",
+      label: __uiText("components.ConfigStudio.probe_seek_rate.1", "Probe seek rate"),
       type: "number",
       unit: "mm/min",
     },
     {
       key: "probe_feed_rate_mm_per_min",
-      label: "Probe feed rate",
+      label: __uiText("components.ConfigStudio.probe_feed_rate.1", "Probe feed rate"),
       type: "number",
       unit: "mm/min",
     },
-    { key: "change_mpos_mm", label: "Change position array" },
-    { key: "ets_mpos_mm", label: "Tool setter position array" },
+    { key: "change_mpos_mm", label: __uiText("components.ConfigStudio.change_position_array.1", "Change position array") },
+    { key: "ets_mpos_mm", label: __uiText("components.ConfigStudio.tool_setter_position_array.1", "Tool setter position array") },
     {
       key: "ets_rapid_z_mpos_mm",
-      label: "Tool setter rapid Z",
+      label: __uiText("components.ConfigStudio.tool_setter_rapid_z.1", "Tool setter rapid Z"),
       type: "number",
       unit: "mm",
     },
@@ -1504,7 +1583,7 @@ function PinEditor({
           value={index}
           onChange={(e) => set(family, e.target.value)}
           className="rounded-md border studio-border studio-input px-2 py-2 font-mono text-xs outline-none"
-          aria-label={`${family} pin number`}
+          aria-label={formatUi(__uiText("components.ConfigStudio.tail_coverage.1", "{v0} pin number"), { v0: family })}
         >
           {pinOptions.map((pin) => (
             <option key={pin}>{pin}</option>
@@ -1527,8 +1606,8 @@ function PinEditor({
         disabled={family === "NO_PIN" || family === "void"}
         className="rounded-md border studio-border studio-input px-2 py-1.5 text-[10px] outline-none"
       >
-        <option>high</option>
-        <option>low</option>
+        <option>{__uiText("components.ConfigStudio.high.1", "high")}</option>
+        <option>{__uiText("components.ConfigStudio.low.1", "low")}</option>
       </select>
       <select
         value={
@@ -1543,9 +1622,9 @@ function PinEditor({
         disabled={family === "NO_PIN" || family === "void"}
         className="rounded-md border studio-border studio-input px-2 py-1.5 text-[10px] outline-none"
       >
-        <option value="">No pull</option>
-        <option value="pu">Pull up</option>
-        <option value="pd">Pull down</option>
+        <option value="">{__uiText("components.ConfigStudio.no_pull.1", "No pull")}</option>
+        <option value="pu">{__uiText("components.ConfigStudio.pull_up.1", "Pull up")}</option>
+        <option value="pd">{__uiText("components.ConfigStudio.pull_down.1", "Pull down")}</option>
       </select>
     </div>
   );
@@ -1607,10 +1686,10 @@ function MachineHub({
         </span>
         <span>
           <span className="block text-sm font-semibold">
-            {node.fields.name || node.title}
+            {node.fields.name || studioDisplay(node.title)}
           </span>
           <span className="block text-[10px] text-[#6f7c90]">
-            {node.fields.board || "FluidNC configuration"}
+            {node.fields.board || studioDisplay("FluidNC configuration")}
           </span>
         </span>
       </div>
@@ -1627,7 +1706,7 @@ function MachineHub({
                   style={{ background: p.color }}
                 />
                 <span className="text-[11px] font-bold uppercase leading-tight tracking-wider text-[#aab4c3]">
-                  {p.label}
+                  {studioDisplay(p.label)}
                 </span>
                 <button
                   onPointerDown={(e) => e.stopPropagation()}
@@ -1638,7 +1717,7 @@ function MachineHub({
                     );
                   }}
                   className="flex h-6 w-6 shrink-0 items-center justify-center rounded border studio-border studio-button text-[#8794a8] hover:border-white/25 hover:text-white"
-                  title={`Add ${p.label.toLowerCase()} component`}
+                  title={formatUi(__uiText("components.ConfigStudio.dynamic.1", "Add {v0} component"), { v0: studioDisplay(p.label).toLowerCase() })}
                 >
                   <Plus size={12} />
                 </button>
@@ -1675,7 +1754,7 @@ function MachineHub({
                     const disabled = !option.repeatable && exists;
                     return (
                       <button
-                        key={option.title}
+                        key={studioDisplay(option.title)}
                         disabled={disabled}
                         onClick={(e) => {
                           e.stopPropagation();
@@ -1690,10 +1769,10 @@ function MachineHub({
                             color: disabled ? "#465164" : COLORS[option.kind],
                           }}
                         />
-                        <span>{option.title}</span>
+                        <span>{studioDisplay(option.title)}</span>
                         {disabled && (
                           <span className="ml-auto text-[9px] uppercase tracking-wider">
-                            Added
+                            {__uiText("components.ConfigStudio.added.1", "Added")}
                           </span>
                         )}
                       </button>
@@ -1782,10 +1861,10 @@ function GraphNode({
         </span>
         <span className="min-w-0 flex-1">
           <span className="block truncate text-[13px] font-semibold studio-text">
-            {node.title}
+            {studioDisplay(node.title)}
           </span>
           <span className="line-clamp-2 text-[11px] leading-[14px] studio-muted">
-            {node.subtitle}
+            {studioDisplay(node.subtitle)}
           </span>
         </span>
         {children.length > 0 && (
@@ -1796,7 +1875,7 @@ function GraphNode({
               setShowChildren((v) => !v);
             }}
             className="flex h-6 w-6 shrink-0 items-center justify-center rounded border studio-border studio-button text-[#8794a8] hover:text-white"
-            title="Add child"
+            title={__uiText("components.ConfigStudio.add_child.1", "Add child")}
           >
             <Plus size={12} />
           </button>
@@ -1819,7 +1898,7 @@ function GraphNode({
               className="flex w-full items-center gap-2 rounded px-2.5 py-2 text-left text-xs studio-text hover:bg-white/[.06]"
             >
               <Plus size={12} style={{ color: COLORS[child.kind] }} />
-              {child.title}
+              {studioDisplay(child.title)}
             </button>
           ))}
         </div>
@@ -2083,7 +2162,7 @@ export function ConfigStudio({
         : null;
     if (nextSource == null) {
       setMutationError(
-        `Could not update ${path ?? key}; the YAML structure has changed. Review the YAML and try again.`,
+        formatUi(__uiText("components.ConfigStudio.template_coverage.1", "Could not update {v0}; the YAML structure has changed. Review the YAML and try again."), { v0: path ?? key }),
       );
       return;
     }
@@ -2306,7 +2385,7 @@ export function ConfigStudio({
                 setQuery(e.target.value);
                 setPalette(true);
               }}
-              placeholder="Add node…"
+              placeholder={__uiText("components.ConfigStudio.add_node.1", "Add node…")}
               className="min-w-0 flex-1 bg-transparent text-xs text-[#d5dbe5] outline-none placeholder:text-[#657185]"
             />
             {query && (
@@ -2317,7 +2396,7 @@ export function ConfigStudio({
                 }}
                 className="text-[10px] studio-muted hover:text-white"
               >
-                Clear
+                {__uiText("components.ConfigStudio.clear.1", "Clear")}
               </button>
             )}
           </div>
@@ -2325,19 +2404,19 @@ export function ConfigStudio({
             <div className="mt-1 max-h-80 overflow-auto rounded-md border studio-border studio-panel p-1 shadow-2xl">
               {PALETTE.map((group) => {
                 const matches = group.items.filter((item) =>
-                  (item.title + item.sub)
+                  (studioDisplay(item.title) + studioDisplay(item.sub) + item.title + item.sub)
                     .toLowerCase()
                     .includes(query.toLowerCase()),
                 );
                 if (!matches.length) return null;
                 return (
-                  <div key={group.group}>
+                  <div key={studioDisplay(group.group)}>
                     <div className="px-2.5 pb-1 pt-2 text-[9px] font-bold uppercase tracking-widest text-[#59667a]">
-                      {group.group}
+                      {studioDisplay(group.group)}
                     </div>
                     {matches.map((item) => (
                       <button
-                        key={item.title}
+                        key={studioDisplay(item.title)}
                         onClick={() => {
                           add(item.kind, item.title);
                           setPalette(false);
@@ -2353,10 +2432,10 @@ export function ConfigStudio({
                         </span>
                         <span className="min-w-0">
                           <span className="block text-xs studio-text">
-                            {item.title}
+                            {studioDisplay(item.title)}
                           </span>
                           <span className="block truncate text-[10px] studio-muted">
-                            {item.sub}
+                            {studioDisplay(item.sub)}
                           </span>
                         </span>
                       </button>
@@ -2371,8 +2450,8 @@ export function ConfigStudio({
           <button
             onClick={() => restoreHistory("undo")}
             disabled={!undoRef.current.length}
-            title="Undo (⌘Z)"
-            aria-label="Undo"
+            title={__uiText("components.ConfigStudio.undo_z.1", "Undo (⌘Z)")}
+            aria-label={__uiText("components.ConfigStudio.undo.1", "Undo")}
             className="p-1.5 text-[#8995a7] hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
           >
             <Undo2 size={14} />
@@ -2380,8 +2459,8 @@ export function ConfigStudio({
           <button
             onClick={() => restoreHistory("redo")}
             disabled={!redoRef.current.length}
-            title="Redo (⌘⇧Z)"
-            aria-label="Redo"
+            title={__uiText("components.ConfigStudio.redo_z.1", "Redo (⌘⇧Z)")}
+            aria-label={__uiText("components.ConfigStudio.redo.1", "Redo")}
             className="p-1.5 text-[#8995a7] hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
           >
             <Redo2 size={14} />
@@ -2389,8 +2468,8 @@ export function ConfigStudio({
           <span className="mx-1 h-5 w-px bg-white/10" />
           <button
             onClick={() => setZoom((z) => Math.max(0.35, z - 0.1))}
-            title="Zoom out"
-            aria-label="Zoom out"
+            title={__uiText("components.ConfigStudio.zoom_out.1", "Zoom out")}
+            aria-label={__uiText("components.ConfigStudio.zoom_out.2", "Zoom out")}
             className="p-1.5 text-[#8995a7] hover:text-white"
           >
             <Minus size={14} />
@@ -2400,8 +2479,8 @@ export function ConfigStudio({
           </span>
           <button
             onClick={() => setZoom((z) => Math.min(1.7, z + 0.1))}
-            title="Zoom in"
-            aria-label="Zoom in"
+            title={__uiText("components.ConfigStudio.zoom_in.1", "Zoom in")}
+            aria-label={__uiText("components.ConfigStudio.zoom_in.2", "Zoom in")}
             className="p-1.5 text-[#8995a7] hover:text-white"
           >
             <Plus size={14} />
@@ -2411,8 +2490,8 @@ export function ConfigStudio({
               setZoom(1);
               setPan({ x: 0, y: 0 });
             }}
-            title="Reset view"
-            aria-label="Reset view"
+            title={__uiText("components.ConfigStudio.reset_view.1", "Reset view")}
+            aria-label={__uiText("components.ConfigStudio.reset_view.2", "Reset view")}
             className="p-1.5 text-[#8995a7] hover:text-white"
           >
             <Grid3X3 size={14} />
@@ -2590,10 +2669,10 @@ export function ConfigStudio({
                 </span>
                 <span>
                   <span className="block text-xs font-semibold">
-                    {pendingPlacement.title}
+                    {studioDisplay(pendingPlacement.title)}
                   </span>
                   <span className="block text-[10px] studio-muted">
-                    Click or tap to place
+                    {__uiText("components.ConfigStudio.click_or_tap_to_place.1", "Click or tap to place")}
                   </span>
                 </span>
               </span>
@@ -2609,18 +2688,18 @@ export function ConfigStudio({
             }}
           >
             <span>
-              Click or tap the canvas to place <b>{pendingPlacement.title}</b>
+              {__uiText("components.ConfigStudio.click_or_tap_the_canvas_to_place.1", "Click or tap the canvas to place")} <b>{studioDisplay(pendingPlacement.title)}</b>
             </span>
             <button
               onClick={() => setPendingPlacement(null)}
               className="rounded border studio-border px-2 py-1 text-[#9aa6b8] hover:text-white"
             >
-              Cancel
+              {__uiText("components.ConfigStudio.cancel.1", "Cancel")}
             </button>
           </div>
         ) : (
           <div className="absolute bottom-3 left-3 rounded border studio-border studio-panel px-2.5 py-1.5 text-[10px] text-[#69768a]">
-            Drag canvas to pan · Scroll to zoom · Select a node to configure
+            {__uiText("components.ConfigStudio.drag_canvas_to_pan_scroll_to_zoom_s.1", "Drag canvas to pan · Scroll to zoom · Select a node to configure")}
           </div>
         )}
       </section>
@@ -2636,10 +2715,10 @@ export function ConfigStudio({
               </span>
               <span className="min-w-0">
                 <span className="block truncate text-sm font-semibold">
-                  {active.title}
+                  {studioDisplay(active.title)}
                 </span>
                 <span className="block text-[10px] uppercase tracking-widest studio-muted">
-                  {active.kind} node
+                  {studioDisplay(active.kind)} {__uiText("components.ConfigStudio.node.1", "node")}
                 </span>
               </span>
               {active.kind !== "machine" && (
@@ -2657,8 +2736,8 @@ export function ConfigStudio({
                 <input
                   value={propertyQuery}
                   onChange={(e) => setPropertyQuery(e.target.value)}
-                  placeholder="Search properties…"
-                  aria-label="Search properties"
+                  placeholder={__uiText("components.ConfigStudio.search_properties.1", "Search properties…")}
+                  aria-label={__uiText("components.ConfigStudio.search_properties.2", "Search properties")}
                   className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-[#657185]"
                 />
               </label>
@@ -2670,7 +2749,7 @@ export function ConfigStudio({
                 </div>
               )}
               <div className="mb-2 text-[10px] font-bold uppercase tracking-wider text-[#707d90]">
-                Properties
+                {__uiText("components.ConfigStudio.properties.1", "Properties")}
               </div>
               <div className="space-y-3">
                 {propertyFields
@@ -2712,10 +2791,11 @@ export function ConfigStudio({
                         >
                           <span>
                             {active.fields[f.key] === "true"
-                              ? "Enabled"
-                              : "Disabled"}
+                              ? __uiText("components.ConfigStudio.enabled.1", "Enabled")
+                              : __uiText("components.ConfigStudio.disabled.1", "Disabled")}
                           </span>
                           <span
+                            dir="ltr"
                             className="studio-boolean-track h-4 w-7 rounded-full p-0.5"
                           >
                             <span
@@ -2750,7 +2830,7 @@ export function ConfigStudio({
           </>
         ) : (
           <div className="p-5 text-xs text-[#758195]">
-            Select a node to inspect it.
+            {__uiText("components.ConfigStudio.select_a_node_to_inspect_it.1", "Select a node to inspect it.")}
           </div>
         )}
       </aside>

@@ -1,3 +1,4 @@
+import { uiText as __uiText, uiPlural as __uiPlural } from '../lib/i18n'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { AlertCircle, RefreshCw } from 'lucide-react'
 import { useMachineStore } from '../store'
@@ -135,7 +136,7 @@ function LimitTile({ active, label, detail }: {
         {label}
       </span>
       <span className="text-[10px] font-semibold uppercase tracking-wider opacity-75">
-        {active ? 'Active' : 'Inactive'}
+        {active ? __uiText("components.LimitsTab.active.1", "Active") : __uiText("components.LimitsTab.inactive.1", "Inactive")}
       </span>
     </div>
   )
@@ -169,13 +170,13 @@ export function LimitsTab({ settings }: Props) {
 
     if (!connected) {
       setPhase('error')
-      setError('The controller is not connected.')
+      setError(__uiText("components.LimitsTab.notice.1", "The controller is not connected."))
       return
     }
 
     if (!machineIdle) {
       setPhase('error')
-      setError('The limit monitor is available when the machine is idle.')
+      setError(__uiText("components.LimitsTab.notice.2", "The limit monitor is available when the machine is idle."))
       return
     }
 
@@ -235,14 +236,14 @@ export function LimitsTab({ settings }: Props) {
     limitsSent = isSocketOpen() && sendRaw('$limits')
     if (!limitsSent) {
       setPhase('error')
-      setError('Could not start the limit monitor.')
+      setError(__uiText("components.LimitsTab.notice.3", "Could not start the limit monitor."))
     }
 
     const responseTimeout = window.setTimeout(() => {
       if (recognizedResponseRef.current) return
       replyTimedOut = true
       setPhase('error')
-      setError('FluidNC did not respond to $limits. The machine may need to be idle.')
+      setError(__uiText("components.LimitsTab.notice.4", "FluidNC did not respond to $limits. The machine may need to be idle."))
     }, 5000)
 
     return () => {
@@ -306,18 +307,18 @@ export function LimitsTab({ settings }: Props) {
         }`} />
         <div className="min-w-0 flex-1">
           <div className="text-sm font-medium text-text-primary">
-            {phase === 'live' ? 'Live input monitor' : phase === 'starting' ? 'Starting monitor...' : 'Monitor unavailable'}
+            {phase === 'live' ? __uiText("components.LimitsTab.live_input_monitor.1", "Live input monitor") : phase === 'starting' ? __uiText("components.LimitsTab.starting_monitor.1", "Starting monitor...") : __uiText("components.LimitsTab.monitor_unavailable.1", "Monitor unavailable")}
           </div>
           {phase === 'live' && (
             <div className="text-xs text-text-dim">
-              {activeCount === 0 ? 'No inputs active' : `${activeCount} active input${activeCount === 1 ? '' : 's'}`}
+              {activeCount === 0 ? __uiText("components.LimitsTab.no_inputs_active.1", "No inputs active") : __uiPlural("components.LimitsTab.active_inputs", activeCount, { one: "{count} active input", other: "{count} active inputs" })}
             </div>
           )}
         </div>
         <button
           onClick={() => setSession(value => value + 1)}
           className="p-2 rounded text-text-muted hover:text-text-primary hover:bg-elevated transition-colors"
-          title="Restart limit monitor"
+          title={__uiText("components.LimitsTab.restart_limit_monitor.1", "Restart limit monitor")}
         >
           <RefreshCw size={14} className={phase === 'starting' ? 'animate-spin' : ''} />
         </button>
@@ -332,7 +333,7 @@ export function LimitsTab({ settings }: Props) {
 
       {phase !== 'error' && axes.length === 0 && (
         <div className="flex items-center justify-center h-32 text-sm text-text-dim">
-          Waiting for configured axes...
+          {__uiText("components.LimitsTab.waiting_for_configured_axes.1", "Waiting for configured axes...")}
         </div>
       )}
 
@@ -353,11 +354,11 @@ export function LimitsTab({ settings }: Props) {
           <div className="grid grid-cols-2 gap-3">
             <LimitTile
               active={snapshot.probe}
-              label="Probe"
+              label={__uiText("components.LimitsTab.prop_label.1", "Probe")}
             />
             <LimitTile
               active={snapshot.toolsetter}
-              label="Toolsetter"
+              label={__uiText("components.LimitsTab.prop_label.2", "Toolsetter")}
             />
           </div>
         </div>

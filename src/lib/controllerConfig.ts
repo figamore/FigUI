@@ -1,3 +1,4 @@
+import { uiText as __uiText } from './i18n'
 import { useMachineStore } from '../store'
 import { sendCommand } from './http'
 import { parseESP400Settings } from './parser'
@@ -34,7 +35,7 @@ export async function loadControllerConfigSettings(force = false): Promise<Fluid
       return settings
     })
     .catch(error => {
-      const message = error instanceof Error ? error.message : 'Failed to load settings'
+      const message = error instanceof Error ? error.message : __uiText("lib.controllerConfig.system_coverage.1", "Failed to load settings")
       useMachineStore.getState().setControllerConfigError(message)
       throw error
     })

@@ -1,3 +1,4 @@
+import { uiText as __uiText } from '../lib/i18n'
 import { useEffect, useRef, useState } from "react";
 import { AlertTriangle, Loader2, RefreshCw } from "lucide-react";
 import { useMachineStore } from "../store";
@@ -46,7 +47,7 @@ export function RemoteConfigStudio(
           setError(
             reason instanceof Error
               ? reason.message
-              : "Could not load Config Studio.",
+              : __uiText("components.RemoteConfigStudio.load_error.1", "Could not load Config Studio."),
           );
       });
     return () => {
@@ -70,20 +71,20 @@ export function RemoteConfigStudio(
             <>
               <AlertTriangle size={26} className="text-warn" />
               <div className="font-semibold text-text-primary">
-                Config Studio unavailable
+                {__uiText("components.RemoteConfigStudio.config_studio_unavailable.1", "Config Studio unavailable")}
               </div>
               <p className="max-w-md text-sm">{error}</p>
               <button
                 className="btn btn-ghost text-sm"
                 onClick={() => setAttempt((value) => value + 1)}
               >
-                <RefreshCw size={14} /> Retry
+                <RefreshCw size={14} /> {__uiText("components.RemoteConfigStudio.retry.1", "Retry")}
               </button>
             </>
           ) : (
             <>
               <Loader2 size={22} className="animate-spin text-accent" />
-              <span className="text-sm">Loading Config Studio…</span>
+              <span className="text-sm">{__uiText("components.RemoteConfigStudio.loading_config_studio.1", "Loading Config Studio…")}</span>
             </>
           )}
         </div>

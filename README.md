@@ -191,6 +191,12 @@ npm run build:esp32
 
 The `dist/` directory contains the static index.html.gz file you can upload to the internal filesystem of the ESP32. Simply refresh the page to show changes.
 
+### UI language
+
+English is the default controller UI. To install another language, open **About → Language**, select the language, and install the latest release. This replaces the UI on the controller, so the language applies to every browser using that controller. Internet access is needed for installation; the installed UI works offline. Translations are machine-assisted and require further linguistic and in-context review.
+
+For local builds, run `VITE_FIGUI_LOCALE=[2 character language code] npm run build:esp32` for building in a specific language or `npm run build:esp32` for English.
+
 Config Studio is built separately with `npm run build:studio`. Production UI builds reference an exact Studio build under `config-studio/<build-id>/` on GitHub Pages; deploy those assets before distributing a custom firmware build. Both Pages workflows build Studio and restore previously published versions through `scripts/prepare-config-studio-pages.mjs`, so older controllers continue to work. The archive is retained as `config-studio/archive.json.gz`; restoration failures stop deployment instead of silently deleting old builds. Keep the build input list in `scripts/config-studio-build-id.mjs` current when adding Studio dependencies.
 
 For local development, `npm run dev` loads Studio from the local source when opened. Run `npm run test:config` and `npm run test:studio` to check config compatibility, remote loading, offline caching, retries, and asset preservation.

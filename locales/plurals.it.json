@@ -1,0 +1,42 @@
+{
+  "store.gcodeSender.ignored": {
+    "one": "{count} riga eseguibile dopo M2/M30 non sarà inviata.",
+    "many": "{count} righe eseguibili dopo M2/M30 non saranno inviate.",
+    "other": "{count} righe eseguibili dopo M2/M30 non saranno inviate."
+  },
+  "components.LimitsTab.active_inputs": {
+    "one": "{count} ingresso attivo",
+    "many": "{count} ingressi attivi",
+    "other": "{count} ingressi attivi"
+  },
+  "components.FileManager.folder_warning": {
+    "one": "\n\nInclude {count} cartella e il suo contenuto.",
+    "many": "\n\nInclude {count} cartelle e il loro contenuto.",
+    "other": "\n\nInclude {count} cartelle e il loro contenuto."
+  },
+  "components.Macros.more_line.1": {
+    "one": "+{count} altra riga",
+    "many": "+{count} altre righe",
+    "other": "+{count} altre righe"
+  },
+  "components.Macros.more_line.2": {
+    "one": "+{count} altra riga",
+    "many": "+{count} altre righe",
+    "other": "+{count} altre righe"
+  },
+  "components.Macros.line.1": {
+    "one": "{count} riga",
+    "many": "{count} righe",
+    "other": "{count} righe"
+  },
+  "components.SettingsPanel.result.1": {
+    "one": "{count} risultato",
+    "many": "{count} risultati",
+    "other": "{count} risultati"
+  },
+  "components.SettingsPanel.save_config_prompt": {
+    "one": "La configurazione della macchina è cambiata. Salvare questa modifica in {filename}?\n\n",
+    "many": "La configurazione della macchina è cambiata. Salvare queste modifiche in {filename}?\n\n",
+    "other": "La configurazione della macchina è cambiata. Salvare queste modifiche in {filename}?\n\n"
+  }
+}

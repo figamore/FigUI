@@ -1,3 +1,4 @@
+import { uiText as __uiText, formatUi } from '../lib/i18n'
 import { useState, useEffect, useRef, useCallback } from "react";
 import { CodeJar } from "codejar";
 import {
@@ -615,7 +616,7 @@ export function CodeEditor({
         if (isYamlFile) setSavedOnce(true);
         return true;
       } catch (e) {
-        alert(e instanceof Error ? e.message : "Save failed");
+        alert(e instanceof Error ? e.message : __uiText("components.CodeEditor.alert_coverage.1", "Save failed"));
         return false;
       } finally {
         setSaving(false);
@@ -676,7 +677,7 @@ export function CodeEditor({
   const handleRestart = useCallback(async () => {
     if (
       !confirm(
-        "Restart the controller now? The config will take effect after reboot.",
+        __uiText("components.CodeEditor.notice.1", "Restart the controller now? The config will take effect after reboot."),
       )
     )
       return;
@@ -837,7 +838,7 @@ export function CodeEditor({
             </span>
             {dirty && (
               <span className="text-sm text-warn font-semibold shrink-0">
-                modified
+                {__uiText("components.CodeEditor.modified.1", "modified")}
               </span>
             )}
           </div>
@@ -850,7 +851,7 @@ export function CodeEditor({
                   disabled={!canUseStudio}
                   title={
                     !canUseStudio
-                      ? "Config Studio is available on tablets and desktops"
+                      ? __uiText("components.CodeEditor.config_studio_is_available_on_table.1", "Config Studio is available on tablets and desktops")
                       : undefined
                   }
                 >
@@ -867,45 +868,45 @@ export function CodeEditor({
             <button
               className="btn btn-ghost text-sm py-1 px-2"
               onClick={toggleSearch}
-              title="Search (Ctrl+F)"
+              title={__uiText("components.CodeEditor.search_ctrl_f.1", "Search (Ctrl+F)")}
             >
               <Search size={12} />
-              <span className="hidden sm:inline"> Find</span>
+              <span className="hidden sm:inline"> {__uiText("components.CodeEditor.find.1", "Find")}</span>
             </button>
             <button
               className="btn btn-ghost text-sm py-1 px-2"
               onClick={handleDownload}
-              title="Download"
+              title={__uiText("components.CodeEditor.download.1", "Download")}
             >
               <Download size={12} />
-              <span className="hidden sm:inline"> Download</span>
+              <span className="hidden sm:inline"> {__uiText("components.CodeEditor.download.2", "Download")}</span>
             </button>
             <button
               className="btn btn-primary text-sm py-1 px-2"
               onClick={() => handleSave()}
               disabled={saving || !dirty}
-              title="Save (Ctrl+S)"
+              title={__uiText("components.CodeEditor.save_ctrl_s.1", "Save (Ctrl+S)")}
             >
               <Save size={12} />
               <span className="hidden sm:inline">
                 {" "}
-                {saving ? "Saving…" : "Save"}
+                {saving ? __uiText("components.CodeEditor.saving.1", "Saving…") : __uiText("components.CodeEditor.save.1", "Save")}
               </span>
             </button>
             {isYamlFile && savedOnce && !dirty && (
               <button
                 className="btn btn-warn text-sm py-1 px-2"
                 onClick={handleRestart}
-                title="Restart controller to apply config"
+                title={__uiText("components.CodeEditor.restart_controller_to_apply_config.1", "Restart controller to apply config")}
               >
                 <RotateCcw size={12} />
-                <span className="hidden sm:inline"> Restart</span>
+                <span className="hidden sm:inline"> {__uiText("components.CodeEditor.restart.1", "Restart")}</span>
               </button>
             )}
             <button
               className="p-1.5 rounded text-text-muted hover:text-text-primary hover:bg-elevated transition-colors ml-1"
               onClick={tryClose}
-              title="Close"
+              title={__uiText("components.CodeEditor.close.1", "Close")}
             >
               <X size={14} />
             </button>
@@ -919,7 +920,7 @@ export function CodeEditor({
             <input
               ref={searchRef}
               className="input-field flex-1 py-1 text-sm"
-              placeholder="Search…"
+              placeholder={__uiText("components.CodeEditor.search.1", "Search…")}
               value={searchTerm}
               onChange={(e) => doSearch(e.target.value)}
               onKeyDown={(e) => {
@@ -933,20 +934,20 @@ export function CodeEditor({
               <span className="text-sm text-text-muted font-mono shrink-0">
                 {matchCount > 0
                   ? `${matchIndex + 1}/${matchCount}`
-                  : "No results"}
+                  : __uiText("components.CodeEditor.no_results.1", "No results")}
               </span>
             )}
             <button
               className="p-1 rounded hover:bg-surface text-text-muted hover:text-text-primary transition-colors"
               onClick={prevMatch}
-              title="Previous (Shift+Enter)"
+              title={__uiText("components.CodeEditor.previous_shift_enter.1", "Previous (Shift+Enter)")}
             >
               <ChevronUp size={14} />
             </button>
             <button
               className="p-1 rounded hover:bg-surface text-text-muted hover:text-text-primary transition-colors"
               onClick={nextMatch}
-              title="Next (Enter)"
+              title={__uiText("components.CodeEditor.next_enter.1", "Next (Enter)")}
             >
               <ChevronDown size={14} />
             </button>
@@ -975,7 +976,7 @@ export function CodeEditor({
           ref={scrollRef}
           className={`${isYamlFile && view === "studio" ? "hidden" : "block"} flex-1 overflow-auto min-h-0 bg-elevated/50`}
         >
-          <div className="flex min-h-full min-w-full w-max">
+          <div dir="ltr" className="flex min-h-full min-w-full w-max">
             {/* Gutter */}
             <div
               ref={gutterRef}
@@ -1000,9 +1001,10 @@ export function CodeEditor({
               />
               <div
                 ref={editorRef}
+                dir="ltr"
                 className="code-editor"
                 role="textbox"
-                aria-label={`${filename} code editor`}
+                aria-label={formatUi(__uiText("components.CodeEditor.tail_coverage.1", "{v0} code editor"), { v0: filename })}
                 aria-multiline="true"
                 aria-describedby="code-editor-help"
                 autoCapitalize="off"
@@ -1014,12 +1016,11 @@ export function CodeEditor({
         {view === "code" && (
           <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-border bg-surface px-3 py-1 text-xs text-text-muted shrink-0">
             <span className="font-mono">
-              Ln {cursor.line}, Col {cursor.column}
-              {cursor.selected > 0 && ` · ${cursor.selected} selected`} ·
-              Spaces: 2
+              {__uiText("components.CodeEditor.coverage.3", "Ln")} {cursor.line}, Col {cursor.column}
+              {cursor.selected > 0 && formatUi(__uiText("components.CodeEditor.tail_coverage.2", " · {v0} selected"), { v0: cursor.selected })} {__uiText("components.CodeEditor.coverage.1", "· Spaces: 2")}
             </span>
             <span id="code-editor-help">
-              Tab / Shift+Tab: indent selection · Paste keeps spacing
+              {__uiText("components.CodeEditor.tab_shift_tab_indent_selection_past.1", "Tab / Shift+Tab: indent selection · Paste keeps spacing")}
             </span>
           </div>
         )}
@@ -1036,30 +1037,30 @@ export function CodeEditor({
             onClick={(e) => e.stopPropagation()}
           >
             <p className="text-base text-text-primary mb-1 font-semibold">
-              Unsaved changes
+              {__uiText("components.CodeEditor.unsaved_changes.1", "Unsaved changes")}
             </p>
             <p className="text-sm text-text-muted mb-4">
-              Do you want to save your changes to{" "}
-              <span className="font-mono">{filename}</span> before closing?
+              {__uiText("components.CodeEditor.do_you_want_to_save_your_changes_to.1", "Do you want to save your changes to")}{" "}
+              <span className="font-mono">{filename}</span> {__uiText("components.CodeEditor.before_closing.1", "before closing?")}
             </p>
             <div className="flex flex-wrap justify-end gap-2">
               <button
                 className="btn btn-ghost text-sm py-1.5 px-3"
                 onClick={() => setConfirmClose(false)}
               >
-                Cancel
+                {__uiText("components.CodeEditor.cancel.1", "Cancel")}
               </button>
               <button
                 className="btn btn-ghost text-sm py-1.5 px-3 text-warn"
                 onClick={confirmDiscardAndClose}
               >
-                Don&apos;t Save
+                {__uiText("components.CodeEditor.coverage.2", "Don't Save")}
               </button>
               <button
                 className="btn btn-primary text-sm py-1.5 px-3"
                 onClick={confirmSaveAndClose}
               >
-                Save
+                {__uiText("components.CodeEditor.save.2", "Save")}
               </button>
             </div>
           </div>
@@ -1076,16 +1077,16 @@ export function CodeEditor({
           >
             <div className="shrink-0 border-b border-border px-5 py-4">
               <div className="text-base font-semibold text-text-primary">
-                Configuration diagnostics
+                {__uiText("components.CodeEditor.configuration_diagnostics.1", "Configuration diagnostics")}
               </div>
               <div className="mt-1 text-sm text-text-muted">
                 {validationIssues.filter((i) => i.severity === "error").length}{" "}
-                errors ·{" "}
+                {__uiText("components.CodeEditor.errors.1", "errors ·")}{" "}
                 {
                   validationIssues.filter((i) => i.severity === "warning")
                     .length
                 }{" "}
-                warnings
+                {__uiText("components.CodeEditor.warnings.1", "warnings")}
               </div>
             </div>
             <div className="min-h-0 flex-1 space-y-2 overflow-auto p-4">
@@ -1118,7 +1119,7 @@ export function CodeEditor({
                 className="btn btn-ghost"
                 onClick={() => setValidationIssues(null)}
               >
-                Cancel
+                {__uiText("components.CodeEditor.cancel.2", "Cancel")}
               </button>
               <button
                 className="btn btn-warn"
@@ -1126,9 +1127,9 @@ export function CodeEditor({
                   setValidationIssues(null);
                   handleSave(true);
                 }}
-                title="Save without validation"
+                title={__uiText("components.CodeEditor.save_without_validation.1", "Save without validation")}
               >
-                Save anyway
+                {__uiText("components.CodeEditor.save_anyway.1", "Save anyway")}
               </button>
               <button
                 className="btn btn-primary"
@@ -1137,7 +1138,7 @@ export function CodeEditor({
                   setView("code");
                 }}
               >
-                Review YAML
+                {__uiText("components.CodeEditor.review_yaml.1", "Review YAML")}
               </button>
             </div>
           </div>

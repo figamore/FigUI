@@ -1,7 +1,6 @@
 import { execSync } from 'child_process'
 import { readFileSync, writeFileSync, existsSync } from 'fs'
-import { gzipAsync } from '@gfx/zopfli'
-import { packEsp32Html } from './pack-esp32.mjs'
+import { packEsp32Html, gzipSmallestHtml } from './pack-esp32.mjs'
 
 const KB = 1024
 const ESP32_SPIFFS_LIMIT = 178 * KB
@@ -36,22 +35,18 @@ if (existsSync(faviconPath)) {
   console.log(`  favicon.png inlined (${fmt(faviconB64.length * 0.75)})`)
 }
 console.log('\n[4/5] Packing inline app...')
-const unpackedHtml = html
-if (!process.argv.includes('--no-pack')) html = await packEsp32Html(html, { packStyles: true })
-else console.log('  Packing disabled by --no-pack')
+const candidates = [{ name: 'unpacked', html }]
+if (!process.argv.includes('--no-pack')) {
+  candidates.push({ name: 'ASCII dictionary', html: await packEsp32Html(html, { packStyles: true }) })
+  candidates.push({ name: 'Unicode dictionary', html: await packEsp32Html(html, { packStyles: true, unicodeDictionary: true }) })
+} else console.log('  Packing disabled by --no-pack')
 
 console.log('\n[5/5] Compressing with Zopfli...')
-let gz = await gzipAsync(Buffer.from(html), { numiterations: 15 })
-if (html !== unpackedHtml) {
-  const unpackedGz = await gzipAsync(Buffer.from(unpackedHtml), { numiterations: 15 })
-  if (gz.length < unpackedGz.length) {
-    console.log(`  Packing saved ${unpackedGz.length - gz.length} bytes (${fmt(unpackedGz.length)} → ${fmt(gz.length)})`)
-  } else {
-    console.log('  Keeping the unpacked version because it compresses smaller')
-    html = unpackedHtml
-    gz = unpackedGz
-  }
-}
+const selected = await gzipSmallestHtml(candidates)
+html = selected.html
+const gz = selected.gz
+for (const { name, bytes } of selected.sizes) console.log(`  ${name}: ${bytes} bytes (${fmt(bytes)})`)
+console.log(`  Selected ${selected.name}; saved ${selected.sizes[0].bytes - gz.length} bytes versus unpacked`)
 writeFileSync(htmlPath, html)
 const outPath = 'dist/index.html.gz'
 writeFileSync(outPath, gz)

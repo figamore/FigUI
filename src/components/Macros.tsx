@@ -1,3 +1,4 @@
+import { uiText as __uiText, uiPlural as __uiPlural, formatUi } from '../lib/i18n'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { Plus, X, Pencil, Check, FileCode, FolderOpen, ChevronRight, ChevronLeft, Loader2, HardDrive, Server, Play, Square, Zap, Power, Settings, Home, Target, Crosshair, RotateCcw, ArrowLeft, ArrowUp, ArrowRight, ArrowDown, Lightbulb, Trash2, Pin } from 'lucide-react'
 import { useMachineStore } from '../store'
@@ -86,7 +87,7 @@ function FileBrowser({ onSelect, onClose }: FileBrowserProps) {
       setEntries(result.files)
       setPath(dir)
     } catch {
-      setError('Could not list files')
+      setError(__uiText("components.Macros.notice.1", "Could not list files"))
     } finally {
       setLoading(false)
     }
@@ -123,7 +124,7 @@ function FileBrowser({ onSelect, onClose }: FileBrowserProps) {
       const content = await fetchFileContent(fullPath, fs)
       onSelect(content, entry.name, fullPath, fs)
     } catch {
-      setError('Failed to load file')
+      setError(__uiText("components.Macros.notice.2", "Failed to load file"))
     } finally {
       setLoadingFile('')
     }
@@ -161,7 +162,7 @@ function FileBrowser({ onSelect, onClose }: FileBrowserProps) {
           <button
             className="px-2 text-text-muted hover:text-text-primary transition-colors"
             onClick={onClose}
-            title="Close"
+            title={__uiText("components.Macros.close.1", "Close")}
           >
             <X size={14} />
           </button>
@@ -175,13 +176,13 @@ function FileBrowser({ onSelect, onClose }: FileBrowserProps) {
                          hover:text-text-primary disabled:opacity-30 transition-colors"
               onClick={goBack}
               disabled={!history.length}
-              title="Back"
+              title={__uiText("components.Macros.back.1", "Back")}
             >
               <ChevronLeft size={13} />
             </button>
             <span className="text-sm font-mono text-text-dim truncate max-w-[240px]">{path}</span>
           </div>
-          <span className="text-sm text-text-dim shrink-0">Select a G-code file</span>
+          <span className="text-sm text-text-dim shrink-0">{__uiText("components.Macros.select_a_g_code_file.1", "Select a G-code file")}</span>
         </div>
 
         {/* File list */}
@@ -189,14 +190,14 @@ function FileBrowser({ onSelect, onClose }: FileBrowserProps) {
           {loading && (
             <div className="flex items-center justify-center h-full gap-2 text-text-muted">
               <Loader2 size={14} className="animate-spin" />
-              <span className="text-sm">Loading…</span>
+              <span className="text-sm">{__uiText("components.Macros.loading.1", "Loading…")}</span>
             </div>
           )}
           {!loading && error && (
             <div className="text-sm text-danger text-center py-6">{error}</div>
           )}
           {!loading && !error && sorted.length === 0 && (
-            <div className="text-sm text-text-dim text-center py-6">No files found</div>
+            <div className="text-sm text-text-dim text-center py-6">{__uiText("components.Macros.no_files_found.1", "No files found")}</div>
           )}
           {!loading && !error && sorted.map(entry => {
             const selectable = entry.isDir || isGcode(entry.name)
@@ -256,14 +257,14 @@ function AddMenu({ onBrowse, onCreate, onClose }: AddMenuProps) {
           onClick={() => { onClose(); onBrowse() }}
         >
           <FolderOpen size={12} className="shrink-0 text-text-muted" />
-          Browse Files
+          {__uiText("components.Macros.browse_files.1", "Browse Files")}
         </button>
         <button
           className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-elevated transition-colors"
           onClick={() => { onClose(); onCreate() }}
         >
           <FileCode size={12} className="shrink-0 text-text-muted" />
-          Create New
+          {__uiText("components.Macros.create_new.1", "Create New")}
         </button>
       </div>
     </>
@@ -291,7 +292,7 @@ function MacroCard({ macro, onChange, onDelete, onOpenEditor }: MacroCardProps) 
           className="input-field flex-1 py-1 text-sm font-medium"
           value={macro.label}
           onChange={e => onChange({ ...macro, label: e.target.value })}
-          placeholder="Button label"
+          placeholder={__uiText("components.Macros.button_label.1", "Button label")}
           maxLength={20}
         />
         <button
@@ -299,7 +300,7 @@ function MacroCard({ macro, onChange, onDelete, onOpenEditor }: MacroCardProps) 
                      text-text-muted hover:text-accent hover:bg-accent/10
                      border border-transparent hover:border-accent/30 transition-colors"
           onClick={onOpenEditor}
-          title="Edit in text editor"
+          title={__uiText("components.Macros.edit_in_text_editor.1", "Edit in text editor")}
         >
           <FileCode size={12} />
         </button>
@@ -311,7 +312,7 @@ function MacroCard({ macro, onChange, onDelete, onOpenEditor }: MacroCardProps) 
               : 'text-text-muted hover:text-accent hover:bg-accent/10 border-transparent hover:border-accent/30'
           }`}
           onClick={() => onChange({ ...macro, pinned: !macro.pinned })}
-          title={macro.pinned ? 'Remove from header' : 'Pin to header'}
+          title={macro.pinned ? __uiText("components.Macros.remove_from_header.1", "Remove from header") : __uiText("components.Macros.pin_to_header.1", "Pin to header")}
         >
           <Pin size={12} />
         </button>
@@ -320,7 +321,7 @@ function MacroCard({ macro, onChange, onDelete, onOpenEditor }: MacroCardProps) 
                      text-text-muted hover:text-danger hover:bg-danger/10 border border-transparent
                      hover:border-danger/30 transition-colors"
           onClick={onDelete}
-          title="Delete macro"
+          title={__uiText("components.Macros.delete_macro.1", "Delete macro")}
         >
           <Trash2 size={13} />
         </button>
@@ -334,7 +335,7 @@ function MacroCard({ macro, onChange, onDelete, onOpenEditor }: MacroCardProps) 
           ))}
           {overflow > 0 && (
             <div className="text-sm text-text-dim">
-              +{overflow} more line{overflow !== 1 ? 's' : ''}
+              {__uiPlural("components.Macros.more_line.1", overflow, { one: "+{count} more line", other: "+{count} more lines" })}
             </div>
           )}
         </div>
@@ -345,13 +346,13 @@ function MacroCard({ macro, onChange, onDelete, onOpenEditor }: MacroCardProps) 
         </div>
       ) : (
         <div className="text-sm text-text-dim italic px-1">
-          No command — click the edit icon to add
+          {__uiText("components.Macros.no_command_click_the_edit_icon_to_a.1", "No command — click the edit icon to add")}
         </div>
       )}
 
       {/* Color picker */}
       <div className="flex items-center gap-2">
-        <span className="text-sm text-text-dim uppercase tracking-wider shrink-0">Color</span>
+        <span className="text-sm text-text-dim uppercase tracking-wider shrink-0">{__uiText("components.Macros.color.1", "Color")}</span>
         <div className="flex items-center gap-1.5">
           {COLORS.map(c => (
             <button
@@ -370,7 +371,7 @@ function MacroCard({ macro, onChange, onDelete, onOpenEditor }: MacroCardProps) 
       </div>
       {/* Glyph selector */}
       <div>
-        <span className="text-sm text-text-dim uppercase tracking-wider mb-1.5 block">Icon</span>
+        <span className="text-sm text-text-dim uppercase tracking-wider mb-1.5 block">{__uiText("components.Macros.icon.1", "Icon")}</span>
         <div className="grid grid-cols-7 gap-1.5">
           {GLYPH_OPTIONS.map(name => {
             const Icon = ICON_MAP[name]
@@ -417,11 +418,11 @@ function NamePrompt({ onConfirm, onClose }: NamePromptProps) {
         className="bg-surface border border-border rounded-sm shadow-xl w-80 p-4 animate-in space-y-3"
         onClick={e => e.stopPropagation()}
       >
-        <p className="text-sm font-semibold text-text-primary">New Macro</p>
+        <p className="text-sm font-semibold text-text-primary">{__uiText("components.Macros.new_macro.1", "New Macro")}</p>
         <input
           ref={inputRef}
           className="input-field w-full py-1.5 text-base"
-          placeholder="Macro name"
+          placeholder={__uiText("components.Macros.macro_name.1", "Macro name")}
           value={name}
           maxLength={20}
           onChange={e => setName(e.target.value)}
@@ -429,7 +430,7 @@ function NamePrompt({ onConfirm, onClose }: NamePromptProps) {
         />
         {/* Color */}
         <div className="flex items-center gap-2">
-          <span className="text-sm text-text-dim uppercase tracking-wider shrink-0">Color</span>
+          <span className="text-sm text-text-dim uppercase tracking-wider shrink-0">{__uiText("components.Macros.color.2", "Color")}</span>
           <div className="flex items-center gap-1.5">
             {COLORS.map(c => (
               <button
@@ -445,7 +446,7 @@ function NamePrompt({ onConfirm, onClose }: NamePromptProps) {
           </div>
         </div>
         <div>
-          <span className="text-sm text-text-dim uppercase tracking-wider mb-1.5 block">Save location</span>
+          <span className="text-sm text-text-dim uppercase tracking-wider mb-1.5 block">{__uiText("components.Macros.save_location.1", "Save location")}</span>
           <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
@@ -456,7 +457,7 @@ function NamePrompt({ onConfirm, onClose }: NamePromptProps) {
               }`}
               onClick={() => setTarget('ESP')}
             >
-              <Server size={13} /> Internal
+              <Server size={13} /> {__uiText("components.Macros.internal.1", "Internal")}
             </button>
             <button
               type="button"
@@ -467,13 +468,13 @@ function NamePrompt({ onConfirm, onClose }: NamePromptProps) {
               }`}
               onClick={() => setTarget('SD')}
             >
-              <HardDrive size={13} /> SD Card
+              <HardDrive size={13} /> {__uiText("components.Macros.sd_card.1", "SD Card")}
             </button>
           </div>
         </div>
         {/* Glyph */}
         <div>
-          <span className="text-sm text-text-dim uppercase tracking-wider mb-1.5 block">Icon</span>
+          <span className="text-sm text-text-dim uppercase tracking-wider mb-1.5 block">{__uiText("components.Macros.icon.2", "Icon")}</span>
           <div className="grid grid-cols-7 gap-1.5">
             {GLYPH_OPTIONS.map(g => {
               const Icon = ICON_MAP[g]
@@ -495,8 +496,8 @@ function NamePrompt({ onConfirm, onClose }: NamePromptProps) {
           </div>
         </div>
         <div className="flex justify-end gap-2 pt-1">
-          <button className="btn btn-ghost text-sm py-1.5 px-3" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary text-sm py-1.5 px-3" onClick={confirm}>Open Editor</button>
+          <button className="btn btn-ghost text-sm py-1.5 px-3" onClick={onClose}>{__uiText("components.Macros.cancel.1", "Cancel")}</button>
+          <button className="btn btn-primary text-sm py-1.5 px-3" onClick={confirm}>{__uiText("components.Macros.open_editor.1", "Open Editor")}</button>
         </div>
       </div>
     </div>
@@ -523,7 +524,7 @@ function ImportPanel({ macro, onChange }: ImportPanelProps) {
       <input
         ref={nameRef}
         className="input-field w-full py-2 text-base font-medium"
-        placeholder="Macro name"
+        placeholder={__uiText("components.Macros.macro_name.2", "Macro name")}
         value={macro.label}
         maxLength={20}
         onChange={e => onChange({ ...macro, label: e.target.value })}
@@ -531,7 +532,7 @@ function ImportPanel({ macro, onChange }: ImportPanelProps) {
 
       {/* Color */}
       <div className="flex items-center gap-2">
-        <span className="text-sm text-text-dim uppercase tracking-wider shrink-0">Color</span>
+        <span className="text-sm text-text-dim uppercase tracking-wider shrink-0">{__uiText("components.Macros.color.3", "Color")}</span>
         <div className="flex items-center gap-2">
           {COLORS.map(c => (
             <button
@@ -551,7 +552,7 @@ function ImportPanel({ macro, onChange }: ImportPanelProps) {
 
       {/* Glyph */}
       <div>
-        <span className="text-sm text-text-dim uppercase tracking-wider mb-1.5 block">Icon</span>
+        <span className="text-sm text-text-dim uppercase tracking-wider mb-1.5 block">{__uiText("components.Macros.icon.3", "Icon")}</span>
         <div className="grid grid-cols-7 gap-1.5">
           {GLYPH_OPTIONS.map(g => {
             const Icon = ICON_MAP[g]
@@ -577,7 +578,7 @@ function ImportPanel({ macro, onChange }: ImportPanelProps) {
       <div className="flex-1 min-h-0 flex flex-col bg-elevated/60 rounded border border-border overflow-hidden">
         <div className="px-2 py-1 border-b border-border shrink-0">
           <span className="text-sm text-text-dim uppercase tracking-wider">
-            Command preview · {lines.length} line{lines.length !== 1 ? 's' : ''}
+            {__uiText("components.Macros.command_preview.1", "Command preview ·")} {__uiPlural("components.Macros.line.1", lines.length, { one: "{count} line", other: "{count} lines" })}
           </span>
         </div>
         <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
@@ -586,7 +587,7 @@ function ImportPanel({ macro, onChange }: ImportPanelProps) {
           ))}
           {overflow > 0 && (
             <div className="text-sm text-text-dim pt-0.5">
-              +{overflow} more line{overflow !== 1 ? 's' : ''}
+              {__uiPlural("components.Macros.more_line.2", overflow, { one: "+{count} more line", other: "+{count} more lines" })}
             </div>
           )}
         </div>
@@ -632,11 +633,11 @@ function MacroGrid({ macros, isTablet, onReorder }: MacroGridProps) {
             } ${dragOver === i ? 'ring-2 ring-accent ring-offset-1 opacity-70' : ''}`}
             onClick={() => runMacroCmd(m)}
             disabled={!m.command.trim() && !m.filename}
-            title={m.label || (m.filename ? 'Ready' : 'No command set')}
+            title={m.label || (m.filename ? __uiText("components.Macros.extra_coverage.1", "Ready") : __uiText("components.Macros.extra_coverage.2", "No command set"))}
           >
             {Icon && <Icon size={isTablet ? 28 : 20} className="shrink-0" />}
             <span className="font-medium leading-tight text-center px-1 whitespace-normal break-words">
-              {m.label || 'Unnamed'}
+              {m.label || __uiText("components.Macros.extra_coverage.3", "Unnamed")}
             </span>
           </button>
         )
@@ -668,7 +669,7 @@ export function Macros({ isTablet }: { isTablet?: boolean }) {
   function deleteMacro(id: string) {
     const m = macros.find(m => m.id === id)
     const label = m?.label?.trim() || 'this macro'
-    if (!window.confirm(`Delete "${label}"? This cannot be undone.`)) return
+    if (!window.confirm(formatUi(__uiText("components.Macros.template_coverage.1", "Delete \"{v0}\"? This cannot be undone."), { v0: label }))) return
     const updated = macros.filter(m => m.id !== id)
     setMacros(updated)
     persist(updated)
@@ -779,19 +780,19 @@ export function Macros({ isTablet }: { isTablet?: boolean }) {
       {importingMacro ? (
         <>
           <div className="panel-header justify-between">
-            <span>New Macro</span>
+            <span>{__uiText("components.Macros.new_macro.2", "New Macro")}</span>
             <div className="flex items-center gap-1">
               <button
                 className="btn btn-ghost text-sm py-0.5 px-2"
                 onClick={() => setImportingMacro(null)}
               >
-                Cancel
+                {__uiText("components.Macros.cancel.2", "Cancel")}
               </button>
               <button
                 className="btn btn-primary text-sm py-0.5 px-2"
                 onClick={handleSaveImport}
               >
-                <Check size={11} /> Save
+                <Check size={11} /> {__uiText("components.Macros.save.1", "Save")}
               </button>
             </div>
           </div>
@@ -800,7 +801,7 @@ export function Macros({ isTablet }: { isTablet?: boolean }) {
       ) : (
         <>
           <div className="panel-header justify-between">
-            <span>Macros</span>
+            <span>{__uiText("components.Macros.macros.1", "Macros")}</span>
             <div className="flex items-center gap-1">
               {macros.length < 12 && (
                 <div className="relative">
@@ -808,7 +809,7 @@ export function Macros({ isTablet }: { isTablet?: boolean }) {
                     className="w-6 h-6 flex items-center justify-center rounded
                                text-text-muted hover:text-ok hover:bg-ok/10 transition-colors"
                     onClick={() => setShowAddMenu(v => !v)}
-                    title="Add macro"
+                    title={__uiText("components.Macros.add_macro.1", "Add macro")}
                   >
                     <Plus size={13} />
                   </button>
@@ -834,7 +835,7 @@ export function Macros({ isTablet }: { isTablet?: boolean }) {
                     setEditing(v => !v)
                   }}
                 >
-                  {editing ? <><Check size={11} /> Done</> : <><Pencil size={11} /> Edit</>}
+                  {editing ? <><Check size={11} /> {__uiText("components.Macros.done.1", "Done")}</> : <><Pencil size={11} /> {__uiText("components.Macros.edit.1", "Edit")}</>}
                 </button>
               )}
             </div>
@@ -843,9 +844,9 @@ export function Macros({ isTablet }: { isTablet?: boolean }) {
           {/* Save error banner */}
           {saveError && (
             <div className="px-3 py-1.5 bg-danger/10 border-b border-danger/30 flex items-center justify-between">
-              <span className="text-sm text-danger">Failed to save to controller</span>
+              <span className="text-sm text-danger">{__uiText("components.Macros.failed_to_save_to_controller.1", "Failed to save to controller")}</span>
               <button className="text-sm text-danger underline" onClick={() => setSaveError(false)}>
-                dismiss
+                {__uiText("components.Macros.dismiss.1", "dismiss")}
               </button>
             </div>
           )}
@@ -858,19 +859,19 @@ export function Macros({ isTablet }: { isTablet?: boolean }) {
                 <div className="w-12 h-12 rounded-full bg-elevated flex items-center justify-center">
                   <FileCode size={20} className="text-text-muted" />
                 </div>
-                <p className="text-2xl">No macros yet</p>
-                <div className="flex flex-col gap-2 items-stretch w-36">
+                <p className="text-2xl">{__uiText("components.Macros.no_macros_yet.1", "No macros yet")}</p>
+                <div className="flex flex-col gap-2 items-stretch w-full max-w-56">
                   <button
                     className="btn btn-ghost text-base px-3 py-1.5 gap-1.5"
                     onClick={() => setShowBrowser(true)}
                   >
-                    <FolderOpen size={11} /> Browse Files
+                    <FolderOpen size={14} className="shrink-0" /> <span className="min-w-0 break-words [overflow-wrap:anywhere]">{__uiText("components.Macros.browse_files.2", "Browse Files")}</span>
                   </button>
                   <button
                     className="btn btn-ghost text-base px-3 py-1.5 gap-1.5"
                     onClick={handleCreateNew}
                   >
-                    <Plus size={11} /> Create New
+                    <Plus size={14} className="shrink-0" /> <span className="min-w-0 break-words [overflow-wrap:anywhere]">{__uiText("components.Macros.create_new.2", "Create New")}</span>
                   </button>
                 </div>
               </div>

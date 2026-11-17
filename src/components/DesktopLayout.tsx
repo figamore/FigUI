@@ -1,3 +1,4 @@
+import { uiText as __uiText } from '../lib/i18n'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ResizeHandle } from './ResizeHandle'
 import { DRO } from './DRO'
@@ -13,9 +14,9 @@ import { useMachineStore } from '../store'
 import type { Plugin, SidebarTab, ActiveLayout } from '../types'
 
 const SIDEBAR_TABS: { id: SidebarTab; label: string }[] = [
-  { id: 'files',   label: 'Files'   },
-  { id: 'macros',  label: 'Macros'  },
-  { id: 'plugins', label: 'Plugins' },
+  { id: 'files',   label: __uiText("components.DesktopLayout.label_extra.1", "Files")   },
+  { id: 'macros',  label: __uiText("components.DesktopLayout.label_extra.2", "Macros")  },
+  { id: 'plugins', label: __uiText("components.DesktopLayout.label_extra.3", "Plugins") },
 ]
 
 const HANDLE_W           = 8
@@ -80,6 +81,7 @@ export function DesktopLayout({
   onLaunchPanel,
   activeLayout,
 }: Props) {
+  const contentDirection = typeof document === 'undefined' ? 'ltr' : (document.documentElement.dir || 'ltr')
   const sidebarTab    = useMachineStore(s => s.sidebarTab)
   const setSidebarTab = useMachineStore(s => s.setSidebarTab)
 
@@ -216,13 +218,14 @@ export function DesktopLayout({
         <button
           key={tab.id}
           onClick={() => setSidebarTab(tab.id)}
-          className={`flex-1 py-2.5 text-xl font-medium uppercase tracking-wide transition-colors border-b-2 -mb-px ${
+          title={tab.label}
+          className={`min-w-0 flex-1 py-2.5 text-sm xl:text-base font-medium uppercase tracking-wide transition-colors border-b-2 -mb-px ${
             sidebarTab === tab.id
               ? 'border-accent text-accent'
               : 'border-transparent text-text-muted'
           }`}
         >
-          {tab.label}
+          <span className="block truncate">{tab.label}</span>
         </button>
       ))}
     </div>
@@ -243,7 +246,7 @@ export function DesktopLayout({
         className="shrink-0"
         style={{ width: leftCollapsed ? 0 : leftWidth, minWidth: 0, overflow: 'hidden', transition: wTransition }}
       >
-        <div className="flex flex-col gap-3 overflow-y-auto h-full" style={{ width: leftWidth }}>
+        <div dir={contentDirection} className="flex flex-col gap-3 overflow-y-auto h-full" style={{ width: leftWidth }}>
           {children}
         </div>
       </div>
@@ -283,7 +286,7 @@ export function DesktopLayout({
         className="shrink-0"
         style={{ width: rightCollapsed ? 0 : rightWidth, minWidth: 0, overflow: 'hidden', transition: wTransition }}
       >
-        <div className="h-full" style={{ width: rightWidth }}>
+        <div dir={contentDirection} className="h-full" style={{ width: rightWidth }}>
           {children}
         </div>
       </div>
@@ -310,7 +313,7 @@ export function DesktopLayout({
           onDragEnd={onDragEnd}
           dragging={dragging === 'h'}
         />
-        <div className="flex-1 min-w-0 flex flex-col gap-3 overflow-y-auto">
+        <div dir={contentDirection} className="flex-1 min-w-0 flex flex-col gap-3 overflow-y-auto">
           {centerContent}
         </div>
         <ResizeHandle
@@ -347,7 +350,7 @@ export function DesktopLayout({
 
     if (terminalExpanded) {
       return (
-        <div ref={containerRef} className="flex flex-1 min-h-0 p-3 overflow-hidden">
+        <div ref={containerRef} dir="ltr" className="flex flex-1 min-h-0 p-3 overflow-hidden">
           {leftPanelOuter(leftContent)}
           <ResizeHandle
             collapseToward="left"
@@ -360,7 +363,7 @@ export function DesktopLayout({
           />
           <div className="flex-1 min-w-0 flex flex-col min-h-0 overflow-hidden">
             <div className="flex min-h-0 overflow-hidden" style={{ flex: 100 - terminalExpandedPct }}>
-              <div className="flex-1 min-w-0 flex flex-col gap-3 overflow-y-auto">
+              <div dir={contentDirection} className="flex-1 min-w-0 flex flex-col gap-3 overflow-y-auto">
                 {centerContent}
               </div>
               <ResizeHandle
@@ -381,7 +384,7 @@ export function DesktopLayout({
               onDragEnd={onDragEnd}
               dragging={dragging === 'v'}
             />
-            <div className="panel flex flex-col overflow-hidden" style={{ flex: terminalExpandedPct, minHeight: 0 }}>
+            <div dir={contentDirection} className="panel flex flex-col overflow-hidden" style={{ flex: terminalExpandedPct, minHeight: 0 }}>
               <Terminal onExpandToggle={toggleTerminalExpanded} expanded={terminalExpanded} />
             </div>
           </div>
@@ -390,7 +393,7 @@ export function DesktopLayout({
     }
 
     return (
-      <div ref={containerRef} className="flex flex-1 min-h-0 p-3 overflow-hidden">
+      <div ref={containerRef} dir="ltr" className="flex flex-1 min-h-0 p-3 overflow-hidden">
         {horizontalRow(leftContent, centerContent, rightColumnNormal)}
       </div>
     )
@@ -399,7 +402,7 @@ export function DesktopLayout({
   // ── Workspace plugin ───────────────────────────────────────────────────────
   if (workspacePlugin) {
     return (
-      <div ref={containerRef} className="flex flex-1 min-h-0 p-3 overflow-hidden">
+      <div ref={containerRef} dir="ltr" className="flex flex-1 min-h-0 p-3 overflow-hidden">
         {leftPanelOuter(<><DRO />{jogSlot}</>)}
         <ResizeHandle
           collapseToward="left"
@@ -410,7 +413,7 @@ export function DesktopLayout({
           onDragEnd={onDragEnd}
           dragging={dragging === 'h'}
         />
-        <div className="panel flex flex-col flex-1 min-w-0 overflow-hidden">
+        <div dir={contentDirection} className="panel flex flex-col flex-1 min-w-0 overflow-hidden">
           <PluginFrame plugin={workspacePlugin} onClose={onCloseWorkspacePlugin} inline />
         </div>
       </div>
@@ -423,7 +426,7 @@ export function DesktopLayout({
       className="panel flex flex-col shrink-0 overflow-hidden"
       style={{ width: leftCollapsed ? 0 : leftWidth, minWidth: 0, transition: wTransition }}
     >
-      <div className="h-full" style={{ width: leftWidth }}>
+      <div dir={contentDirection} className="h-full" style={{ width: leftWidth }}>
         <PluginFrame plugin={controlsPlugin!} onClose={onCloseControlsPlugin} inline />
       </div>
     </div>
@@ -438,7 +441,7 @@ export function DesktopLayout({
 
   if (terminalExpanded) {
     return (
-      <div ref={containerRef} className="flex flex-1 min-h-0 p-3 overflow-hidden">
+      <div ref={containerRef} dir="ltr" className="flex flex-1 min-h-0 p-3 overflow-hidden">
         {controlsContent}
         <ResizeHandle
           collapseToward="left"
@@ -451,7 +454,7 @@ export function DesktopLayout({
         />
         <div className="flex-1 min-w-0 flex flex-col min-h-0 overflow-hidden">
           <div className="flex min-h-0 overflow-hidden" style={{ flex: 100 - terminalExpandedPct }}>
-            <div className="flex-1 min-w-0 flex flex-col gap-3 overflow-y-auto">
+            <div dir={contentDirection} className="flex-1 min-w-0 flex flex-col gap-3 overflow-y-auto">
               {centerContent}
             </div>
             <ResizeHandle
@@ -472,7 +475,7 @@ export function DesktopLayout({
             onDragEnd={onDragEnd}
             dragging={dragging === 'v'}
           />
-          <div className="panel flex flex-col overflow-hidden" style={{ flex: terminalExpandedPct, minHeight: 0 }}>
+          <div dir={contentDirection} className="panel flex flex-col overflow-hidden" style={{ flex: terminalExpandedPct, minHeight: 0 }}>
             <Terminal onExpandToggle={toggleTerminalExpanded} expanded={terminalExpanded} />
           </div>
         </div>
@@ -481,7 +484,7 @@ export function DesktopLayout({
   }
 
   return (
-    <div ref={containerRef} className="flex flex-1 min-h-0 p-3 overflow-hidden">
+    <div ref={containerRef} dir="ltr" className="flex flex-1 min-h-0 p-3 overflow-hidden">
       {controlsContent}
       <ResizeHandle
         collapseToward="left"
@@ -492,7 +495,7 @@ export function DesktopLayout({
         onDragEnd={onDragEnd}
         dragging={dragging === 'h'}
       />
-      <div className="flex-1 min-w-0 flex flex-col gap-3 overflow-y-auto">
+      <div dir={contentDirection} className="flex-1 min-w-0 flex flex-col gap-3 overflow-y-auto">
         {centerContent}
       </div>
       <ResizeHandle

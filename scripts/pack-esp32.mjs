@@ -3,14 +3,15 @@ import { createRequire } from 'node:module'
 import lzma from 'lzma'
 import { minify } from 'terser'
 import postcss from 'postcss'
-import { encodeSource, decodeSource } from './pack-source.mjs'
+import { gzipAsync } from '@gfx/zopfli'
+import { encodeSource, decodeSource, decodeUnicodeSource } from './pack-source.mjs'
 
 const require = createRequire(import.meta.url)
 const decoder = readFileSync(require.resolve('lzma/src/lzma-d-min.js'), 'utf8')
 const license = readFileSync(require.resolve('lzma/LICENSE'), 'utf8')
 
 /** Pack the inline module, optionally sharing its dictionary with Vite's CSS. */
-export async function packEsp32Html(html, { packStyles = false } = {}) {
+export async function packEsp32Html(html, { packStyles = false, unicodeDictionary = false } = {}) {
   const scripts = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi)]
   const modules = scripts.filter(match => /\btype\s*=\s*(["'])module\1/i.test(match[1]))
   if (modules.length !== 1 || /\bsrc\s*=/i.test(modules[0][1])) {
@@ -26,16 +27,18 @@ export async function packEsp32Html(html, { packStyles = false } = {}) {
   const compress = input => new Promise((resolve, reject) => {
     lzma.compress(input, 3, (result, error) => error ? reject(error) : resolve(Buffer.from(result)))
   })
-  const plain = await compress(payload)
-  const encoded = await compress(encodeSource(payload))
+  const plain = unicodeDictionary ? null : await compress(payload)
+  const encoded = await compress(encodeSource(payload, { unicode: unicodeDictionary }))
   // Leave small inputs alone: the dictionary decoder must earn its own bytes.
-  const useDictionary = encoded.length + 512 < plain.length
+  // The Unicode variant is compared against the original variant after gzip.
+  const useDictionary = unicodeDictionary || encoded.length + 512 < plain.length
   const packed = useDictionary ? encoded : plain
+  const restoreSource = unicodeDictionary ? decodeUnicodeSource : decodeSource
 
   // Verify
   const codec = {}
   Function(decoder).call(codec)
-  if (decodeSource(codec.LZMA.decompress(packed)) !== payload) {
+  if (restoreSource(codec.LZMA.decompress(packed)) !== payload) {
     throw new Error('ESP32 packing failed its lossless round-trip check.')
   }
 
@@ -53,7 +56,7 @@ export async function packEsp32Html(html, { packStyles = false } = {}) {
       codec.LZMA.decompress(bytes, (source, error) => {
         if (error) { failed(error); return; }
         try {
-          ${useDictionary ? `source = (${decodeSource.toString()})(source);` : ''}
+          ${useDictionary ? `source = (${restoreSource.toString()})(source);` : ''}
           if (typeof source !== 'string') throw new Error('Invalid application module');
           ${styles.length ? `
           let offset = ${source.length};
@@ -105,4 +108,17 @@ export async function packEsp32Html(html, { packStyles = false } = {}) {
     html = html.slice(0, start) + text + html.slice(start + length)
   }
   return html
+}
+
+/** Compare complete artifacts, including loader overhead, using release gzip settings. */
+export async function gzipSmallestHtml(candidates) {
+  if (!candidates.length) throw new Error('At least one HTML candidate is required.')
+  let smallest
+  const sizes = []
+  for (const { name, html } of candidates) {
+    const gz = await gzipAsync(Buffer.from(html), { numiterations: 15 })
+    sizes.push({ name, bytes: gz.length })
+    if (!smallest || gz.length < smallest.gz.length) smallest = { name, html, gz }
+  }
+  return { ...smallest, sizes }
 }

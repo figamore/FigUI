@@ -1,3 +1,4 @@
+import { uiText as __uiText, uiPlural as __uiPlural, formatUi } from '../lib/i18n'
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import {
   RefreshCw,
@@ -70,16 +71,16 @@ const CAT_DEFS: Record<
   string,
   { label: string; icon: LucideIcon; order: number }
 > = {
-  workspace: { label: "Workspace", icon: Monitor, order: -1 },
-  wifi: { label: "WiFi & Network", icon: Wifi, order: 0 },
-  services: { label: "Services", icon: Globe, order: 1 },
-  system: { label: "System", icon: Settings, order: 2 },
-  machine: { label: "Machine", icon: Sliders, order: 3 },
-  config: { label: "Machine Config", icon: Cpu, order: 4 },
-  limits: { label: "Limits", icon: Target, order: 5 },
+  workspace: { label: __uiText("components.SettingsPanel.workspace.1", "Workspace"), icon: Monitor, order: -1 },
+  wifi: { label: __uiText("components.SettingsPanel.wifi_network.1", "WiFi & Network"), icon: Wifi, order: 0 },
+  services: { label: __uiText("components.SettingsPanel.services.1", "Services"), icon: Globe, order: 1 },
+  system: { label: __uiText("components.SettingsPanel.system.1", "System"), icon: Settings, order: 2 },
+  machine: { label: __uiText("components.SettingsPanel.machine.1", "Machine"), icon: Sliders, order: 3 },
+  config: { label: __uiText("components.SettingsPanel.machine_config.1", "Machine Config"), icon: Cpu, order: 4 },
+  limits: { label: __uiText("components.SettingsPanel.limits.1", "Limits"), icon: Target, order: 5 },
   espnow: { label: "ESP-NOW", icon: Radio, order: 6 },
-  other: { label: "Other", icon: Hash, order: 99 },
-  firmware: { label: "Firmware Update", icon: Upload, order: 100 },
+  other: { label: __uiText("components.SettingsPanel.other.1", "Other"), icon: Hash, order: 99 },
+  firmware: { label: __uiText("components.SettingsPanel.firmware_update.1", "Firmware Update"), icon: Upload, order: 100 },
 };
 
 function catOf(s: Setting): string {
@@ -117,84 +118,103 @@ const SUBCAT_ORDER = [
   "Outputs",
 ];
 
+const SETTING_SECTION_NAMES: Record<string, string> = {
+  "General": __uiText("components.SettingsPanel.section_name.1", "General"),
+  "Axes": __uiText("components.SettingsPanel.section_name.2", "Axes"),
+  "Stepping": __uiText("components.SettingsPanel.section_name.3", "Stepping"),
+  "Startup": __uiText("components.SettingsPanel.section_name.4", "Startup"),
+  "Parking": __uiText("components.SettingsPanel.section_name.5", "Parking"),
+  "Probe": __uiText("components.SettingsPanel.section_name.6", "Probe"),
+  "Coolant": __uiText("components.SettingsPanel.section_name.7", "Coolant"),
+  "Macros": __uiText("components.SettingsPanel.section_name.8", "Macros"),
+  "UART": __uiText("components.SettingsPanel.section_name.9", "UART"),
+  "SD Card": __uiText("components.SettingsPanel.section_name.10", "SD Card"),
+  "Outputs": __uiText("components.SettingsPanel.section_name.11", "Outputs"),
+  "Homing": __uiText("components.SettingsPanel.section_name.12", "Homing"),
+  "Motion": __uiText("components.SettingsPanel.section_name.13", "Motion"),
+};
+
+function settingSectionName(value: string): string {
+  return Object.prototype.hasOwnProperty.call(SETTING_SECTION_NAMES, value) ? SETTING_SECTION_NAMES[value] : value;
+}
 function treeSubcat(path: string): string {
   const seg = path.split("/").filter(Boolean)[0] ?? "";
   return TREE_PREFIX_TO_SUBCAT[seg] ?? "General";
 }
 
 const KEY_LABELS: Record<string, string> = {
-  PsMode: "Power Save Mode",
-  MinSecurity: "Minimum Security",
-  FastScan: "Fast Scan",
-  IPMode: "IP Mode",
-  steps_per_mm: "Steps / mm",
-  max_rate_mm_per_min: "Max Rate",
-  acceleration_mm_per_sec2: "Acceleration",
-  max_travel_mm: "Max Travel",
-  mpos_mm: "Machine Position",
-  feed_mm_per_min: "Feed Rate",
-  seek_mm_per_min: "Seek Rate",
-  rate_mm_per_min: "Rate",
-  pullout_rate_mm_per_min: "Pullout Rate",
-  pullout_distance_mm: "Pullout Distance",
-  target_mpos_mm: "Target Position",
-  pulloff_mm: "Pulloff Distance",
-  allow_single_axis: "Allow Single Axis",
-  positive_direction: "Positive Direction",
-  seek_scaler: "Seek Scaler",
-  feed_scaler: "Feed Scaler",
-  settle_ms: "Settle Time",
-  idle_ms: "Idle Time",
-  pulse_us: "Pulse Width",
-  dir_delay_us: "Direction Delay",
-  disable_delay_us: "Disable Delay",
-  frequency_hz: "Frequency",
-  passthrough_baud: "Passthrough Baud",
-  passthrough_mode: "Passthrough Mode",
-  report_interval_ms: "Report Interval",
-  uart_num: "UART Number",
-  message_level: "Message Level",
-  hard_limits: "Hard Limits",
-  soft_limits: "Soft Limits",
-  homing_runs: "Homing Runs",
-  check_mode_start: "Check Mode on Start",
-  hard_stop: "Hard Stop on Probe",
-  probe_hard_limit: "Probe as Hard Limit",
-  startup_line0: "Startup Line 1",
-  startup_line1: "Startup Line 2",
-  after_homing: "After Homing",
-  after_reset: "After Reset",
-  after_unlock: "After Unlock",
-  must_home: "Require Homing on Start",
-  deactivate_parking: "Deactivate Parking",
-  check_limits: "Check Limits on Start",
-  enable_parking_override_control: "Parking Override Control",
-  arc_tolerance_mm: "Arc Tolerance",
-  junction_deviation_mm: "Junction Deviation",
-  verbose_errors: "Verbose Errors",
-  report_inches: "Report in Inches",
-  use_line_numbers: "Use G-code Line Numbers",
-  planner_blocks: "Planner Buffer Size",
-  delay_ms: "Coolant Delay",
+  PsMode: __uiText("components.SettingsPanel.setting_label.1", "Power Save Mode"),
+  MinSecurity: __uiText("components.SettingsPanel.setting_label.2", "Minimum Security"),
+  FastScan: __uiText("components.SettingsPanel.setting_label.3", "Fast Scan"),
+  IPMode: __uiText("components.SettingsPanel.setting_label.4", "IP Mode"),
+  steps_per_mm: __uiText("components.SettingsPanel.setting_label.5", "Steps / mm"),
+  max_rate_mm_per_min: __uiText("components.SettingsPanel.setting_label.6", "Max Rate"),
+  acceleration_mm_per_sec2: __uiText("components.SettingsPanel.setting_label.7", "Acceleration"),
+  max_travel_mm: __uiText("components.SettingsPanel.setting_label.8", "Max Travel"),
+  mpos_mm: __uiText("components.SettingsPanel.setting_label.9", "Machine Position"),
+  feed_mm_per_min: __uiText("components.SettingsPanel.setting_label.10", "Feed Rate"),
+  seek_mm_per_min: __uiText("components.SettingsPanel.setting_label.11", "Seek Rate"),
+  rate_mm_per_min: __uiText("components.SettingsPanel.setting_label.12", "Rate"),
+  pullout_rate_mm_per_min: __uiText("components.SettingsPanel.setting_label.13", "Pullout Rate"),
+  pullout_distance_mm: __uiText("components.SettingsPanel.setting_label.14", "Pullout Distance"),
+  target_mpos_mm: __uiText("components.SettingsPanel.setting_label.15", "Target Position"),
+  pulloff_mm: __uiText("components.SettingsPanel.setting_label.16", "Pulloff Distance"),
+  allow_single_axis: __uiText("components.SettingsPanel.setting_label.17", "Allow Single Axis"),
+  positive_direction: __uiText("components.SettingsPanel.setting_label.18", "Positive Direction"),
+  seek_scaler: __uiText("components.SettingsPanel.setting_label.19", "Seek Scaler"),
+  feed_scaler: __uiText("components.SettingsPanel.setting_label.20", "Feed Scaler"),
+  settle_ms: __uiText("components.SettingsPanel.setting_label.21", "Settle Time"),
+  idle_ms: __uiText("components.SettingsPanel.setting_label.22", "Idle Time"),
+  pulse_us: __uiText("components.SettingsPanel.setting_label.23", "Pulse Width"),
+  dir_delay_us: __uiText("components.SettingsPanel.setting_label.24", "Direction Delay"),
+  disable_delay_us: __uiText("components.SettingsPanel.setting_label.25", "Disable Delay"),
+  frequency_hz: __uiText("components.SettingsPanel.setting_label.26", "Frequency"),
+  passthrough_baud: __uiText("components.SettingsPanel.setting_label.27", "Passthrough Baud"),
+  passthrough_mode: __uiText("components.SettingsPanel.setting_label.28", "Passthrough Mode"),
+  report_interval_ms: __uiText("components.SettingsPanel.setting_label.29", "Report Interval"),
+  uart_num: __uiText("components.SettingsPanel.setting_label.30", "UART Number"),
+  message_level: __uiText("components.SettingsPanel.setting_label.31", "Message Level"),
+  hard_limits: __uiText("components.SettingsPanel.setting_label.32", "Hard Limits"),
+  soft_limits: __uiText("components.SettingsPanel.setting_label.33", "Soft Limits"),
+  homing_runs: __uiText("components.SettingsPanel.setting_label.34", "Homing Runs"),
+  check_mode_start: __uiText("components.SettingsPanel.late_coverage.1", "Check Mode on Start"),
+  hard_stop: __uiText("components.SettingsPanel.setting_label.35", "Hard Stop on Probe"),
+  probe_hard_limit: __uiText("components.SettingsPanel.late_coverage.2", "Probe as Hard Limit"),
+  startup_line0: __uiText("components.SettingsPanel.setting_label.36", "Startup Line 1"),
+  startup_line1: __uiText("components.SettingsPanel.setting_label.37", "Startup Line 2"),
+  after_homing: __uiText("components.SettingsPanel.setting_label.38", "After Homing"),
+  after_reset: __uiText("components.SettingsPanel.setting_label.39", "After Reset"),
+  after_unlock: __uiText("components.SettingsPanel.setting_label.40", "After Unlock"),
+  must_home: __uiText("components.SettingsPanel.late_coverage.3", "Require Homing on Start"),
+  deactivate_parking: __uiText("components.SettingsPanel.setting_label.41", "Deactivate Parking"),
+  check_limits: __uiText("components.SettingsPanel.late_coverage.4", "Check Limits on Start"),
+  enable_parking_override_control: __uiText("components.SettingsPanel.setting_label.42", "Parking Override Control"),
+  arc_tolerance_mm: __uiText("components.SettingsPanel.setting_label.43", "Arc Tolerance"),
+  junction_deviation_mm: __uiText("components.SettingsPanel.setting_label.44", "Junction Deviation"),
+  verbose_errors: __uiText("components.SettingsPanel.setting_label.45", "Verbose Errors"),
+  report_inches: __uiText("components.SettingsPanel.setting_label.46", "Report in Inches"),
+  use_line_numbers: __uiText("components.SettingsPanel.setting_label.47", "Use G-code Line Numbers"),
+  planner_blocks: __uiText("components.SettingsPanel.setting_label.48", "Planner Buffer Size"),
+  delay_ms: __uiText("components.SettingsPanel.setting_label.49", "Coolant Delay"),
 };
 
 const GROUP_LABELS: Record<string, string> = {
-  WiFi: "General",
-  Sta: "Station (STA)",
-  AP: "Access Point (AP)",
-  Network: "Network Connection",
-  HTTP: "HTTP Server",
-  Telnet: "Telnet Server",
-  MDNS: "mDNS",
-  Bluetooth: "Bluetooth",
-  Notification: "Notifications",
-  Hostname: "Hostname",
-  uart1: "UART 1",
-  uart2: "UART 2",
-  uart_channel1: "UART Channel 1",
-  uart_channel2: "UART Channel 2",
-  sdcard: "SD Card",
-  user_outputs: "User Outputs",
+  WiFi: __uiText("components.SettingsPanel.setting_label.50", "General"),
+  Sta: __uiText("components.SettingsPanel.setting_label.51", "Station (STA)"),
+  AP: __uiText("components.SettingsPanel.setting_label.52", "Access Point (AP)"),
+  Network: __uiText("components.SettingsPanel.setting_label.53", "Network Connection"),
+  HTTP: __uiText("components.SettingsPanel.setting_label.54", "HTTP Server"),
+  Telnet: __uiText("components.SettingsPanel.setting_label.55", "Telnet Server"),
+  MDNS: __uiText("components.SettingsPanel.setting_label.56", "mDNS"),
+  Bluetooth: __uiText("components.SettingsPanel.setting_label.57", "Bluetooth"),
+  Notification: __uiText("components.SettingsPanel.setting_label.58", "Notifications"),
+  Hostname: __uiText("components.SettingsPanel.setting_label.59", "Hostname"),
+  uart1: __uiText("components.SettingsPanel.setting_label.60", "UART 1"),
+  uart2: __uiText("components.SettingsPanel.setting_label.61", "UART 2"),
+  uart_channel1: __uiText("components.SettingsPanel.setting_label.62", "UART Channel 1"),
+  uart_channel2: __uiText("components.SettingsPanel.setting_label.63", "UART Channel 2"),
+  sdcard: __uiText("components.SettingsPanel.setting_label.64", "SD Card"),
+  user_outputs: __uiText("components.SettingsPanel.setting_label.65", "User Outputs"),
 };
 
 function humanizeKey(key: string): string {
@@ -223,11 +243,11 @@ function searchBreadcrumb(s: Setting): string {
         motor0: "Motor 0",
         motor1: "Motor 1",
       };
-      return [cat, sub, `${axis} Axis`, section ? sectionLabel[section] : null]
+      return [cat, settingSectionName(sub), `${axis} Axis`, section ? settingSectionName(sectionLabel[section] ?? section) : null]
         .filter(Boolean)
         .join(" › ");
     }
-    return `${cat} › ${sub}`;
+    return `${cat} › ${settingSectionName(sub)}`;
   }
   return cat;
 }
@@ -242,16 +262,16 @@ function displayLabel(s: Setting): string {
   // those names on their own makes it too easy to change the wrong service.
   if (catOf(s) === "services") {
     const serviceLabel = groupLabel(service);
-    if (last === "Enable") return `Enable ${serviceLabel}`;
-    if (last === "Port") return `${serviceLabel} Port`;
-    if (last === "Name") return `${serviceLabel} Name`;
+    if (last === "Enable") return formatUi(__uiText("components.SettingsPanel.service.enable.1", "Enable {service}"), { service: serviceLabel });
+    if (last === "Port") return formatUi(__uiText("components.SettingsPanel.service.port.1", "{service} Port"), { service: serviceLabel });
+    if (last === "Name") return formatUi(__uiText("components.SettingsPanel.service.name.1", "{service} Name"), { service: serviceLabel });
     if (/^T\d+$/i.test(last) || last === "TS")
-      return `${serviceLabel} Setting ${last}`;
+      return formatUi(__uiText("components.SettingsPanel.service.setting.1", "{service} Setting {name}"), { service: serviceLabel, name: last });
   }
 
   if (service === "Network") {
-    if (last === "Enable") return "Enable Network Connection";
-    if (last === "Type") return "Connection Type";
+    if (last === "Enable") return __uiText("components.SettingsPanel.network.enable.1", "Enable Network Connection");
+    if (last === "Type") return __uiText("components.SettingsPanel.network.type.1", "Connection Type");
   }
 
   return humanizeKey(last);
@@ -323,7 +343,7 @@ function buildGroupedItems(settings: Setting[], subKey: string): ListItem[] {
 
     const items: ListItem[] = [];
     if (general.length > 0) {
-      items.push({ type: "header", label: "General", level: "section" });
+      items.push({ type: "header", label: __uiText("components.SettingsPanel.label_extra.1", "General"), level: "section" });
       for (const s of general) items.push({ type: "setting", setting: s });
     }
 
@@ -359,7 +379,7 @@ function buildGroupedItems(settings: Setting[], subKey: string): ListItem[] {
       for (const [sec, subs] of ordered) {
         items.push({
           type: "header",
-          label: SECTION_LABELS[sec] ?? humanizeKey(sec),
+          label: SECTION_LABELS[sec] ? settingSectionName(SECTION_LABELS[sec]) : humanizeKey(sec),
           level: "subsection",
         });
         for (const s of subs) items.push({ type: "setting", setting: s });
@@ -430,7 +450,7 @@ function SaveBtn({
         className={`${base} border-border text-text-dim opacity-0 pointer-events-none`}
         disabled
       >
-        Save
+        {__uiText("components.SettingsPanel.save.1", "Save")}
       </button>
     );
   return (
@@ -438,7 +458,7 @@ function SaveBtn({
       className={`${base} border-accent/50 bg-accent/10 text-accent hover:bg-accent/20`}
       onClick={onClick}
     >
-      Save
+      {__uiText("components.SettingsPanel.save.2", "Save")}
     </button>
   );
 }
@@ -481,8 +501,8 @@ function settingLimit(limit: string | undefined): number | null {
 /** Explains why a typed number cannot be sent to ESP401, or returns null. */
 export function numericSettingError(setting: Setting, value: string): string | null {
   const n = parseDecimalInput(value);
-  if (n === null) return "Not a number";
-  if (setting.T === "I" && !Number.isInteger(n)) return "Must be a whole number";
+  if (n === null) return __uiText("components.SettingsPanel.numeric.not_number.1", "Not a number");
+  if (setting.T === "I" && !Number.isInteger(n)) return __uiText("components.SettingsPanel.numeric.integer.1", "Must be a whole number");
   const min = settingLimit(setting.M);
   const reportedMax = settingLimit(setting.S);
   // FluidNC reports a uint32 default maximum as -1: that maximum is unknown,
@@ -490,19 +510,19 @@ export function numericSettingError(setting: Setting, value: string): string | n
   const max = min !== null && reportedMax !== null && reportedMax < min ? null : reportedMax;
   if ((min !== null && n < min) || (max !== null && n > max)) {
     return min !== null && max !== null
-      ? `Must be between ${min} and ${max}`
+      ? formatUi(__uiText("components.SettingsPanel.numeric.between.1", "Must be between {min} and {max}"), { min, max })
       : min !== null
-        ? `Must be at least ${min}`
-        : `Must be at most ${max}`;
+        ? formatUi(__uiText("components.SettingsPanel.numeric.minimum.1", "Must be at least {min}"), { min })
+        : formatUi(__uiText("components.SettingsPanel.numeric.maximum.1", "Must be at most {max}"), { max });
   }
   return null;
 }
 
 function saveErrorText(e: unknown): string {
-  if (!(e instanceof Error)) return "Save failed";
+  if (!(e instanceof Error)) return __uiText("components.SettingsPanel.numeric.save_failed.1", "Save failed");
   // FluidNC answers 503 to web commands while the machine is moving.
-  if (e instanceof WebUIBlockedError || e.message === "HTTP 503") return "Controller busy: try again when not moving";
-  return `Save failed: ${e.message}`;
+  if (e instanceof WebUIBlockedError || e.message === "HTTP 503") return __uiText("components.SettingsPanel.numeric.busy.1", "Controller busy: try again when not moving");
+  return formatUi(__uiText("components.SettingsPanel.numeric.save_details.1", "Save failed: {message}"), { message: e.message });
 }
 
 function SettingRow({ setting, showPath, onSave }: SettingRowProps) {
@@ -535,7 +555,7 @@ function SettingRow({ setting, showPath, onSave }: SettingRowProps) {
     // empty value would be shown as saved and written to the config file.
     const invalid =
       value.trim() === ""
-        ? "Enter a value"
+        ? __uiText("components.SettingsPanel.numeric.value_required.1", "Enter a value")
         : isNumeric && !isPassword
           ? numericSettingError(setting, value)
           : null;
@@ -601,12 +621,16 @@ function SettingRow({ setting, showPath, onSave }: SettingRowProps) {
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {saveState === "saved" && (
-            <span className="text-sm text-ok">saved</span>
+            <span className="text-sm text-ok">{__uiText("components.SettingsPanel.saved.1", "saved")}</span>
           )}
           {saveState === "error" && (
-            <span className="text-sm text-danger">{saveError || "error"}</span>
+            <span className="text-sm text-danger">{saveError || __uiText("components.SettingsPanel.extra_coverage.1", "error")}</span>
           )}
           <button
+            dir="ltr"
+            role="switch"
+            aria-checked={isOn}
+            aria-label={label}
             onClick={toggle}
             className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full
                         border transition-colors duration-200 ${
@@ -856,7 +880,7 @@ async function updateConfigYamlBatch(
     }
     return missing;
   } catch (error) {
-    console.warn(`Failed to update ${file.name}:`, error);
+    console.warn(formatUi(__uiText("components.SettingsPanel.template_coverage.1", "Failed to update {v0}:"), { v0: file.name }), error);
     throw error;
   }
 }
@@ -885,7 +909,7 @@ const CHIPS: { id: Chip; label: string }[] = [
 const RADIOS: { id: Radio; label: string }[] = [
   { id: "wifi", label: "WiFi" },
   { id: "bt", label: "Bluetooth" },
-  { id: "noradio", label: "No Radio" },
+  { id: "noradio", label: __uiText("components.SettingsPanel.no_radio.1", "No Radio") },
 ];
 
 function parseVer(s: string): [number, number, number] {
@@ -925,7 +949,7 @@ async function fetchFirmwareBin(
   );
   if (!manifestRes.ok)
     throw new Error(
-      `Manifest not found for ${releaseName} (HTTP ${manifestRes.status})`,
+      formatUi(__uiText("components.SettingsPanel.template_coverage.2", "Manifest not found for {v0} (HTTP {v1})"), { v0: releaseName, v1: manifestRes.status }),
     );
   const manifest: ReleaseManifest = await manifestRes.json();
 
@@ -936,7 +960,7 @@ async function fetchFirmwareBin(
 
   const url = `${FLUIDNC_RESOURCES}/${releaseName}/${image.path}`;
   const res = await fetch(url);
-  if (!res.ok) throw new Error(`Download failed (HTTP ${res.status})`);
+  if (!res.ok) throw new Error(formatUi(__uiText("components.SettingsPanel.template_coverage.3", "Download failed (HTTP {v0})"), { v0: res.status }));
 
   const total = Number(res.headers.get("content-length") ?? 0);
   const reader = res.body!.getReader();
@@ -979,7 +1003,7 @@ function ProgressBar({
 
 // FluidNC accepts a firmware upload while it moves and reboots once the image
 // is written, which would end a running job.
-const FLASH_AFTER_JOB = "A job is running. Flash the firmware after it has finished.";
+const FLASH_AFTER_JOB = __uiText("components.SettingsPanel.late_coverage.5", "A job is running. Flash the firmware after it has finished.");
 
 function isJobActive(state: string, sdFilename: string | undefined, senderPhase: string) {
   return state === "Run" || state === "Hold" || !!sdFilename ||
@@ -1038,7 +1062,7 @@ function FirmwareTab() {
         },
       );
       if (!response.ok)
-        throw new Error(`GitHub API error (${response.status})`);
+        throw new Error(formatUi(__uiText("components.SettingsPanel.template_coverage.4", "GitHub API error ({v0})"), { v0: response.status }));
 
       const data: GithubRelease[] = await response.json();
       const filtered = data
@@ -1053,12 +1077,12 @@ function FirmwareTab() {
       const timedOut = e instanceof DOMException && e.name === "AbortError";
       setReleasesError(
         offline
-          ? "No internet connection. Online updates are unavailable."
+          ? __uiText("components.SettingsPanel.late_coverage.6", "No internet connection. Online updates are unavailable.")
           : timedOut
-            ? "Could not fetch updates. Check your internet connection and try again."
+            ? __uiText("components.SettingsPanel.late_coverage.7", "Could not fetch updates. Check your internet connection and try again.")
             : e instanceof Error
-              ? `Could not check GitHub: ${e.message}`
-              : "Could not check GitHub for updates.",
+              ? formatUi(__uiText("components.SettingsPanel.template_coverage.5", "Could not check GitHub: {v0}"), { v0: e.message })
+              : __uiText("components.SettingsPanel.late_coverage.8", "Could not check GitHub for updates."),
       );
     } finally {
       window.clearTimeout(timeout);
@@ -1109,13 +1133,13 @@ function FirmwareTab() {
     }
     setPhase("uploading");
     setProgress(0);
-    setStatusMsg(`Uploading ${file.name}…`);
+    setStatusMsg(formatUi(__uiText("components.SettingsPanel.firmware_upload.1", "Uploading {name}…"), { name: file.name }));
     try {
       await uploadFirmware(file, (pct) => setProgress(pct));
       beginRestart();
     } catch (e) {
       setPhase("error");
-      setErrorMsg(e instanceof Error ? e.message : "Upload failed");
+      setErrorMsg(e instanceof Error ? e.message : __uiText("components.SettingsPanel.alert_coverage.1", "Upload failed"));
     }
   }
 
@@ -1123,14 +1147,14 @@ function FirmwareTab() {
     if (!selectedTag || jobRunning) return;
     if (
       !confirm(
-        `Download and flash FluidNC ${selectedTag} (${chip} / ${radio})?\n\nThe device will restart after flashing.`,
+        formatUi(__uiText("components.SettingsPanel.alert_coverage.2", "Download and flash FluidNC {v0} ({v1} / {v2})?\n\nThe device will restart after flashing."), { v0: selectedTag, v1: chip, v2: radio }),
       )
     )
       return;
 
     setPhase("downloading");
     setProgress(0);
-    setStatusMsg(`Downloading firmware…`);
+    setStatusMsg(__uiText("components.SettingsPanel.firmware_download.1", "Downloading firmware…"));
     setErrorMsg("");
     try {
       const binFile = await fetchFirmwareBin(selectedTag, chip, radio, (pct) =>
@@ -1139,7 +1163,7 @@ function FirmwareTab() {
       await flashFile(binFile);
     } catch (e) {
       setPhase("error");
-      setErrorMsg(e instanceof Error ? e.message : "Update failed");
+      setErrorMsg(e instanceof Error ? e.message : __uiText("components.SettingsPanel.alert_coverage.3", "Update failed"));
     }
   }
 
@@ -1163,7 +1187,7 @@ function FirmwareTab() {
       <div className="flex flex-col gap-4 p-5">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold uppercase tracking-wider text-text-dim">
-            Online Update
+            {__uiText("components.SettingsPanel.online_update.1", "Online Update")}
           </h3>
           {currentVer && (
             <span className="text-sm text-text-dim font-mono">
@@ -1184,7 +1208,7 @@ function FirmwareTab() {
                          transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <RefreshCw size={12} />
-              Retry
+              {__uiText("components.SettingsPanel.retry.1", "Retry")}
             </button>
           </div>
         )}
@@ -1192,7 +1216,7 @@ function FirmwareTab() {
         {releasesLoading && (
           <div className="flex items-center gap-2 text-sm text-text-muted">
             <RefreshCw size={13} className="animate-spin" />
-            Fetching releases…
+            {__uiText("components.SettingsPanel.fetching_releases.1", "Fetching releases…")}
           </div>
         )}
 
@@ -1202,7 +1226,7 @@ function FirmwareTab() {
           releases.length > 0 && (
             <div className="flex items-center gap-2 p-2.5 rounded bg-ok/10 border border-ok/30 text-ok text-sm">
               <Check size={13} className="shrink-0" />
-              You&apos;re on the latest version ({currentVer}).
+              {__uiText("components.SettingsPanel.coverage.1", "You're on the latest version (")}{currentVer}).
             </div>
           )}
 
@@ -1211,7 +1235,7 @@ function FirmwareTab() {
             {hasNewerStable && latestStable && (
               <div className="flex items-center gap-2 p-2.5 rounded bg-ok/10 border border-ok/30 text-ok text-sm">
                 <Upload size={13} className="shrink-0" />
-                Update available: {latestStable.tag_name}
+                {__uiText("components.SettingsPanel.update_available.1", "Update available:")} {latestStable.tag_name}
               </div>
             )}
 
@@ -1219,7 +1243,7 @@ function FirmwareTab() {
               <div className="flex items-center gap-3">
                 <div className="flex-1 flex flex-col gap-1">
                   <label className="text-xs text-text-dim uppercase tracking-wider">
-                    Version
+                    {__uiText("components.SettingsPanel.version.1", "Version")}
                   </label>
                   <select
                     value={selectedTag}
@@ -1231,9 +1255,9 @@ function FirmwareTab() {
                       <option key={r.id} value={r.tag_name}>
                         {r.tag_name}
                         {r.prerelease
-                          ? " (pre-release)"
+                          ? __uiText("components.SettingsPanel.pre_release.1", " (pre-release)")
                           : r.tag_name === latestStable?.tag_name
-                            ? " (latest)"
+                            ? __uiText("components.SettingsPanel.latest.1", " (latest)")
                             : ""}
                       </option>
                     ))}
@@ -1282,7 +1306,7 @@ function FirmwareTab() {
                   onChange={(e) => setShowPrerelease(e.target.checked)}
                   className="accent-[var(--accent)]"
                 />
-                Show pre-releases
+                {__uiText("components.SettingsPanel.show_pre_releases.1", "Show pre-releases")}
               </label>
             </div>
 
@@ -1295,7 +1319,7 @@ function FirmwareTab() {
                            disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <Upload size={14} />
-                Download &amp; Flash
+                {__uiText("components.SettingsPanel.coverage.2", "Download & Flash")}
               </button>
             )}
           </>
@@ -1306,7 +1330,7 @@ function FirmwareTab() {
             <div className="flex justify-between text-sm text-text-muted">
               <span>
                 {phase === "uploading" && progress === 100
-                  ? "Writing to flash…"
+                  ? __uiText("components.SettingsPanel.writing_to_flash.1", "Writing to flash…")
                   : statusMsg}
               </span>
               <span>{progress}%</span>
@@ -1320,12 +1344,12 @@ function FirmwareTab() {
       {phase === "restarting" && (
         <div className="flex flex-col gap-2 p-5">
           <div className="flex justify-between text-sm text-text-muted">
-            <span>Restarting device…</span>
+            <span>{__uiText("components.SettingsPanel.restarting_device.1", "Restarting device…")}</span>
             <span>{countdown}s</span>
           </div>
           <ProgressBar value={(1 - countdown / 40) * 100} color="ok" />
           <p className="text-sm text-text-dim">
-            Page will reload automatically when ready.
+            {__uiText("components.SettingsPanel.page_will_reload_automatically_when.1", "Page will reload automatically when ready.")}
           </p>
         </div>
       )}
@@ -1341,7 +1365,7 @@ function FirmwareTab() {
       {/* ── Manual Flash ── */}
       <div className="flex flex-col gap-4 p-5">
         <h3 className="text-sm font-semibold uppercase tracking-wider text-text-dim">
-          Manual Flash
+          {__uiText("components.SettingsPanel.manual_flash.1", "Manual Flash")}
         </h3>
 
         <label
@@ -1379,7 +1403,7 @@ function FirmwareTab() {
             </span>
           ) : (
             <span className="text-sm text-text-muted">
-              Drop .bin file or click to browse
+              {__uiText("components.SettingsPanel.drop_bin_file_or_click_to_browse.1", "Drop .bin file or click to browse")}
             </span>
           )}
           {file && (
@@ -1397,7 +1421,7 @@ function FirmwareTab() {
             if (!file || jobRunning) return;
             if (
               !confirm(
-                `Flash firmware from "${file.name}"? The device will restart.`,
+                formatUi(__uiText("components.SettingsPanel.alert_coverage.4", "Flash firmware from \"{v0}\"? The device will restart."), { v0: file.name }),
               )
             )
               return;
@@ -1408,7 +1432,7 @@ function FirmwareTab() {
                      disabled:opacity-40 disabled:cursor-not-allowed"
         >
           <Upload size={14} />
-          Flash Firmware
+          {__uiText("components.SettingsPanel.flash_firmware.1", "Flash Firmware")}
         </button>
       </div>
     </div>
@@ -1453,7 +1477,7 @@ function ESPNowPendantsTab() {
       setPendants(parseESPNowPendants(await sendCommand("$ESPNow/List")));
     } catch (e) {
       setError(
-        e instanceof Error ? e.message : "Failed to list ESP-NOW pendants",
+        e instanceof Error ? e.message : __uiText("components.SettingsPanel.late_coverage.9", "Failed to list ESP-NOW pendants"),
       );
     } finally {
       setLoading(false);
@@ -1477,7 +1501,7 @@ function ESPNowPendantsTab() {
       setSecondsLeft(remaining);
       if (remaining === 0) {
         setPairingUntil(0);
-        setPairingFeedback("Pairing window expired");
+        setPairingFeedback(__uiText("components.SettingsPanel.late_coverage.10", "Pairing window expired"));
       }
     };
     update();
@@ -1520,7 +1544,7 @@ function ESPNowPendantsTab() {
       await sendCommand(command);
       after?.();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "ESP-NOW command failed");
+      setError(e instanceof Error ? e.message : __uiText("components.SettingsPanel.espnow_failed.1", "ESP-NOW command failed"));
     } finally {
       setBusy("");
     }
@@ -1538,7 +1562,7 @@ function ESPNowPendantsTab() {
       setPairingUntil(Date.now() + 60_000);
     } catch (e) {
       setError(
-        e instanceof Error ? e.message : "Failed to start ESP-NOW pairing",
+        e instanceof Error ? e.message : __uiText("components.SettingsPanel.late_coverage.11", "Failed to start ESP-NOW pairing"),
       );
     } finally {
       setBusy("");
@@ -1548,17 +1572,17 @@ function ESPNowPendantsTab() {
   function cancelPairing() {
     run("cancel", "$ESPNow/Cancel", () => {
       setPairingUntil(0);
-      setPairingFeedback("Pairing cancelled");
+      setPairingFeedback(__uiText("components.SettingsPanel.pair_cancelled.1", "Pairing cancelled"));
     });
   }
 
   function removePendant(pendant: ESPNowPendant) {
-    if (!confirm(`Unpair ESP-NOW pendant ${pendant.mac}?`)) return;
+    if (!confirm(formatUi(__uiText("components.SettingsPanel.unpair_one.1", "Unpair ESP-NOW pendant {mac}?"), { mac: pendant.mac }))) return;
     run(`remove-${pendant.index}`, `$ESPNow/Unpair=${pendant.index}`, refresh);
   }
 
   function clearPendants() {
-    if (!confirm("Unpair all ESP-NOW pendants?")) return;
+    if (!confirm(__uiText("components.SettingsPanel.notice.1", "Unpair all ESP-NOW pendants?"))) return;
     run("clear", "$ESPNow/Unpair=0", refresh);
   }
 
@@ -1571,7 +1595,7 @@ function ESPNowPendantsTab() {
           <>
             <div className="flex items-center gap-2 mr-auto text-sm text-text-primary">
               <span className="w-2 h-2 rounded-full bg-ok animate-pulse" />
-              Pairing active
+              {__uiText("components.SettingsPanel.pairing_active.1", "Pairing active")}
               <span className="font-mono text-text-muted">{secondsLeft}s</span>
             </div>
             <button
@@ -1582,14 +1606,13 @@ function ESPNowPendantsTab() {
                          hover:bg-elevated transition-colors disabled:opacity-40"
             >
               <Square size={13} />
-              Cancel Pairing
+              {__uiText("components.SettingsPanel.cancel_pairing.1", "Cancel Pairing")}
             </button>
           </>
         ) : (
           <>
             <div className="mr-auto text-sm text-text-muted">
-              Open a 60-second pairing window for nearby ESP-NOW pendants &
-              peripherals.
+              {__uiText("components.SettingsPanel.open_a_60_second_pairing_window_for.1", "Open a 60-second pairing window for nearby ESP-NOW pendants & peripherals.")}
             </div>
             <button
               onClick={startPairing}
@@ -1599,7 +1622,7 @@ function ESPNowPendantsTab() {
                          transition-colors disabled:opacity-40"
             >
               <Radio size={14} />
-              Pair Pendant
+              {__uiText("components.SettingsPanel.pair_pendant.1", "Pair Pendant")}
             </button>
           </>
         )}
@@ -1613,7 +1636,7 @@ function ESPNowPendantsTab() {
               : "bg-elevated border-border text-text-muted"
           }`}
         >
-          {pairingFeedback}
+          {pairingFeedback.startsWith("Paired successfully: ") ? formatUi(__uiText("components.SettingsPanel.pair_success.1", "Paired successfully: {mac}"), { mac: pairingFeedback.slice("Paired successfully: ".length) }) : pairingFeedback}
         </div>
       )}
 
@@ -1626,10 +1649,10 @@ function ESPNowPendantsTab() {
       <div className="flex items-center justify-between px-5 py-3 border-b border-border">
         <div>
           <div className="text-sm font-medium text-text-primary">
-            Paired pendants
+            {__uiText("components.SettingsPanel.paired_pendants.1", "Paired pendants")}
           </div>
           <div className="text-xs text-text-dim">
-            {loading ? "Loading..." : `${pendants.length} paired`}
+            {loading ? __uiText("components.SettingsPanel.loading.1", "Loading...") : formatUi(__uiText("components.SettingsPanel.tail_coverage.1", "{v0} paired"), { v0: pendants.length })}
           </div>
         </div>
         <div className="flex items-center gap-1">
@@ -1638,7 +1661,7 @@ function ESPNowPendantsTab() {
             disabled={loading || disabled}
             className="p-2 rounded text-text-muted hover:text-text-primary hover:bg-elevated
                        transition-colors disabled:opacity-40"
-            title="Refresh paired pendants"
+            title={__uiText("components.SettingsPanel.refresh_paired_pendants.1", "Refresh paired pendants")}
           >
             <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
           </button>
@@ -1651,7 +1674,7 @@ function ESPNowPendantsTab() {
                          transition-colors disabled:opacity-40"
             >
               <Trash2 size={13} />
-              Unpair All
+              {__uiText("components.SettingsPanel.unpair_all.1", "Unpair All")}
             </button>
           )}
         </div>
@@ -1660,7 +1683,7 @@ function ESPNowPendantsTab() {
       {!loading && pendants.length === 0 && !error && (
         <div className="flex flex-col items-center justify-center h-32 gap-2 text-text-dim text-sm">
           <Radio size={22} />
-          No ESP-NOW pendants paired
+          {__uiText("components.SettingsPanel.no_esp_now_pendants_paired.1", "No ESP-NOW pendants paired")}
         </div>
       )}
 
@@ -1672,7 +1695,7 @@ function ESPNowPendantsTab() {
           <Radio size={16} className="text-accent shrink-0" />
           <div className="min-w-0 flex-1">
             <div className="text-sm font-medium text-text-primary">
-              Pendant {pendant.index}
+              {__uiText("components.SettingsPanel.pendant.1", "Pendant")} {pendant.index}
             </div>
             <div className="font-mono text-xs text-text-muted">
               {pendant.mac}
@@ -1683,7 +1706,7 @@ function ESPNowPendantsTab() {
             disabled={disabled}
             className="p-2 rounded text-text-muted hover:text-danger hover:bg-danger/10
                        transition-colors disabled:opacity-40"
-            title={`Unpair ${pendant.mac}`}
+            title={formatUi(__uiText("components.SettingsPanel.dynamic.1", "Unpair {v0}"), { v0: pendant.mac })}
           >
             <Trash2 size={14} />
           </button>
@@ -1767,7 +1790,7 @@ export function SettingsPanel({
     try {
       setSettings(await loadControllerConfigSettings(force));
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load settings");
+      setError(e instanceof Error ? e.message : __uiText("components.SettingsPanel.late_coverage.12", "Failed to load settings"));
     } finally {
       setLoading(false);
     }
@@ -1801,7 +1824,7 @@ export function SettingsPanel({
     const reply = await sendCommand(`[ESP401]P=${p} T=${t} V=${escaped}`);
     // FluidNC answers HTTP 200 and puts a refusal in the text ("error:N").
     const rejected = reply.match(/^\s*error\s*:.*$/im);
-    if (rejected) throw new Error(`controller refused it (${rejected[0].trim()})`);
+    if (rejected) throw new Error(formatUi(__uiText("components.SettingsPanel.template_coverage.6", "controller refused it ({v0})"), { v0: rejected[0].trim() }));
 
     const setting = settings.find((s) => s.P === p);
     const updatedSettings = updateControllerConfigSetting(
@@ -1831,8 +1854,8 @@ export function SettingsPanel({
 
     const configFile = activeConfigFile(settings);
     const shouldSave = confirm(
-      `Machine config changed. Save ${pendingCount === 1 ? "this change" : "these changes"} to ${configFile.name}?\n\n` +
-        `OK saves the config file. Cancel closes without updating ${configFile.name}.`,
+      formatUi(__uiPlural("components.SettingsPanel.save_config_prompt", pendingCount, { one: "Machine config changed. Save this change to {filename}?\n\n", other: "Machine config changed. Save these changes to {filename}?\n\n" }), { filename: configFile.name }) +
+        formatUi(__uiText("components.SettingsPanel.alert_coverage.5", "OK saves the config file. Cancel closes without updating {v0}."), { v0: configFile.name }),
     );
 
     if (shouldSave) {
@@ -1845,14 +1868,12 @@ export function SettingsPanel({
         setPendingConfigChanges({});
         if (missing.length) {
           alert(
-            `Not in ${configFile.name}, so not saved (back to default after a restart):\n\n${missing.join("\n")}\n\nAdd to the file in Config Studio to keep.`,
+            formatUi(__uiText("components.SettingsPanel.alert_coverage.6", "Not in {v0}, so not saved (back to default after a restart):\n\n{v1}\n\nAdd to the file in Config Studio to keep."), { v0: configFile.name, v1: missing.join("\n") }),
           );
         }
       } catch (error) {
         alert(
-          `Runtime settings were sent, but ${configFile.name} could not be updated.\n\n${
-            error instanceof Error ? error.message : String(error)
-          }`,
+          formatUi(__uiText("components.SettingsPanel.alert_coverage.7", "Runtime settings were sent, but {v0} could not be updated.\n\n{v1}"), { v0: configFile.name, v1: error instanceof Error ? error.message : String(error) }),
         );
         return false;
       } finally {
@@ -1979,7 +2000,7 @@ export function SettingsPanel({
       <div className="flex items-center gap-3 px-5 py-3.5 border-b border-border shrink-0">
         <Settings size={18} className="text-accent shrink-0" />
         <h2 className="text-base font-semibold text-text-primary flex-1">
-          Settings
+          {__uiText("components.SettingsPanel.settings.1", "Settings")}
         </h2>
         <div className="flex items-center gap-2">
           <button
@@ -1989,8 +2010,8 @@ export function SettingsPanel({
             disabled={loading || cachedSettingsLoading || category === "limits"}
             title={
               category === "limits"
-                ? "Unavailable while monitoring limits"
-                : "Reload settings"
+                ? __uiText("components.SettingsPanel.unavailable_while_monitoring_limits.1", "Unavailable while monitoring limits")
+                : __uiText("components.SettingsPanel.reload_settings.1", "Reload settings")
             }
           >
             <RefreshCw
@@ -2010,18 +2031,18 @@ export function SettingsPanel({
             disabled={restarting || machineMoving}
             title={
               machineMoving
-                ? "Unavailable while the machine is moving"
-                : "Restart device"
+                ? __uiText("components.SettingsPanel.unavailable_while_the_machine_is_mo.1", "Unavailable while the machine is moving")
+                : __uiText("components.SettingsPanel.restart_device.1", "Restart device")
             }
           >
             <RotateCcw size={12} />
             {restarting
-              ? "Restarting…"
+              ? __uiText("components.SettingsPanel.restarting.1", "Restarting…")
               : restartTap.armed && !machineMoving
                 ? jobActive
-                  ? "Tap again: aborts job"
-                  : "Tap again to restart"
-                : "Restart"}
+                  ? __uiText("components.SettingsPanel.tap_again_aborts_job.1", "Tap again: aborts job")
+                  : __uiText("components.SettingsPanel.tap_again_to_restart.1", "Tap again to restart")
+                : __uiText("components.SettingsPanel.restart.1", "Restart")}
           </button>
           {onClose && (
             <button
@@ -2029,7 +2050,7 @@ export function SettingsPanel({
                          hover:bg-elevated transition-colors ml-1"
               onClick={() => requestClose()}
               disabled={savingConfigFile}
-              title="Close (Esc)"
+              title={__uiText("components.SettingsPanel.close_esc.1", "Close (Esc)")}
             >
               <X size={18} />
             </button>
@@ -2049,13 +2070,13 @@ export function SettingsPanel({
             </span>
           </span>
           <span>
-            <span className="text-text-dim">Host </span>
+            <span className="text-text-dim">{__uiText("components.SettingsPanel.coverage.3", "Host")} </span>
             <span className="text-text-primary font-mono">
               {espInfo.hostname || "—"}
             </span>
           </span>
           <span>
-            <span className="text-text-dim">Axes </span>
+            <span className="text-text-dim">{__uiText("components.SettingsPanel.axes.1", "Axes")} </span>
             <span className="text-text-primary font-mono">{espInfo.axes}</span>
           </span>
         </div>
@@ -2070,7 +2091,7 @@ export function SettingsPanel({
           <input
             className="input-field pr-3 py-1.5 text-sm"
             style={{ paddingLeft: 32 }}
-            placeholder="Search settings…"
+            placeholder={__uiText("components.SettingsPanel.search_settings.1", "Search settings…")}
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
           />
@@ -2092,7 +2113,7 @@ export function SettingsPanel({
               <input
                 className="input-field pr-3 py-1.5 text-sm"
                 style={{ paddingLeft: 32 }}
-                placeholder="Search…"
+                placeholder={__uiText("components.SettingsPanel.search.1", "Search…")}
                 value={filter}
                 onChange={(e) => setFilter(e.target.value)}
               />
@@ -2123,7 +2144,7 @@ export function SettingsPanel({
                     }
                     className={`flex items-center gap-1.5 sm:gap-2.5 sm:w-full
                                 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded
-                                text-sm sm:text-base whitespace-nowrap
+                                text-sm sm:text-base whitespace-nowrap sm:whitespace-normal sm:break-words sm:[overflow-wrap:anywhere]
                                 transition-all text-left ${
                                   active
                                     ? "bg-accent/[0.12] text-accent font-medium"
@@ -2131,27 +2152,27 @@ export function SettingsPanel({
                                 }`}
                   >
                     <Icon size={14} className="shrink-0" />
-                    {cat.label}
+                    <span className="min-w-0">{cat.label}</span>
                   </button>
 
                   {showConfigSublist && (
                     <div
                       className="hidden sm:flex sm:flex-col gap-1 mt-1 sm:ml-3 sm:pl-2 sm:border-l sm:border-border"
                       role="group"
-                      aria-label="Machine Config sections"
+                      aria-label={__uiText("components.SettingsPanel.machine_config_sections.1", "Machine Config sections")}
                     >
                       {subKeys.map((k) => (
                         <button
                           key={k}
                           onClick={() => setSubKey(k)}
                           aria-current={subKey === k ? "page" : undefined}
-                          className={`px-2.5 py-1 text-sm text-left whitespace-nowrap rounded transition-colors ${
+                          className={`px-2.5 py-1 text-sm text-left break-words [overflow-wrap:anywhere] rounded transition-colors ${
                             subKey === k
                               ? "bg-accent/[0.12] text-accent font-medium"
                               : "text-text-muted hover:text-text-primary hover:bg-elevated"
                           }`}
                         >
-                          {k}
+                          {settingSectionName(k)}
                         </button>
                       ))}
                     </div>
@@ -2170,7 +2191,7 @@ export function SettingsPanel({
                   <activeCat.icon size={14} className="text-accent shrink-0" />
                   <span className="truncate">
                     {activeCat.label}
-                    {category === "config" && subKey && ` › ${subKey}`}
+                    {category === "config" && subKey && ` › ${settingSectionName(subKey)}`}
                   </span>
                 </h3>
                 {category === "config" && (
@@ -2178,11 +2199,11 @@ export function SettingsPanel({
                     className="btn btn-primary shrink-0 px-3 py-1.5 text-sm"
                     onClick={openConfigStudio}
                     disabled={isMobile}
-                    title={isMobile ? "Config Studio is available on tablets and desktops" : undefined}
+                    title={isMobile ? __uiText("components.SettingsPanel.config_studio_is_available_on_table.1", "Config Studio is available on tablets and desktops") : undefined}
                   >
                     <FileCode2 size={14} />
                     <span className="sm:hidden">Config Studio</span>
-                    <span className="hidden sm:inline">Open Config Studio</span>
+                    <span className="hidden sm:inline">{__uiText("components.SettingsPanel.open_config_studio.1", "Open Config Studio")}</span>
                   </button>
                 )}
               </div>
@@ -2193,7 +2214,7 @@ export function SettingsPanel({
                     htmlFor="machine-config-section"
                     className="shrink-0 text-sm font-medium text-text-muted"
                   >
-                    Section
+                    {__uiText("components.SettingsPanel.section.1", "Section")}
                   </label>
                   <select
                     id="machine-config-section"
@@ -2203,7 +2224,7 @@ export function SettingsPanel({
                   >
                     {subKeys.map((k) => (
                       <option key={k} value={k}>
-                        {k}
+                        {settingSectionName(k)}
                       </option>
                     ))}
                   </select>
@@ -2226,7 +2247,7 @@ export function SettingsPanel({
                                       : "border-transparent text-text-muted hover:text-text-primary"
                                   }`}
                       >
-                        {k}
+                        {settingSectionName(k)}
                       </button>
                     ))}
                   </div>
@@ -2242,11 +2263,11 @@ export function SettingsPanel({
                   >
                     <Info size={13} className="text-accent shrink-0 mt-1" />
                     <span>
-                      These settings come from{" "}
+                      {__uiText("components.SettingsPanel.these_settings_come_from.1", "These settings come from")}{" "}
                       <span className="font-mono font-medium text-text-primary">
                         config.yaml
                       </span>
-                      . Most changes made here take effect immediately. 
+                      {__uiText("components.SettingsPanel.most_changes_made_here_take_effect_.1", ". Most changes made here take effect immediately.")}
                     </span>
                   </div>
                 </div>
@@ -2256,8 +2277,7 @@ export function SettingsPanel({
 
           {isSearching && visibleSettings.length > 0 && (
             <div className="px-5 py-2.5 text-sm text-text-dim border-b border-border shrink-0">
-              {visibleSettings.length} result
-              {visibleSettings.length !== 1 ? "s" : ""}
+              {__uiPlural("components.SettingsPanel.result.1", visibleSettings.length, { one: "{count} result", other: "{count} results" })}
             </div>
           )}
 
@@ -2272,7 +2292,7 @@ export function SettingsPanel({
               <div className="divide-y divide-border">
                 {[
                   {
-                    label: "Units",
+                    label: __uiText("components.SettingsPanel.units.1", "Units"),
                     control: (["mm", "in"] as const).map((unit) => (
                       <button
                         key={unit}
@@ -2288,7 +2308,7 @@ export function SettingsPanel({
                     )),
                   },
                   {
-                    label: "Layout",
+                    label: __uiText("components.SettingsPanel.layout.1", "Layout"),
                     control: (["auto", "tablet", "desktop"] as const).map(
                       (mode) => (
                         <button
@@ -2306,12 +2326,12 @@ export function SettingsPanel({
                     ),
                   },
                   {
-                    label: "Theme",
+                    label: __uiText("components.SettingsPanel.theme.1", "Theme"),
                     control: [
-                      { id: "light" as Theme, label: "Light" },
-                      { id: "dark" as Theme, label: "Dark" },
-                      { id: "anthracite-dark" as Theme, label: "Anthracite" },
-                      { id: "midnight-dark" as Theme, label: "Midnight" },
+                      { id: "light" as Theme, label: __uiText("components.SettingsPanel.light.1", "Light") },
+                      { id: "dark" as Theme, label: __uiText("components.SettingsPanel.dark.1", "Dark") },
+                      { id: "anthracite-dark" as Theme, label: __uiText("components.SettingsPanel.label_extra.2", "Anthracite") },
+                      { id: "midnight-dark" as Theme, label: __uiText("components.SettingsPanel.midnight.1", "Midnight") },
                     ].map(({ id, label }) => (
                       <button
                         key={id}
@@ -2360,7 +2380,7 @@ export function SettingsPanel({
               !error && (
                 <div className="flex items-center justify-center h-32 gap-2 text-text-muted text-sm">
                   <RefreshCw size={14} className="animate-spin" />
-                  Loading settings…
+                  {__uiText("components.SettingsPanel.loading_settings.1", "Loading settings…")}
                 </div>
               )}
 
@@ -2375,11 +2395,11 @@ export function SettingsPanel({
                 <div className="flex flex-col items-center justify-center h-32 gap-2 text-text-dim text-sm">
                   {isSearching ? (
                     <>
-                      No settings match{" "}
+                      {__uiText("components.SettingsPanel.no_settings_match.1", "No settings match")}{" "}
                       <span className="font-mono">"{filter}"</span>
                     </>
                   ) : (
-                    "Select a category"
+                    __uiText("components.SettingsPanel.select_a_category.1", "Select a category")
                   )}
                 </div>
               )}

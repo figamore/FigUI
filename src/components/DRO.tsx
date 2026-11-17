@@ -1,3 +1,4 @@
+import { uiText as __uiText, formatUi } from '../lib/i18n'
 import { useEffect, useRef, useState } from 'react'
 import { ArrowRightToLine, Home, Power, Square, TriangleAlert } from 'lucide-react'
 import { useMachineStore, activePosition } from '../store'
@@ -15,24 +16,24 @@ import type { Units } from '../types'
 import { useIsPortrait } from '../lib/viewport'
 
 const ALARM_MESSAGES: Record<number, string> = {
-  1: 'Hard limit triggered',
-  2: 'Soft limit exceeded',
-  3: 'Abort Cycle',
-  4: 'Probe fail — initial state',
-  5: 'Probe fail — no contact',
-  6: 'Homing fail — reset',
-  7: 'Homing fail — door open',
-  8: 'Homing fail — pull-off',
-  9: 'Homing fail — approach',
-  10: 'Spindle control fault',
-  11: 'Input Pin Initially On',
-  12: 'Ambiguous Switch',
-  13: 'Hard stop',
-  14: 'Machine is unhomed',
-  15: 'Initialization failure',
-  16: 'Expander reset',
-  17: 'G-code command error',
-  18: 'Probe hard limit',
+  1: __uiText("components.DRO.alarm_message.1", "Hard limit triggered"),
+  2: __uiText("components.DRO.alarm_message.2", "Soft limit exceeded"),
+  3: __uiText("components.DRO.alarm_message.3", "Abort Cycle"),
+  4: __uiText("components.DRO.alarm_message.4", "Probe fail — initial state"),
+  5: __uiText("components.DRO.alarm_message.5", "Probe fail — no contact"),
+  6: __uiText("components.DRO.alarm_message.6", "Homing fail — reset"),
+  7: __uiText("components.DRO.alarm_message.7", "Homing fail — door open"),
+  8: __uiText("components.DRO.alarm_message.8", "Homing fail — pull-off"),
+  9: __uiText("components.DRO.alarm_message.9", "Homing fail — approach"),
+  10: __uiText("components.DRO.alarm_message.10", "Spindle control fault"),
+  11: __uiText("components.DRO.alarm_message.11", "Input Pin Initially On"),
+  12: __uiText("components.DRO.alarm_message.12", "Ambiguous Switch"),
+  13: __uiText("components.DRO.alarm_message.13", "Hard stop"),
+  14: __uiText("components.DRO.alarm_message.14", "Machine is unhomed"),
+  15: __uiText("components.DRO.alarm_message.15", "Initialization failure"),
+  16: __uiText("components.DRO.alarm_message.16", "Expander reset"),
+  17: __uiText("components.DRO.alarm_message.17", "G-code command error"),
+  18: __uiText("components.DRO.alarm_message.18", "Probe hard limit"),
 }
 
 const AXES = ['X', 'Y', 'Z', 'A', 'B', 'C'] as const
@@ -125,19 +126,19 @@ export function DRO({
       : 'text-[1.75rem]'
   const tabletAxisLabelSize = topBandLayout ? 'text-xl' : isTablet ? 'text-2xl' : 'text-base'
   const tabletActionBtnClass = isTablet && isPortrait
-    ? 'h-20 text-xl'
+    ? 'min-h-20 text-xl'
     : topBandLayout
-      ? 'h-11 text-base'
+      ? 'min-h-11 text-base'
       : isTablet
-        ? 'h-14 text-lg'
-        : 'h-7 text-base'
+        ? 'min-h-14 text-lg'
+        : 'min-h-7 text-base'
   const tabletStopBtnClass = isTablet && isPortrait
-    ? 'h-20 text-xl'
+    ? 'min-h-20 text-xl'
     : topBandLayout
-      ? 'h-11 text-sm'
+      ? 'min-h-11 text-sm'
       : isTablet
-        ? 'h-14 text-lg'
-        : 'h-7 text-sm'
+        ? 'min-h-14 text-lg'
+        : 'min-h-7 text-sm'
   const tabletFooterTextSize = topBandLayout
     ? 'text-sm'
     : isTablet
@@ -266,8 +267,8 @@ export function DRO({
 
   return (
     <div className={`panel flex flex-col ${topBandLayout ? 'h-full' : ''}`}>
-      <div className={`panel-header justify-between shrink-0 ${tightLayout ? 'flex-wrap gap-y-1 py-1.5' : ''}`}>
-        <span className={`font-bold ${tightLayout ? 'text-base' : 'text-lg'}`}>Position</span>
+      <div dir="ltr" className={`panel-header justify-between shrink-0 ${tightLayout ? 'flex-wrap gap-y-1 py-1.5' : ''}`}>
+        <span className={`font-bold ${tightLayout ? 'text-base' : 'text-lg'}`}>{__uiText("components.DRO.position.1", "Position")}</span>
         <div className={`flex items-center ${tightLayout ? 'flex-wrap justify-end' : ''}`}>
           <div className={`grid grid-cols-2 items-stretch shrink-0 ${tightLayout ? 'gap-1 w-[13.5rem]' : 'gap-1.5 w-[14.5rem]'}`}>
           <div className="flex min-w-0 overflow-hidden items-stretch gap-0.5 bg-elevated rounded-sm border border-border p-0.5">
@@ -303,7 +304,7 @@ export function DRO({
                   ? 'bg-accent/10 border-accent/50 text-accent'
                   : 'bg-elevated border-border text-text-primary hover:border-border-strong'
               }`}
-              title="Select work origin"
+              title={__uiText("components.DRO.select_work_origin.1", "Select work origin")}
             >
               <span className="font-mono">{activeWorkOrigin ?? 'WCS'}</span>
               <svg
@@ -342,7 +343,7 @@ export function DRO({
       </div>
 
       {/* Axis rows – compact */}
-      <div className={`px-3 shrink-0 ${topBandLayout ? 'space-y-0 py-0.5' : 'space-y-0.5 py-2'}`}>
+      <div dir="ltr" className={`px-3 shrink-0 ${topBandLayout ? 'space-y-0 py-0.5' : 'space-y-0.5 py-2'}`}>
         {positionMode === 'Both' && (
           <div className="flex items-center gap-2 pb-0.5">
             <span className="w-4 shrink-0" />
@@ -373,9 +374,9 @@ export function DRO({
                 <button
                   disabled={axisEntryDisabled}
                   onClick={() => openAxisEditor(ax, 'WPos', wCoords[ax])}
-                  aria-label={`Edit ${ax} work position`}
+                  aria-label={formatUi(__uiText("components.DRO.dynamic.1", "Edit {v0} work position"), { v0: ax })}
                   aria-haspopup="dialog"
-                  title={`Set or go to ${ax} work position`}
+                  title={formatUi(__uiText("components.DRO.dynamic.2", "Set or go to {v0} work position"), { v0: ax })}
                   className={`text-right font-mono tabular-nums tracking-tight min-w-0 overflow-hidden rounded-sm hover:bg-elevated disabled:hover:bg-transparent ${tabletCoordBothSize}`}
                   style={{ fontWeight: 300, lineHeight: 1.2, color: 'var(--text-primary)' }}
                 >
@@ -384,9 +385,9 @@ export function DRO({
                 <button
                   disabled={axisEntryDisabled}
                   onClick={() => openAxisEditor(ax, 'MPos', mCoords[ax])}
-                  aria-label={`Edit ${ax} machine position`}
+                  aria-label={formatUi(__uiText("components.DRO.dynamic.3", "Edit {v0} machine position"), { v0: ax })}
                   aria-haspopup="dialog"
-                  title={`Go to ${ax} machine position`}
+                  title={formatUi(__uiText("components.DRO.dynamic.10", "Go to {v0} machine position"), { v0: ax })}
                   className={`text-right font-mono tabular-nums tracking-tight min-w-0 overflow-hidden rounded-sm hover:bg-elevated disabled:hover:bg-transparent ${tabletCoordBothSize}`}
                   style={{ fontWeight: 300, lineHeight: 1.2, color: 'var(--text-muted)' }}
                 >
@@ -397,9 +398,9 @@ export function DRO({
               <button
                 disabled={axisEntryDisabled}
                 onClick={() => openAxisEditor(ax, positionMode, coordValues[ax])}
-                aria-label={`Edit ${ax} ${positionMode === 'WPos' ? 'work' : 'machine'} position`}
+                aria-label={formatUi(__uiText("components.DRO.dynamic.4", "Edit {v0} {v1} position"), { v0: ax, v1: positionMode === 'WPos' ? __uiText("components.DRO.work_position_kind.1", "work") : __uiText("components.DRO.machine_position_kind.1", "machine") })}
                 aria-haspopup="dialog"
-                title={positionMode === 'WPos' ? `Set or go to ${ax} work position` : `Go to ${ax} machine position`}
+                title={positionMode === 'WPos' ? formatUi(__uiText("components.DRO.dynamic.5", "Set or go to {v0} work position"), { v0: ax }) : formatUi(__uiText("components.DRO.dynamic.11", "Go to {v0} machine position"), { v0: ax })}
                 className={`flex-1 text-right font-mono tabular-nums tracking-tight rounded-sm hover:bg-elevated disabled:hover:bg-transparent ${tabletCoordSingleSize}`}
                 style={{ fontWeight: 300, lineHeight: 1.2, color: 'var(--text-primary)' }}
               >
@@ -414,7 +415,7 @@ export function DRO({
                            disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:text-text-muted disabled:hover:border-border disabled:hover:bg-transparent
                            transition-all duration-100 ${tabletBtnSize} ${isTablet ? 'text-xl' : 'text-base'}`}
                 onClick={() => zeroAxis(ax)}
-                title={`Zero ${ax}`}
+                title={formatUi(__uiText("components.DRO.dynamic.6", "Zero {v0}"), { v0: ax })}
                 disabled={areAxisButtonsDisabled}
               >
                 Z
@@ -427,7 +428,7 @@ export function DRO({
                              border border-danger/50 text-danger bg-danger/10
                              hover:bg-danger/15 transition-all duration-100 ${tabletBtnSize}`}
                   onClick={cancelPendingAxisAction}
-                  title={`Cancel ${ax} move`}
+                  title={formatUi(__uiText("components.DRO.dynamic.7", "Cancel {v0} move"), { v0: ax })}
                 >
                   <Square size={tabletIconSize} className="fill-current" />
                 </button>
@@ -439,7 +440,7 @@ export function DRO({
                              disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:text-text-muted disabled:hover:border-border disabled:hover:bg-transparent
                              transition-all duration-100 ${tabletBtnSize}`}
                   onClick={() => goToZero(ax)}
-                  title={`Go to ${ax} zero`}
+                  title={formatUi(__uiText("components.DRO.dynamic.12", "Go to {v0} zero"), { v0: ax })}
                   disabled={areAxisButtonsDisabled}
                 >
                   <ArrowRightToLine size={tabletIconSize} />
@@ -454,7 +455,7 @@ export function DRO({
                              border border-danger/50 text-danger bg-danger/10
                              hover:bg-danger/15 transition-all duration-100 ${tabletBtnSize}`}
                   onClick={cancelPendingAxisAction}
-                  title={`Abort ${ax} homing`}
+                  title={formatUi(__uiText("components.DRO.dynamic.8", "Abort {v0} homing"), { v0: ax })}
                 >
                   <Square size={tabletIconSize} className="fill-current" />
                 </button>
@@ -467,7 +468,7 @@ export function DRO({
                              transition-all duration-100 ${tabletBtnSize}`}
                   style={{ ['--tw-text-opacity' as string]: '1' } as React.CSSProperties}
                   onClick={() => homeAxis(ax)}
-                  title={`Home ${ax}`}
+                  title={formatUi(__uiText("components.DRO.dynamic.9", "Home {v0}"), { v0: ax })}
                   disabled={areAxisButtonsDisabled}
                 >
                   <Home size={tabletHomeIconSize} style={{ color: AXIS_COLOR[ax] ?? 'var(--text-muted)' }} />
@@ -479,46 +480,46 @@ export function DRO({
       </div>
 
       {/* Action buttons */}
-      <div className={`border-t border-border px-3 flex gap-2 shrink-0 ${topBandLayout ? 'py-1' : 'py-2'}`}>
+      <div dir="ltr" className={`border-t border-border px-3 flex gap-2 shrink-0 ${topBandLayout ? 'py-1' : 'py-2'}`}>
         {!shouldHideMotionControls && !isHomeAllPending && (
           <button
-            className={`btn btn-warn flex-1 font-bold ${tabletActionBtnClass}`}
+            className={`btn btn-warn min-w-0 flex-1 whitespace-normal py-1 leading-tight font-bold ${tabletActionBtnClass}`}
             onClick={zeroAll}
-            title="Set current position as work zero for all axes"
+            title={__uiText("components.DRO.set_current_position_as_work_zero_f.1", "Set current position as work zero for all axes")}
             disabled={areAxisButtonsDisabled}
           >
-            ⊙ Zero All
+            {__uiText("components.DRO.zero_all.1", "⊙ Zero All")}
           </button>
         )}
         {!shouldHideMotionControls && !isHomeAllPending && (
           <button
-            className={`btn btn-ghost flex-1 font-bold flex items-center justify-center gap-1.5 ${tabletActionBtnClass}`}
+            className={`btn btn-ghost min-w-0 flex-1 whitespace-normal py-1 leading-tight font-bold flex items-center justify-center gap-1.5 ${tabletActionBtnClass}`}
             onClick={homeAll}
-            title="Home all axes"
+            title={__uiText("components.DRO.home_all_axes.1", "Home all axes")}
             disabled={areAxisButtonsDisabled}
           >
             <Home size={isTablet && isPortrait ? 24 : topBandLayout ? 18 : isTablet ? 20 : 12} />
-            Home All
+            {__uiText("components.DRO.home_all.1", "Home All")}
           </button>
         )}
         {!shouldHideMotionControls && isHomeAllPending && (
           <button
-            className={`btn btn-warn flex-1 font-bold flex items-center justify-center gap-1.5 ${tabletStopBtnClass}`}
+            className={`btn btn-warn min-w-0 flex-1 whitespace-normal py-1 leading-tight font-bold flex items-center justify-center gap-1.5 ${tabletStopBtnClass}`}
             onClick={cancelPendingAxisAction}
-            title="Abort homing (soft reset controller)"
+            title={__uiText("components.DRO.abort_homing_soft_reset_controller.1", "Abort homing (soft reset controller)")}
           >
             <Square size={isTablet && isPortrait ? 24 : topBandLayout ? 18 : isTablet ? 20 : 12} className="fill-current" />
-            Abort Homing
+            {__uiText("components.DRO.abort_homing.1", "Abort Homing")}
           </button>
         )}
         {shouldHideMotionControls && (
           <button
-            className="btn flex-1 h-10 text-2xl font-bold flex items-center justify-center gap-1.5 bg-danger hover:bg-danger/85 text-white border-transparent"
+            className="btn min-w-0 flex-1 min-h-10 whitespace-normal py-1 text-2xl leading-tight font-bold flex items-center justify-center gap-1.5 bg-danger hover:bg-danger/85 text-white border-transparent"
             onClick={() => sendRealtime(0x18)}
-            title="E-Stop — soft reset the controller"
+            title={__uiText("components.DRO.e_stop_soft_reset_the_controller.1", "E-Stop — soft reset the controller")}
           >
-            <Power className='w-6 h-6' />
-            E-Stop
+            <Power className='w-6 h-6 shrink-0' />
+            {__uiText("components.DRO.e_stop.1", "E-Stop")}
           </button>
         )}
       </div>
@@ -536,15 +537,15 @@ export function DRO({
               <span className={`font-bold text-danger uppercase tracking-wide leading-none ${
                 topBandLayout ? 'text-xs' : isTablet ? 'text-sm' : 'text-sm'
               }`}>
-                Alarm
+                {__uiText("components.DRO.alarm.1", "Alarm")}
               </span>
               <span className={`text-text-primary leading-snug ${
                 topBandLayout ? 'text-xs' : isTablet ? 'text-sm' : 'text-sm'
               }`}>
                 {status.alarmName
                   ?? (status.alarmCode != null
-                    ? (ALARM_MESSAGES[status.alarmCode] ?? `Unknown alarm code ${status.alarmCode}`)
-                    : 'Machine is in alarm state')}
+                    ? (ALARM_MESSAGES[status.alarmCode] ?? formatUi(__uiText("components.DRO.unknown_alarm.1", "Unknown alarm code {code}"), { code: status.alarmCode }))
+                    : __uiText("components.DRO.extra_coverage.1", "Machine is in alarm state"))}
               </span>
             </div>
           </div>
@@ -554,13 +555,13 @@ export function DRO({
             }`}
             onClick={() => clearMachineAlarm(status.alarmCode)}
           >
-            Clear Alarm
+            {__uiText("components.DRO.clear_alarm.1", "Clear Alarm")}
           </button>
         </div>
       )}
 
       {/* Feed / Spindle readout */}
-      <div className={`border-t border-border px-3 flex justify-between font-mono text-text-muted shrink-0 ${
+      <div dir="ltr" className={`border-t border-border px-3 flex justify-between font-mono text-text-muted shrink-0 ${
         topBandLayout ? 'py-0.5' : isTablet ? 'py-2' : 'py-1'
       } ${tabletFooterTextSize}`}>
         <div className="flex items-center gap-1.5">
@@ -582,22 +583,22 @@ export function DRO({
 }
 
 const MODE_TOOLTIPS: Record<string, string> = {
-  G0: 'Rapid move', G1: 'Linear feed move', G2: 'Arc CW', G3: 'Arc CCW',
-  'G38.2': 'Probe toward, error on fail', 'G38.3': 'Probe toward',
-  'G38.4': 'Probe away, error on fail', 'G38.5': 'Probe away', G80: 'Motion cancel',
-  G54: 'Work coord 1', G55: 'Work coord 2', G56: 'Work coord 3',
-  G57: 'Work coord 4', G58: 'Work coord 5', G59: 'Work coord 6',
-  'G59.1': 'Work coord 7', 'G59.2': 'Work coord 8', 'G59.3': 'Work coord 9',
-  G17: 'XY plane', G18: 'XZ plane', G19: 'YZ plane',
-  G20: 'Inches', G21: 'Millimeters',
-  G90: 'Absolute distance', G91: 'Incremental distance',
-  'G90.1': 'Absolute arc IJK', 'G91.1': 'Incremental arc IJK',
-  G93: 'Inverse time feed', G94: 'Units per minute', G95: 'Units per revolution',
-  G40: 'Cutter comp off', G41: 'Cutter comp left', G42: 'Cutter comp right',
-  'G43.1': 'Tool length applied', G49: 'Tool length cancel',
-  M0: 'Program pause', M1: 'Optional pause', M2: 'Program end', M30: 'Program end + rewind',
-  M3: 'Spindle CW', M4: 'Spindle CCW', M5: 'Spindle off',
-  M7: 'Mist coolant', M8: 'Flood coolant', M9: 'Coolant off',
+  G0: __uiText("components.DRO.mode_tooltip.1", "Rapid move"), G1: __uiText("components.DRO.mode_tooltip.2", "Linear feed move"), G2: __uiText("components.DRO.mode_tooltip.3", "Arc CW"), G3: __uiText("components.DRO.mode_tooltip.4", "Arc CCW"),
+  'G38.2': __uiText("components.DRO.mode_tooltip.5", "Probe toward, error on fail"), 'G38.3': __uiText("components.DRO.mode_tooltip.6", "Probe toward"),
+  'G38.4': __uiText("components.DRO.mode_tooltip.7", "Probe away, error on fail"), 'G38.5': __uiText("components.DRO.mode_tooltip.8", "Probe away"), G80: __uiText("components.DRO.mode_tooltip.9", "Motion cancel"),
+  G54: __uiText("components.DRO.mode_tooltip.10", "Work coord 1"), G55: __uiText("components.DRO.mode_tooltip.11", "Work coord 2"), G56: __uiText("components.DRO.mode_tooltip.12", "Work coord 3"),
+  G57: __uiText("components.DRO.mode_tooltip.13", "Work coord 4"), G58: __uiText("components.DRO.mode_tooltip.14", "Work coord 5"), G59: __uiText("components.DRO.mode_tooltip.15", "Work coord 6"),
+  'G59.1': __uiText("components.DRO.mode_tooltip.16", "Work coord 7"), 'G59.2': __uiText("components.DRO.mode_tooltip.17", "Work coord 8"), 'G59.3': __uiText("components.DRO.mode_tooltip.18", "Work coord 9"),
+  G17: __uiText("components.DRO.mode_tooltip.19", "XY plane"), G18: __uiText("components.DRO.mode_tooltip.20", "XZ plane"), G19: __uiText("components.DRO.mode_tooltip.21", "YZ plane"),
+  G20: __uiText("components.DRO.mode_tooltip.22", "Inches"), G21: __uiText("components.DRO.mode_tooltip.23", "Millimeters"),
+  G90: __uiText("components.DRO.mode_tooltip.24", "Absolute distance"), G91: __uiText("components.DRO.mode_tooltip.25", "Incremental distance"),
+  'G90.1': __uiText("components.DRO.mode_tooltip.26", "Absolute arc IJK"), 'G91.1': __uiText("components.DRO.mode_tooltip.27", "Incremental arc IJK"),
+  G93: __uiText("components.DRO.mode_tooltip.28", "Inverse time feed"), G94: __uiText("components.DRO.mode_tooltip.29", "Units per minute"), G95: __uiText("components.DRO.mode_tooltip.30", "Units per revolution"),
+  G40: __uiText("components.DRO.mode_tooltip.31", "Cutter comp off"), G41: __uiText("components.DRO.mode_tooltip.32", "Cutter comp left"), G42: __uiText("components.DRO.mode_tooltip.33", "Cutter comp right"),
+  'G43.1': __uiText("components.DRO.mode_tooltip.34", "Tool length applied"), G49: __uiText("components.DRO.mode_tooltip.35", "Tool length cancel"),
+  M0: __uiText("components.DRO.mode_tooltip.36", "Program pause"), M1: __uiText("components.DRO.mode_tooltip.37", "Optional pause"), M2: __uiText("components.DRO.mode_tooltip.38", "Program end"), M30: __uiText("components.DRO.mode_tooltip.39", "Program end + rewind"),
+  M3: __uiText("components.DRO.mode_tooltip.40", "Spindle CW"), M4: __uiText("components.DRO.mode_tooltip.41", "Spindle CCW"), M5: __uiText("components.DRO.mode_tooltip.42", "Spindle off"),
+  M7: __uiText("components.DRO.mode_tooltip.43", "Mist coolant"), M8: __uiText("components.DRO.mode_tooltip.44", "Flood coolant"), M9: __uiText("components.DRO.mode_tooltip.45", "Coolant off"),
 }
 
 function GCodeModesRow({ isTablet }: { isTablet: boolean }) {
@@ -629,7 +630,7 @@ function GCodeModesRow({ isTablet }: { isTablet: boolean }) {
       ))}
       {modes.tool != null && (
         <span
-          title="Active tool"
+          title={__uiText("components.DRO.active_tool.1", "Active tool")}
           className="px-1.5 py-0.5 rounded-sm bg-elevated border border-border text-text-muted"
         >
           T{modes.tool}

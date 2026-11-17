@@ -1,3 +1,4 @@
+import { uiText as __uiText, formatUi } from './i18n'
 import { loadFluidConfigStatus, type FluidSchema } from "./fluidSchema";
 
 export type ConfigIssue = {
@@ -54,7 +55,7 @@ export function validateFluidConfig(
     issues.push({
       severity: "error",
       line: 1,
-      message: "Configuration is empty.",
+      message: __uiText("lib.configValidation.coverage.1", "Configuration is empty."),
     });
   lines.forEach((raw, index) => {
     const line = index + 1;
@@ -62,13 +63,13 @@ export function validateFluidConfig(
       issues.push({
         severity: "error",
         line,
-        message: "Tabs are not allowed; use spaces.",
+        message: __uiText("lib.configValidation.coverage.2", "Tabs are not allowed; use spaces."),
       });
     if (/^\s*---\s*$/.test(raw))
       issues.push({
         severity: "error",
         line,
-        message: "Unsupported YAML feature; use block-style FluidNC YAML.",
+        message: __uiText("lib.configValidation.coverage.3", "Unsupported YAML feature; use block-style FluidNC YAML."),
       });
     if (!raw.trim() || raw.trimStart().startsWith("#")) return;
     const match = raw.match(/^(\s*)([^:#]+):(?:\s*(.*))?$/);
@@ -76,7 +77,7 @@ export function validateFluidConfig(
       issues.push({
         severity: "error",
         line,
-        message: "Expected a key followed by a colon.",
+        message: __uiText("lib.configValidation.coverage.4", "Expected a key followed by a colon."),
       });
       return;
     }
@@ -99,7 +100,7 @@ export function validateFluidConfig(
         severity: "error",
         line,
         path,
-        message: `Duplicate key; ${key} conflicts with ${previousKey.key} on line ${previousKey.line}.`,
+        message: formatUi(__uiText("lib.configValidation.coverage.5", "Duplicate key; {v0} conflicts with {v1} on line {v2}."), { v0: key, v1: previousKey.key, v2: previousKey.line }),
       });
     else {
       keysAtLevel.set(key.toLowerCase(), { key, line });
@@ -118,14 +119,14 @@ export function validateFluidConfig(
         severity: "error",
         line,
         path,
-        message: "Quoted values must have matching opening and closing quotes.",
+        message: __uiText("lib.configValidation.coverage.6", "Quoted values must have matching opening and closing quotes."),
       });
     if (/^".*\\(?:["\\nrtu]).*"$/.test(rawValue))
       issues.push({
         severity: "error",
         line,
         path,
-        message: "FluidNC does not support YAML-style quoted-string escapes.",
+        message: __uiText("lib.configValidation.coverage.7", "FluidNC does not support YAML-style quoted-string escapes."),
       });
     if (
       /^(?:passthrough_)?mode$/i.test(key) &&
@@ -136,14 +137,14 @@ export function validateFluidConfig(
         line,
         path,
         message:
-          "Invalid UART mode; expected data bits, parity, and stop bits (for example 8N1).",
+          __uiText("lib.configValidation.coverage.8", "Invalid UART mode; expected data bits, parity, and stop bits (for example 8N1)."),
       });
     if (!inlineComments && commentAt >= 0)
       issues.push({
         severity: "error",
         line,
         path,
-        message: "Inline comments need FluidNC v4.1 or newer.",
+        message: __uiText("lib.configValidation.coverage.9", "Inline comments need FluidNC v4.1 or newer."),
       });
     if (
       !macroValue &&
@@ -156,7 +157,7 @@ export function validateFluidConfig(
         severity: "error",
         line,
         path,
-        message: "Unsupported YAML feature; use block-style FluidNC YAML.",
+        message: __uiText("lib.configValidation.coverage.10", "Unsupported YAML feature; use block-style FluidNC YAML."),
       });
     const knownIndent = siblingIndents.get(parent);
     if (knownIndent == null) siblingIndents.set(parent, indent);
@@ -165,7 +166,7 @@ export function validateFluidConfig(
         severity: "error",
         line,
         path,
-        message: `Inconsistent indentation under ${parent || "the document root"}.`,
+        message: formatUi(__uiText("lib.configValidation.coverage.11", "Inconsistent indentation under {v0}."), { v0: parent || __uiText("lib.configValidation.document_root.1", "the document root") }),
       });
     if (!value) {
       stack.push({ indent, key });
@@ -178,7 +179,7 @@ export function validateFluidConfig(
           severity: "error",
           line,
           path,
-          message: `Invalid FluidNC pin: ${value}`,
+          message: formatUi(__uiText("lib.configValidation.coverage.12", "Invalid FluidNC pin: {v0}"), { v0: value }),
         });
       const base = value.split(":")[0].toLowerCase();
       if (base !== "no_pin" && base !== "void") {
@@ -188,7 +189,7 @@ export function validateFluidConfig(
             severity: "warning",
             line,
             path,
-            message: `${base} is already used on line ${previous.line} (${previous.path}).`,
+            message: formatUi(__uiText("lib.configValidation.coverage.13", "{v0} is already used on line {v1} ({v2})."), { v0: base, v1: previous.line, v2: previous.path }),
           });
         else pins.set(base, { line, path });
       }
@@ -203,7 +204,7 @@ export function validateFluidConfig(
         severity: "error",
         line,
         path,
-        message: "Boolean values must be exactly true or false.",
+        message: __uiText("lib.configValidation.coverage.14", "Boolean values must be exactly true or false."),
       });
   });
   const normalizedValues = new Map(
@@ -226,7 +227,7 @@ export function validateFluidConfig(
             severity: "error",
             line: entry?.line ?? normalizedValues.get(driverField)?.line ?? 1,
             path: `${driver}.${field}`,
-            message: `${axis.toUpperCase()} ${motor} requires a ${field.replace("_", " ")}.`,
+            message: formatUi(__uiText("lib.configValidation.coverage.15", "{v0} {v1} requires a {v2}."), { v0: axis.toUpperCase(), v1: motor, v2: field.replace("_", " ") }),
           });
       }
     }
@@ -235,7 +236,7 @@ export function validateFluidConfig(
       severity: "warning",
       line: 1,
       path: "axes",
-      message: "No configured axes were found.",
+      message: __uiText("lib.configValidation.coverage.16", "No configured axes were found."),
     });
   return issues.sort(
     (a, b) => a.line - b.line || (a.severity === "error" ? -1 : 1),
@@ -394,7 +395,7 @@ function validateAgainstSchema(
           .length,
     ).length;
     if (matches !== 1)
-      issues.push({ path, message: "must match exactly one allowed form" });
+      issues.push({ path, message: __uiText("lib.configValidation.coverage.17", "must match exactly one allowed form") });
   }
   const types =
     rule.type == null ? [] : Array.isArray(rule.type) ? rule.type : [rule.type];
@@ -407,10 +408,10 @@ function validateAgainstSchema(
   )
     issues.push({
       path,
-      message: "must be a plain decimal integer without a decimal point",
+      message: __uiText("lib.configValidation.coverage.18", "must be a plain decimal integer without a decimal point"),
     });
   if (types.length && !types.some((type: string) => matchesType(value, type))) {
-    issues.push({ path, message: `must be ${types.join(" or ")}` });
+    issues.push({ path, message: formatUi(__uiText("lib.configValidation.coverage.19", "must be {v0}"), { v0: types.join(" or ") }) });
     return issues;
   }
   if (
@@ -421,17 +422,17 @@ function validateAgainstSchema(
         : Object.is(item, value),
     )
   )
-    issues.push({ path, message: `must be one of ${rule.enum.join(", ")}` });
+    issues.push({ path, message: formatUi(__uiText("lib.configValidation.coverage.20", "must be one of {v0}"), { v0: rule.enum.join(", ") }) });
   if (typeof value === "number") {
     if (rule.minimum != null && value < rule.minimum)
-      issues.push({ path, message: `must be at least ${rule.minimum}` });
+      issues.push({ path, message: formatUi(__uiText("lib.configValidation.coverage.21", "must be at least {v0}"), { v0: rule.minimum }) });
     if (rule.maximum != null && value > rule.maximum)
-      issues.push({ path, message: `must be at most ${rule.maximum}` });
+      issues.push({ path, message: formatUi(__uiText("lib.configValidation.coverage.22", "must be at most {v0}"), { v0: rule.maximum }) });
   }
   if (typeof value === "string" && rule.pattern) {
     try {
       if (!new RegExp(rule.pattern, "i").test(value))
-        issues.push({ path, message: "has an invalid format" });
+        issues.push({ path, message: __uiText("lib.configValidation.coverage.23", "has an invalid format") });
     } catch {
       // Ignore an invalid pattern supplied by a remote schema.
     }
@@ -451,7 +452,7 @@ function validateAgainstSchema(
       )
         issues.push({
           path: path ? `${path}.${required}` : required,
-          message: "is required",
+          message: __uiText("lib.configValidation.coverage.24", "is required"),
         });
     if (
       rule.maxProperties != null &&
@@ -459,7 +460,7 @@ function validateAgainstSchema(
     )
       issues.push({
         path,
-        message: `must have at most ${rule.maxProperties} properties`,
+        message: formatUi(__uiText("lib.configValidation.coverage.25", "must have at most {v0} properties"), { v0: rule.maxProperties }),
       });
     for (const [key, child] of Object.entries(object)) {
       const childPath = path ? `${path}.${key}` : key;
@@ -537,7 +538,7 @@ export async function validateFluidConfigForSave(
     severity: "warning" as const,
     line: schemaErrorLine(source, error.path),
     path: error.path || undefined,
-    message: `Schema: ${error.message}.`,
+    message: formatUi(__uiText("lib.configValidation.coverage.26", "Schema: {v0}."), { v0: error.message }),
   }));
   return [...localIssues, ...schemaIssues].sort((a, b) => a.line - b.line);
 }

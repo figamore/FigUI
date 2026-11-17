@@ -1,3 +1,4 @@
+import { uiText as __uiText, formatUi } from '../lib/i18n'
 import { useState, useEffect, useRef } from 'react'
 import { Trash2, ChevronsDown, Clipboard, ClipboardCheck, Loader2, PanelBottom, PanelRight } from 'lucide-react'
 import { lineRefusalReason, sendRaw, sendRealtime } from '../lib/ws'
@@ -85,7 +86,7 @@ export function Terminal({ onExpandToggle, expanded = false }: TerminalProps = {
     const realtime = cmd === '?' || cmd === '!' || cmd === '~'
     if (!(realtime ? sendRealtime(cmd.charCodeAt(0)) : sendRaw(cmd))) {
       // A refused command is dropped, not queued, so it stays in the input.
-      appendLine(`[MSG:WARN: Not sent: ${lineRefusalReason()}]`)
+      appendLine(formatUi(__uiText("components.Terminal.not_sent.1", "[MSG:WARN: Not sent: {reason}]"), { reason: lineRefusalReason() }))
       return
     }
     pushHistory(cmd)
@@ -111,7 +112,7 @@ export function Terminal({ onExpandToggle, expanded = false }: TerminalProps = {
   return (
     <div className="flex flex-col h-full">
       <div className="panel-header justify-between">
-        <span className='text-base font-semibold'>Terminal</span>
+        <span className='text-base font-semibold'>{__uiText("components.Terminal.terminal.1", "Terminal")}</span>
         <div className="flex items-center gap-2">
           <label className="flex items-center gap-1.5 cursor-pointer">
             <input
@@ -120,12 +121,12 @@ export function Terminal({ onExpandToggle, expanded = false }: TerminalProps = {
               onChange={e => setVerbose(e.target.checked)}
               className="w-3 h-3 accent-[var(--accent)]"
             />
-            <span className="normal-case tracking-normal font-normal text-text-muted">verbose</span>
+            <span className="normal-case tracking-normal font-normal text-text-muted">{__uiText("components.Terminal.verbose.1", "verbose")}</span>
           </label>
           <button
             className="p-1 rounded hover:bg-elevated text-text-muted hover:text-accent transition-colors"
             onClick={copyToClipboard}
-            title="Copy to clipboard"
+            title={__uiText("components.Terminal.copy_to_clipboard.1", "Copy to clipboard")}
             disabled={lines.length === 0}
           >
             {copied ? <ClipboardCheck size={12} /> : <Clipboard size={12} />}
@@ -133,7 +134,7 @@ export function Terminal({ onExpandToggle, expanded = false }: TerminalProps = {
           <button
             className="p-1 rounded hover:bg-elevated text-text-muted hover:text-danger transition-colors"
             onClick={clear}
-            title="Clear"
+            title={__uiText("components.Terminal.clear.1", "Clear")}
           >
             <Trash2 size={12} />
           </button>
@@ -141,7 +142,7 @@ export function Terminal({ onExpandToggle, expanded = false }: TerminalProps = {
             <button
               className="p-1 rounded hover:bg-elevated text-text-muted hover:text-accent transition-colors"
               onClick={onExpandToggle}
-              title={expanded ? 'Restore terminal to panel' : 'Expand terminal across bottom'}
+              title={expanded ? __uiText("components.Terminal.restore_terminal_to_panel.1", "Restore terminal to panel") : __uiText("components.Terminal.expand_terminal_across_bottom.1", "Expand terminal across bottom")}
             >
               {expanded ? <PanelRight size={12} /> : <PanelBottom size={12} />}
             </button>
@@ -155,7 +156,7 @@ export function Terminal({ onExpandToggle, expanded = false }: TerminalProps = {
         onScroll={handleScroll}
       >
         {lines.map(l => (
-          <div key={l.id} className={`terminal-line ${KIND_CLASS[l.kind]}`}>
+          <div key={l.id} dir="auto" className={`terminal-line ${KIND_CLASS[l.kind]}`}>
             {l.text}
           </div>
         ))}
@@ -163,7 +164,7 @@ export function Terminal({ onExpandToggle, expanded = false }: TerminalProps = {
         {startupPending && (
           <div className="terminal-line flex items-center gap-2 text-text-dim">
             <Loader2 size={12} className="animate-spin" />
-            <span>Fetching status...</span>
+            <span>{__uiText("components.Terminal.fetching_status.1", "Fetching status...")}</span>
           </div>
         )}
 
@@ -175,7 +176,7 @@ export function Terminal({ onExpandToggle, expanded = false }: TerminalProps = {
             onClick={scrollToBottom}
           >
             <ChevronsDown size={12} />
-            Scroll to bottom
+            {__uiText("components.Terminal.scroll_to_bottom.1", "Scroll to bottom")}
           </button>
         )}
       </div>
@@ -183,9 +184,10 @@ export function Terminal({ onExpandToggle, expanded = false }: TerminalProps = {
       <div className="border-t border-border p-2 flex gap-2">
         <span className="text-text-dim font-mono text-sm self-center shrink-0">{'>'}</span>
         <input
+          dir="ltr"
           className="flex-1 bg-transparent font-mono text-sm text-text-primary
                      placeholder:text-text-dim focus:outline-none"
-          placeholder="Enter command…"
+          placeholder={__uiText("components.Terminal.enter_command.1", "Enter command…")}
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
@@ -199,7 +201,7 @@ export function Terminal({ onExpandToggle, expanded = false }: TerminalProps = {
           onClick={submit}
           disabled={!input.trim()}
         >
-          Send
+          {__uiText("components.Terminal.send.1", "Send")}
         </button>
       </div>
     </div>

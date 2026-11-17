@@ -1,3 +1,4 @@
+import { uiText as __uiText, formatUi } from '../lib/i18n'
 import { LoaderCircle, StepForward, Turtle, X } from 'lucide-react'
 import { useMachineStore } from '../store'
 import { supportsSingleBlock } from '../lib/singleBlock'
@@ -16,18 +17,18 @@ export function SingleBlockToggle({ isTablet, unavailable = false }: { isTablet?
       type="button"
       aria-pressed={enabled}
       aria-busy={pending}
-      aria-label={`Single block mode${enabled ? ' enabled' : ' disabled'}`}
+      aria-label={enabled ? __uiText("components.SingleBlockControl.enabled_state.1", "Single block mode enabled") : __uiText("components.SingleBlockControl.disabled_state.1", "Single block mode disabled")}
       className={`btn job-action gap-2 shrink-0 ${isTablet ? 'text-base' : 'text-sm'} ${enabled && supported ? 'border-warn/50 bg-warn/10 text-warn' : 'btn-ghost'}`}
       disabled={!supported || !connected || resetting || pending || unavailable}
       onClick={() => setMode(!enabled)}
       title={!supported
-        ? 'FluidNC must be greater than 4.1.1'
+        ? __uiText("components.SingleBlockControl.fluidnc_must_be_greater_than_4_1_1.1", "FluidNC must be greater than 4.1.1")
         : unavailable
-          ? 'Available for controller files and macros'
-          : enabled ? 'Turn off; Resume continues the job' : 'Pause before each program line'}
+          ? __uiText("components.SingleBlockControl.available_for_controller_files_and_.1", "Available for controller files and macros")
+          : enabled ? __uiText("components.SingleBlockControl.turn_off_resume_continues_the_job.1", "Turn off; Resume continues the job") : __uiText("components.SingleBlockControl.pause_before_each_program_line.1", "Pause before each program line")}
     >
       {pending ? <LoaderCircle size={16} className="animate-spin" /> : <Turtle size={16} />}
-      <span>Single block</span>
+      <span>{__uiText("components.SingleBlockControl.single_block.1", "Single block")}</span>
       <span className={`h-1.5 w-1.5 rounded-full ${enabled && supported ? 'bg-warn' : 'bg-text-dim'}`} aria-hidden="true" />
     </button>
   )
@@ -46,20 +47,20 @@ export function SingleBlockNotice({ unavailable = false }: { unavailable?: boole
   const error = useSingleBlockStore(s => s.error)
   const clearError = useSingleBlockStore(s => s.clearError)
   if (!connected || (!enabled && !pendingBlock && !error && requestedMode === null)) return null
-  const label = error ? 'Single block'
-    : requestedMode !== null ? 'Updating mode'
-    : unavailable ? 'Controller files only'
-    : pendingBlock ? (enabled ? (ready ? 'Next' : 'Pausing') : 'Paused')
-    : advancing || block ? 'Running' : 'Single block on'
+  const label = error ? __uiText("components.SingleBlockControl.detail.1", "Single block")
+    : requestedMode !== null ? __uiText("components.SingleBlockControl.detail.2", "Updating mode")
+    : unavailable ? __uiText("components.SingleBlockControl.detail.3", "Controller files only")
+    : pendingBlock ? (enabled ? (ready ? __uiText("components.SingleBlockControl.detail.4", "Next") : __uiText("components.SingleBlockControl.detail.5", "Pausing")) : __uiText("components.SingleBlockControl.detail.6", "Paused"))
+    : advancing || block ? __uiText("components.SingleBlockControl.detail.7", "Running") : __uiText("components.SingleBlockControl.detail.8", "Single block on")
   const showStartHint = enabled && idle && !block && !advancing && requestedMode === null && !unavailable
-  const detail = error ?? (showStartHint ? 'Press Start to begin in single block mode.' : unavailable ? '—' : block?.preview || '—')
+  const detail = error ?? (showStartHint ? __uiText("components.SingleBlockControl.detail.9", "Press Start to begin in single block mode.") : unavailable ? '—' : block?.preview || '—')
   return (
     <div role="status" className={`single-block-readout flex items-start gap-2 rounded border px-3 py-2 text-sm ${error ? 'border-danger/30 bg-danger/5 text-danger' : 'border-warn/25 bg-warn/5 text-text-muted'}`}>
       <StepForward size={15} className={`mt-0.5 shrink-0 ${error ? 'text-danger' : 'text-warn'}`} />
       <div className="min-w-0 flex-1">
         <div className="flex h-5 items-center gap-2 overflow-hidden">
           <span className={`shrink-0 font-semibold ${error ? 'text-danger' : 'text-warn'}`}>
-            {label}{block && !error && !unavailable && requestedMode === null ? ` · Line ${block.line}` : ''}
+            {label}{block && !error && !unavailable && requestedMode === null ? formatUi(__uiText("components.SingleBlockControl.dynamic.1", " · Line {v0}"), { v0: block.line }) : ''}
           </span>
           {block && !error && <span className="min-w-0 truncate font-mono" title={block.path}>{block.path}</span>}
         </div>
@@ -67,7 +68,7 @@ export function SingleBlockNotice({ unavailable = false }: { unavailable?: boole
           {detail}
         </div>
       </div>
-      {error && <button type="button" className="shrink-0 rounded p-0.5 hover:bg-danger/10" onClick={clearError} aria-label="Dismiss single block error"><X size={14} /></button>}
+      {error && <button type="button" className="shrink-0 rounded p-0.5 hover:bg-danger/10" onClick={clearError} aria-label={__uiText("components.SingleBlockControl.dismiss_single_block_error.1", "Dismiss single block error")}><X size={14} /></button>}
     </div>
   )
 }

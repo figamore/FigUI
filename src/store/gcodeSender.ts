@@ -1,3 +1,4 @@
+import { uiText as __uiText, formatUi, uiPlural as __uiPlural } from '../lib/i18n'
 import { create } from 'zustand'
 import { useMachineStore } from '../store'
 import { useGCodeStore } from './gcode'
@@ -251,7 +252,12 @@ function releaseExclusiveTraffic() {
 
 function disconnectedMessage(action = 'streaming') {
   const reason = getLastDisconnectReason()
-  return `Controller disconnected while ${action}${reason ? `: ${reason}` : ''}.`
+  const text = action === 'preparing the stream'
+    ? __uiText("store.gcodeSender.disconnected.preparing.1", "Controller disconnected while preparing the stream{reason}.")
+    : action === 'resuming the stream'
+      ? __uiText("store.gcodeSender.disconnected.resuming.1", "Controller disconnected while resuming the stream{reason}.")
+      : __uiText("store.gcodeSender.disconnected.streaming.1", "Controller disconnected while streaming{reason}.")
+  return formatUi(text, { reason: reason ? `: ${reason}` : '' })
 }
 
 interface FinishRequest {
@@ -364,7 +370,7 @@ function scheduleAcknowledgmentCheck() {
       pendingIdleSince = Date.now()
     } else if (Date.now() - pendingIdleSince >= LOST_ACK_IDLE_GRACE_MS) {
       const oldest = pendingBlocks[0]
-      finish('error', `File line ${oldest.block.sourceLine}: controller stopped acknowledging the stream while the WebSocket remained open.`)
+      finish('error', formatUi(__uiText("store.gcodeSender.coverage.1", "File line {v0}: controller stopped acknowledging the stream while the WebSocket remained open."), { v0: oldest.block.sourceLine }))
       return
     }
     scheduleAcknowledgmentCheck()
@@ -376,7 +382,7 @@ async function configureStreamAutoReporting() {
   if (!ownsExclusiveTraffic || finishing || useGCodeSenderStore.getState().phase !== 'streaming') return
 
   if (query.outcome !== 'ok' && query.outcome !== 'error') {
-    finish('error', 'Could not establish exclusive controller reporting for the G-code stream.')
+    finish('error', __uiText("store.gcodeSender.coverage.2", "Could not establish exclusive controller reporting for the G-code stream."))
     return
   }
 
@@ -396,7 +402,7 @@ async function configureStreamAutoReporting() {
       if (disabled.outcome === 'error') {
         autoReportChanged = false
       } else if (disabled.outcome !== 'ok') {
-        finish('error', 'Controller stopped responding while automatic status reports were being suspended.')
+        finish('error', __uiText("store.gcodeSender.coverage.3", "Controller stopped responding while automatic status reports were being suspended."))
         return
       }
     }
@@ -417,7 +423,7 @@ function waitForExclusiveResponseChannel(startedAt: number) {
     return
   }
   if (Date.now() - startedAt >= STREAM_PREPARE_TIMEOUT_MS) {
-    finish('error', 'Could not start the stream because an earlier controller command did not finish.')
+    finish('error', __uiText("store.gcodeSender.coverage.4", "Could not start the stream because an earlier controller command did not finish."))
     return
   }
   settleTimer = setTimeout(() => {
@@ -485,7 +491,7 @@ export const useGCodeSenderStore = create<SenderState>((set, get) => ({
 
     const built = buildStreamBlocks(text)
     if (built.blocks.length === 0) {
-      set({ phase: 'error', fileName, notice: null, error: 'This file contains no executable G-code.' })
+      set({ phase: 'error', fileName, notice: null, error: __uiText("store.gcodeSender.coverage.5", "This file contains no executable G-code.") })
       return false
     }
     const oversized = built.blocks.find(block => block.wireBytes - 1 > MAX_COMMAND_BYTES)
@@ -494,7 +500,7 @@ export const useGCodeSenderStore = create<SenderState>((set, get) => ({
         phase: 'error',
         fileName,
         notice: null,
-        error: `File line ${oversized.sourceLine} exceeds the supported ${MAX_COMMAND_BYTES}-byte controller line length.`,
+        error: formatUi(__uiText("store.gcodeSender.oversized.1", "File line {line} exceeds the supported {bytes}-byte controller line length."), { line: oversized.sourceLine, bytes: MAX_COMMAND_BYTES }),
       })
       return false
     }
@@ -530,7 +536,7 @@ export const useGCodeSenderStore = create<SenderState>((set, get) => ({
       completedBlocks: 0,
       totalBlocks: built.blocks.length,
       notice: built.ignoredAfterEnd > 0
-        ? `${built.ignoredAfterEnd} executable line${built.ignoredAfterEnd === 1 ? '' : 's'} after M2/M30 will not be sent.`
+        ? __uiPlural("store.gcodeSender.ignored", built.ignoredAfterEnd, { one: "{count} executable line after M2/M30 will not be sent.", other: "{count} executable lines after M2/M30 will not be sent." })
         : null,
       error: null,
     })
@@ -624,7 +630,7 @@ onLine(line => {
     resettingAfterError = true
     sendRealtimeNow(0x18)
     resettingAfterError = false
-    finish('error', `${sourceLine ? `File line ${sourceLine}: ` : ''}${line}`)
+    finish('error', `${sourceLine ? formatUi(__uiText("store.gcodeSender.file_line_prefix.1", "File line {line}: "), { line: sourceLine }) : ''}${line}`)
   }
 })
 
@@ -635,7 +641,7 @@ onSoftReset(() => {
 onSessionTaken(() => {
   if (!ownsExclusiveTraffic) return
   sendRealtimeNow(0x21)
-  finish('error', 'Another FigUI page took control. The local stream was feed-held for safety.')
+  finish('error', __uiText("store.gcodeSender.coverage.6", "Another FigUI page took control. The local stream was feed-held for safety."))
 })
 
 useMachineStore.subscribe((state, previous) => {
@@ -646,7 +652,7 @@ useMachineStore.subscribe((state, previous) => {
     return
   }
   if (state.status.state === 'Alarm') {
-    finish('error', `Controller alarm${state.status.alarmCode ? ` ${state.status.alarmCode}` : ''}.`)
+    finish('error', formatUi(__uiText("store.gcodeSender.controller_alarm.1", "Controller alarm{code}."), { code: state.status.alarmCode ? ` ${state.status.alarmCode}` : '' }))
     return
   }
   if (state.status.state !== 'Idle') sawBusyState = true

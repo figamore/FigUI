@@ -1,3 +1,4 @@
+import { uiText as __uiText, formatUi } from '../lib/i18n'
 import { create } from 'zustand'
 import { useMachineStore } from '../store'
 import { isSocketOpen, onLine, onSessionTaken, onSoftReset, sendRealtimeNow } from '../lib/ws'
@@ -61,14 +62,14 @@ export const useSingleBlockStore = create<SingleBlockState>((set, get) => ({
     set({ requestedMode: enabled, error: null })
     confirmationTimer = setTimeout(() => {
       clearConfirmationTimer()
-      set({ requestedMode: null, error: 'Mode change timed out.' })
+      set({ requestedMode: null, error: __uiText("store.singleBlock.coverage.1", "Mode change timed out.") })
     }, 4000)
     void sendBlockMode(enabled, request.signal).then(response => {
       if (modeRequest !== request) return
       const failure = response.match(/(?:^|\n)error(?::(\d+))?\s*(?:\n|$)/i)
       if (failure) {
         clearConfirmationTimer()
-        set({ requestedMode: null, error: failure[1] ? `Mode change failed (error ${failure[1]}).` : 'Mode change failed.' })
+        set({ requestedMode: null, error: failure[1] ? formatUi(__uiText("store.singleBlock.coverage.2", "Mode change failed (error {v0})."), { v0: failure[1] }) : __uiText("store.singleBlock.coverage.3", "Mode change failed.") })
       } else if (/(?:^|\n)ok\s*(?:\n|$)/i.test(response)
         || response.includes(`Single Block Mode ${enabled ? 'Enabled' : 'Disabled'}`)) {
         // An already-applied $GB returns only ok; its HTTP reply belongs to this
@@ -78,7 +79,7 @@ export const useSingleBlockStore = create<SingleBlockState>((set, get) => ({
     }).catch(() => {
       if (modeRequest !== request) return
       clearConfirmationTimer()
-      set({ requestedMode: null, error: 'Mode change failed.' })
+      set({ requestedMode: null, error: __uiText("store.singleBlock.coverage.4", "Mode change failed.") })
     })
   },
   resume: () => {

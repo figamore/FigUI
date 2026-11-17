@@ -1,3 +1,4 @@
+import { configStudioBuildId } from "./config-studio-build-id.mjs";
 import assert from "node:assert/strict";
 import vm from "node:vm";
 import { build } from "esbuild";
@@ -247,7 +248,14 @@ try {
     /Cannot preserve/,
   );
   globalThis.fetch = async () => ({ ok: false, status: 404 });
-  await prepareStudioPages({ outDir: folder, buildId });
+  const secondId = "c".repeat(24);
+  await mkdir(join(folder, secondId));
+  await writeFile(join(folder, secondId, "config-studio.js"), assets.script);
+  await writeFile(join(folder, secondId, "config-studio.css"), assets.style);
+  await prepareStudioPages({ outDir: folder, buildIds: [buildId, secondId] });
+  const both = parseArchive(await readFile(join(folder, "archive.json.gz")));
+  assert.deepEqual(Object.keys(both).sort(), [buildId, secondId]);
+  assert.notEqual(configStudioBuildId("en"), configStudioBuildId("es"));
 } finally {
   globalThis.fetch = originalFetch;
   await rm(folder, { recursive: true, force: true });

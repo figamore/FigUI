@@ -1,0 +1,34 @@
+{
+  "store.gcodeSender.ignored": {
+    "one": "{count} изпълним ред след M2/M30 няма да бъде изпратен.",
+    "other": "{count} изпълними реда след M2/M30 няма да бъдат изпратени."
+  },
+  "components.LimitsTab.active_inputs": {
+    "one": "{count} активен вход",
+    "other": "{count} активни входа"
+  },
+  "components.FileManager.folder_warning": {
+    "one": "\n\nТова включва {count} папка и съдържанието ѝ.",
+    "other": "\n\nТова включва {count} папки и съдържанието им."
+  },
+  "components.Macros.more_line.1": {
+    "one": "+{count} допълнителен ред",
+    "other": "+{count} допълнителни реда"
+  },
+  "components.Macros.more_line.2": {
+    "one": "+{count} допълнителен ред",
+    "other": "+{count} допълнителни реда"
+  },
+  "components.Macros.line.1": {
+    "one": "{count} ред",
+    "other": "{count} реда"
+  },
+  "components.SettingsPanel.result.1": {
+    "one": "{count} резултат",
+    "other": "{count} резултата"
+  },
+  "components.SettingsPanel.save_config_prompt": {
+    "one": "Конфигурацията на машината е променена. Записване на тази промяна в {filename}?\n\n",
+    "other": "Конфигурацията на машината е променена. Записване на тези промени в {filename}?\n\n"
+  }
+}

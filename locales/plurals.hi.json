@@ -1,0 +1,34 @@
+{
+  "store.gcodeSender.ignored": {
+    "one": "{count} निष्पादन योग्य पंक्ति M2/M30 के बाद नहीं भेजी जाएगी।",
+    "other": "{count} निष्पादन योग्य पंक्तियाँ M2/M30 के बाद नहीं भेजी जाएँगी।"
+  },
+  "components.LimitsTab.active_inputs": {
+    "one": "{count} सक्रिय इनपुट",
+    "other": "{count} सक्रिय इनपुट"
+  },
+  "components.FileManager.folder_warning": {
+    "one": "\n\nइसमें {count} फ़ोल्डर और उसकी सामग्री शामिल है।",
+    "other": "\n\nइसमें {count} फ़ोल्डर और उनकी सामग्री शामिल है।"
+  },
+  "components.Macros.more_line.1": {
+    "one": "+{count} और पंक्ति",
+    "other": "+{count} और पंक्तियाँ"
+  },
+  "components.Macros.more_line.2": {
+    "one": "+{count} और पंक्ति",
+    "other": "+{count} और पंक्तियाँ"
+  },
+  "components.Macros.line.1": {
+    "one": "{count} पंक्ति",
+    "other": "{count} पंक्तियाँ"
+  },
+  "components.SettingsPanel.result.1": {
+    "one": "{count} परिणाम",
+    "other": "{count} परिणाम"
+  },
+  "components.SettingsPanel.save_config_prompt": {
+    "one": "मशीन का कॉन्फ़िग बदला है। क्या यह बदलाव {filename} में सहेजें?\n\n",
+    "other": "मशीन का कॉन्फ़िग बदला है। क्या ये बदलाव {filename} में सहेजें?\n\n"
+  }
+}

@@ -40,6 +40,7 @@ export function TabletCompactLandscapeLayout({
   controlsPlugin,
   onCloseControlsPlugin,
 }: TabletCompactLandscapeLayoutProps) {
+  const contentDirection = typeof document === 'undefined' ? 'ltr' : (document.documentElement.dir || 'ltr')
   const topRowHeight = useCompactLandscapeTopRowHeight()
   const workspaceHeight = useCompactLandscapeTabContentHeight()
   const pluginPanelStyle = workspaceHeight != null ? { height: workspaceHeight } : undefined
@@ -47,13 +48,14 @@ export function TabletCompactLandscapeLayout({
   return (
     <div className="flex flex-col gap-5 p-3">
       <div
+        dir="ltr"
         className="flex flex-row gap-2 shrink-0 items-stretch"
         style={topRowHeight != null ? { minHeight: topRowHeight } : undefined}
       >
-        <div className={TOP_ROW_COLUMN_CLASS}>
+        <div dir={contentDirection} className={TOP_ROW_COLUMN_CLASS}>
           <DRO isTablet layout="topBand" />
         </div>
-        <div className={TOP_ROW_COLUMN_CLASS}>
+        <div dir={contentDirection} className={TOP_ROW_COLUMN_CLASS}>
           {jogPlugin ? (
             <div className="panel flex flex-col h-full min-h-0 overflow-hidden">
               <PluginFrame plugin={jogPlugin} onClose={onCloseJogPlugin} inline />

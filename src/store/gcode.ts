@@ -1,3 +1,4 @@
+import { uiText as __uiText, formatUi } from '../lib/i18n'
 import { create } from 'zustand'
 import {
   parseGCodeAsync,
@@ -237,7 +238,7 @@ const NO_PREVIEW = {
 } as const
 
 function loadErrorMessage(name: string, error: unknown) {
-  return `Could not load ${name} (${error instanceof Error ? error.message : String(error)}).`
+  return formatUi(__uiText("store.gcode.template_coverage.1", "Could not load {v0} ({v1})."), { v0: name, v1: error instanceof Error ? error.message : String(error) })
 }
 
 /**

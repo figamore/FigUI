@@ -1,3 +1,4 @@
+import { uiText as __uiText, formatUi, uiPlural as __uiPlural } from '../lib/i18n'
 import { useState, useEffect, useRef, useCallback } from "react";
 import { canLoadControllerResources, useControllerResourcesReady } from "../lib/controllerResources";
 import {
@@ -125,7 +126,7 @@ function FileRow({
       await renameFile(fullPath, entry.name, trimmed, fs);
       onRefresh();
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Rename failed");
+      alert(e instanceof Error ? e.message : __uiText("components.FileManager.alert_coverage.1", "Rename failed"));
     }
     setRenaming(false);
   }
@@ -133,14 +134,14 @@ function FileRow({
   async function handleDelete() {
     // The controller does not lock a file a job is reading; deleting it frees
     // the clusters under the running job.
-    if (inUseByJob || !confirm(`Delete ${entry.name}?`)) return;
+    if (inUseByJob || !confirm(formatUi(__uiText("components.FileManager.alert_coverage.2", "Delete {v0}?"), { v0: entry.name }))) return;
     setDeleting(true);
     try {
       if (entry.isDir) await deleteDir(fullPath, entry.name, fs);
       else await deleteFile(fullPath, entry.name, fs);
       onRefresh();
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Delete failed");
+      alert(e instanceof Error ? e.message : __uiText("components.FileManager.alert_coverage.3", "Delete failed"));
     } finally {
       setDeleting(false);
     }
@@ -152,7 +153,7 @@ function FileRow({
     try {
       await downloadFile(fullName, entry.name, fs);
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Download failed");
+      alert(e instanceof Error ? e.message : __uiText("components.FileManager.alert_coverage.4", "Download failed"));
     } finally {
       setDownloading(false);
     }
@@ -205,7 +206,7 @@ function FileRow({
             disabled={selectionDisabled}
             onChange={onToggleSelection}
             className={`${isTablet ? "w-5 h-5" : "w-4 h-4"} shrink-0 accent-[var(--accent)] cursor-pointer`}
-            aria-label={`Select ${entry.name}`}
+            aria-label={formatUi(__uiText("components.FileManager.dynamic.1", "Select {v0}"), { v0: entry.name })}
           />
         )}
 
@@ -263,8 +264,8 @@ function FileRow({
             }}
             title={
               canLoadGcode
-                ? `Load ${entry.name} in G-code viewer`
-                : "Cannot load another file while a job is running or held"
+                ? formatUi(__uiText("components.FileManager.dynamic.2", "Load {v0} in G-code viewer"), { v0: entry.name })
+                : __uiText("components.FileManager.cannot_load_another_file_while_a_jo.1", "Cannot load another file while a job is running or held")
             }
           >
             {entry.name}
@@ -293,7 +294,7 @@ function FileRow({
                 <button
                   className="p-1.5 rounded text-info hover:bg-info/10 transition-colors"
                   onClick={() => onEdit(fullPath, entry.name)}
-                  title="Edit file"
+                  title={__uiText("components.FileManager.edit_file.1", "Edit file")}
                 >
                   <FileCode size={12} />
                 </button>
@@ -303,7 +304,7 @@ function FileRow({
                   className="p-1.5 rounded text-info hover:bg-info/10 transition-colors disabled:opacity-50"
                   onClick={handleDownload}
                   disabled={downloading}
-                  title={downloading ? "Downloading" : "Download"}
+                  title={downloading ? __uiText("components.FileManager.downloading.2", "Downloading") : __uiText("components.FileManager.download.1", "Download")}
                 >
                   {downloading ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
                 </button>
@@ -312,7 +313,7 @@ function FileRow({
                 className="p-1.5 rounded text-text-muted hover:text-text-primary hover:bg-elevated transition-colors disabled:opacity-50"
                 onClick={startRename}
                 disabled={inUseByJob}
-                title={inUseByJob ? "In use by the running job" : "Rename"}
+                title={inUseByJob ? __uiText("components.FileManager.in_use_by_the_running_job.1", "In use by the running job") : __uiText("components.FileManager.rename.1", "Rename")}
               >
                 <Pencil size={12} />
               </button>
@@ -320,7 +321,7 @@ function FileRow({
                 className="p-1.5 rounded text-danger hover:bg-danger/10 transition-colors disabled:opacity-50"
                 onClick={handleDelete}
                 disabled={deleting || inUseByJob}
-                title={inUseByJob ? "In use by the running job" : "Delete"}
+                title={inUseByJob ? __uiText("components.FileManager.in_use_by_the_running_job.2", "In use by the running job") : __uiText("components.FileManager.delete.1", "Delete")}
               >
                 <Trash2 size={12} />
               </button>
@@ -332,7 +333,7 @@ function FileRow({
           <button
             className="p-1.5 rounded text-ok hover:bg-ok/10 transition-colors shrink-0"
             onClick={commitRename}
-            title="Confirm rename"
+            title={__uiText("components.FileManager.confirm_rename.1", "Confirm rename")}
           >
             <Check size={12} />
           </button>
@@ -378,10 +379,10 @@ function FileRow({
                   disabled={!canLoadGcode}
                 >
                   <ChevronRight size={22} />
-                  <span>Load in Viewer</span>
+                  <span>{__uiText("components.FileManager.load_in_viewer.1", "Load in Viewer")}</span>
                   {!canLoadGcode && (
                     <span className="text-base text-text-dim ml-auto">
-                      Job running
+                      {__uiText("components.FileManager.job_running.1", "Job running")}
                     </span>
                   )}
                 </button>
@@ -392,7 +393,7 @@ function FileRow({
                   onClick={handleMenuEdit}
                 >
                   <FileCode size={22} />
-                  <span>Edit</span>
+                  <span>{__uiText("components.FileManager.edit.1", "Edit")}</span>
                 </button>
               )}
               {!entry.isDir && (
@@ -402,7 +403,7 @@ function FileRow({
                   disabled={downloading}
                 >
                   {downloading ? <Loader2 size={22} className="animate-spin" /> : <Download size={22} />}
-                  <span>{downloading ? "Downloading…" : "Download"}</span>
+                  <span>{downloading ? __uiText("components.FileManager.downloading.1", "Downloading…") : __uiText("components.FileManager.download.2", "Download")}</span>
                 </button>
               )}
               <button
@@ -411,7 +412,7 @@ function FileRow({
                 disabled={inUseByJob}
               >
                 <Pencil size={22} />
-                <span>Rename</span>
+                <span>{__uiText("components.FileManager.rename.2", "Rename")}</span>
               </button>
               <button
                 className="flex items-center gap-4 px-4 py-4 rounded-lg text-xl w-full text-left text-danger hover:bg-danger/10 transition-colors disabled:opacity-50"
@@ -419,7 +420,7 @@ function FileRow({
                 disabled={deleting || inUseByJob}
               >
                 <Trash2 size={22} />
-                <span>Delete</span>
+                <span>{__uiText("components.FileManager.delete.2", "Delete")}</span>
               </button>
             </div>
             <div className="h-safe-bottom pb-4" />
@@ -547,7 +548,7 @@ export function FileManager({ isTablet }: { isTablet?: boolean }) {
         pendingListing.current = request;
         return;
       }
-      setError(e instanceof Error ? e.message : "Failed to load");
+      setError(e instanceof Error ? e.message : __uiText("components.FileManager.alert_coverage.5", "Failed to load"));
     } finally {
       if (generation === listingGeneration.current) {
         activeListing.current = null;
@@ -630,7 +631,7 @@ export function FileManager({ isTablet }: { isTablet?: boolean }) {
       });
     } catch (e) {
       alert(
-        `Failed to open ${filename}: ${e instanceof Error ? e.message : "Unknown error"}`,
+        formatUi(__uiText("components.FileManager.alert_coverage.6", "Failed to open {v0}: {v1}"), { v0: filename, v1: e instanceof Error ? e.message : "Unknown error" }),
       );
     } finally {
       setEditLoading(null);
@@ -649,7 +650,7 @@ export function FileManager({ isTablet }: { isTablet?: boolean }) {
       });
     } catch (e) {
       alert(
-        `Failed to open config.yaml: ${e instanceof Error ? e.message : "Unknown error"}`,
+        formatUi(__uiText("components.FileManager.alert_coverage.7", "Failed to open config.yaml: {v0}"), { v0: e instanceof Error ? e.message : "Unknown error" }),
       );
     } finally {
       setEditLoading(null);
@@ -683,7 +684,7 @@ export function FileManager({ isTablet }: { isTablet?: boolean }) {
           .sort((a, b) => a.name.localeCompare(b.name));
 
         if (yamlFiles.length === 0) {
-          alert("No .yaml or .yml files were found in Internal storage.");
+          alert(__uiText("components.FileManager.notice.1", "No .yaml or .yml files were found in Internal storage."));
         } else if (yamlFiles.length === 1) {
           await openStudioFile(yamlFiles[0].name);
         } else {
@@ -691,7 +692,7 @@ export function FileManager({ isTablet }: { isTablet?: boolean }) {
         }
       } catch (e) {
         alert(
-          `Failed to list YAML files: ${e instanceof Error ? e.message : "Unknown error"}`,
+          formatUi(__uiText("components.FileManager.alert_coverage.8", "Failed to list YAML files: {v0}"), { v0: e instanceof Error ? e.message : "Unknown error" }),
         );
       } finally {
         setEditLoading(null);
@@ -860,7 +861,7 @@ export function FileManager({ isTablet }: { isTablet?: boolean }) {
         name: files[files.length - 1].name,
       });
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Upload failed");
+      alert(e instanceof Error ? e.message : __uiText("components.FileManager.alert_coverage.9", "Upload failed"));
       // Show the files of the selection that did arrive.
       void load(path, fs);
     } finally {
@@ -874,7 +875,7 @@ export function FileManager({ isTablet }: { isTablet?: boolean }) {
     try {
       await createDir(path, newDirName.trim(), fs);
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Could not create folder");
+      alert(e instanceof Error ? e.message : __uiText("components.FileManager.late_coverage.1", "Could not create folder"));
       return;
     }
     setNewDirName("");
@@ -913,7 +914,7 @@ export function FileManager({ isTablet }: { isTablet?: boolean }) {
       setEditing({ fs, path: filePath, filename, content });
     } catch (e) {
       alert(
-        `Failed to load file: ${e instanceof Error ? e.message : "Unknown error"}`,
+        formatUi(__uiText("components.FileManager.alert_coverage.10", "Failed to load file: {v0}"), { v0: e instanceof Error ? e.message : "Unknown error" }),
       );
     } finally {
       setEditLoading(null);
@@ -948,7 +949,7 @@ export function FileManager({ isTablet }: { isTablet?: boolean }) {
       } catch (e) {
         // The main file is left untouched when its backup could not be written.
         throw new Error(
-          `backup ${backupName} could not be written (${e instanceof Error ? e.message : String(e)}), ${editing.filename} was not changed`,
+          formatUi(__uiText("components.FileManager.template_coverage.1", "backup {v0} could not be written ({v1}), {v2} was not changed"), { v0: backupName, v1: e instanceof Error ? e.message : String(e), v2: editing.filename }),
         );
       }
     }
@@ -1008,18 +1009,18 @@ export function FileManager({ isTablet }: { isTablet?: boolean }) {
       pathHoldsRunningFile(runningFile, fs, `${path.endsWith("/") ? path : `${path}/`}${entry.name}`),
     );
     if (busy) {
-      setError(`${busy.name} is in use by the running job. Try again after the job.`);
+      setError(formatUi(__uiText("components.FileManager.tail_coverage.1", "{v0} is in use by the running job. Try again after the job."), { v0: busy.name }));
       return;
     }
     const folderCount = selectedEntries.filter((entry) => entry.isDir).length;
     const itemLabel =
       selectedEntries.length === 1
         ? selectedEntries[0].name
-        : `${selectedEntries.length} selected items`;
+        : formatUi(__uiText("components.FileManager.selected_items.1", "{count} selected items"), { count: selectedEntries.length });
     const folderWarning = folderCount
-      ? `\n\nThis includes ${folderCount} folder${folderCount === 1 ? "" : "s"} and their contents.`
+      ? __uiPlural("components.FileManager.folder_warning", folderCount, { one: "\n\nThis includes {count} folder and its contents.", other: "\n\nThis includes {count} folders and their contents." })
       : "";
-    if (!confirm(`Delete ${itemLabel}?${folderWarning}`)) return;
+    if (!confirm(formatUi(__uiText("components.FileManager.alert_coverage.11", "Delete {v0}?{v1}"), { v0: itemLabel, v1: folderWarning }))) return;
 
     setDeletingSelected(true);
     setError("");
@@ -1039,7 +1040,7 @@ export function FileManager({ isTablet }: { isTablet?: boolean }) {
     await load(path, fs);
     if (failed.length) {
       setError(
-        `Failed to delete: ${failed.map((entry) => entry.name).join(", ")}`,
+        formatUi(__uiText("components.FileManager.alert_coverage.12", "Failed to delete: {v0}"), { v0: failed.map((entry) => entry.name).join(", ") }),
       );
     } else {
       setSelectionMode(false);
@@ -1112,7 +1113,7 @@ export function FileManager({ isTablet }: { isTablet?: boolean }) {
               setShowNewFile((v) => !v);
               setShowNewDir(false);
             }}
-            title="New file"
+            title={__uiText("components.FileManager.new_file.1", "New file")}
           >
             <FilePlus size={isTablet ? 20 : 13} />
           </button>
@@ -1122,7 +1123,7 @@ export function FileManager({ isTablet }: { isTablet?: boolean }) {
               setShowNewDir((v) => !v);
               setShowNewFile(false);
             }}
-            title="New folder"
+            title={__uiText("components.FileManager.new_folder.1", "New folder")}
           >
             <FolderPlus size={isTablet ? 20 : 13} />
           </button>
@@ -1139,8 +1140,8 @@ export function FileManager({ isTablet }: { isTablet?: boolean }) {
             disabled={deletingSelected}
             title={
               selectionMode
-                ? "Cancel multiple selection"
-                : "Select multiple items to delete"
+                ? __uiText("components.FileManager.cancel_multiple_selection.1", "Cancel multiple selection")
+                : __uiText("components.FileManager.select_multiple_items_to_delete.1", "Select multiple items to delete")
             }
             aria-pressed={selectionMode}
           >
@@ -1149,14 +1150,14 @@ export function FileManager({ isTablet }: { isTablet?: boolean }) {
           <button
             className={`rounded hover:bg-elevated text-text-muted hover:text-text-primary transition-colors ${isTablet ? "p-3" : "p-1"}`}
             onClick={() => fileInput.current?.click()}
-            title="Upload file"
+            title={__uiText("components.FileManager.upload_file.1", "Upload file")}
           >
             <Upload size={isTablet ? 20 : 13} />
           </button>
           <button
             className={`rounded hover:bg-elevated text-text-muted hover:text-accent transition-colors ${isTablet ? "p-3" : "p-1"}`}
             onClick={() => load(path, fs)}
-            title="Refresh"
+            title={__uiText("components.FileManager.refresh.1", "Refresh")}
           >
             <RefreshCw
               size={isTablet ? 20 : 13}
@@ -1171,7 +1172,7 @@ export function FileManager({ isTablet }: { isTablet?: boolean }) {
           <FilePlus size={13} className="text-text-dim shrink-0" />
           <input
             className="input-field flex-1 py-1 text-base"
-            placeholder="Filename (e.g. job.nc, config.yaml)"
+            placeholder={__uiText("components.FileManager.filename_e_g_job_nc_config_yaml.1", "Filename (e.g. job.nc, config.yaml)")}
             value={newFileName}
             onChange={(e) => setNewFileName(e.target.value)}
             onKeyDown={(e) => {
@@ -1184,7 +1185,7 @@ export function FileManager({ isTablet }: { isTablet?: boolean }) {
             className="btn-primary text-base px-2 py-1"
             onClick={createNewFile}
           >
-            Create
+            {__uiText("components.FileManager.create.1", "Create")}
           </button>
           <button
             className="text-text-muted hover:text-text-primary"
@@ -1200,7 +1201,7 @@ export function FileManager({ isTablet }: { isTablet?: boolean }) {
           <FolderPlus size={13} className="text-text-dim shrink-0" />
           <input
             className="input-field flex-1 py-1 text-base"
-            placeholder="Folder name"
+            placeholder={__uiText("components.FileManager.folder_name.1", "Folder name")}
             value={newDirName}
             onChange={(e) => setNewDirName(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleCreateDir()}
@@ -1210,7 +1211,7 @@ export function FileManager({ isTablet }: { isTablet?: boolean }) {
             className="btn-primary text-base px-2 py-1"
             onClick={handleCreateDir}
           >
-            Create
+            {__uiText("components.FileManager.create.2", "Create")}
           </button>
           <button
             className="text-text-muted hover:text-text-primary"
@@ -1226,7 +1227,7 @@ export function FileManager({ isTablet }: { isTablet?: boolean }) {
         <input
           ref={searchRef}
           className="input-field flex-1 py-1 text-base"
-          placeholder="Filter files…"
+          placeholder={__uiText("components.FileManager.filter_files.1", "Filter files…")}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           onKeyDown={(e) => {
@@ -1263,8 +1264,8 @@ export function FileManager({ isTablet }: { isTablet?: boolean }) {
                 className={`${isTablet ? "text-lg" : "text-base"} text-text-muted`}
               >
                 {selectedEntries.length
-                  ? `${selectedEntries.length} selected`
-                  : "Select all"}
+                  ? formatUi(__uiText("components.FileManager.tail_coverage.2", "{v0} selected"), { v0: selectedEntries.length })
+                  : __uiText("components.FileManager.select_all.1", "Select all")}
               </span>
             </label>
             {selectedEntries.length > 0 && (
@@ -1274,7 +1275,7 @@ export function FileManager({ isTablet }: { isTablet?: boolean }) {
                   onClick={() => setSelectedNames(new Set())}
                   disabled={deletingSelected}
                 >
-                  Clear
+                  {__uiText("components.FileManager.clear.1", "Clear")}
                 </button>
                 <button
                   className={`btn btn-danger gap-1.5 ${isTablet ? "text-lg py-2 px-3" : "text-base py-1 px-2"}`}
@@ -1282,7 +1283,7 @@ export function FileManager({ isTablet }: { isTablet?: boolean }) {
                   disabled={deletingSelected}
                 >
                   <Trash2 size={isTablet ? 18 : 13} />
-                  {deletingSelected ? "Deleting…" : "Delete"}
+                  {deletingSelected ? __uiText("components.FileManager.deleting.1", "Deleting…") : __uiText("components.FileManager.delete.3", "Delete")}
                 </button>
               </>
             )}
@@ -1294,11 +1295,11 @@ export function FileManager({ isTablet }: { isTablet?: boolean }) {
           <div className="flex justify-between text-base text-info mb-1">
             <span>
               {uploadPhase === "preparing"
-                ? "Checking storage"
+                ? __uiText("components.FileManager.checking_storage.1", "Checking storage")
                 : uploadPhase === "finishing"
-                  ? "Finishing upload"
-                  : "Uploading"}
-              {uploadTotal > 1 ? ` (${uploadIdx} of ${uploadTotal})` : ""}…
+                  ? __uiText("components.FileManager.finishing_upload.1", "Finishing upload")
+                  : __uiText("components.FileManager.uploading.1", "Uploading")}
+              {uploadTotal > 1 ? formatUi(__uiText("components.FileManager.tail_coverage.3", " ({v0} of {v1})"), { v0: uploadIdx, v1: uploadTotal }) : ""}…
             </span>
             <span>
               {uploadPhase === "uploading" ? (
@@ -1350,7 +1351,7 @@ export function FileManager({ isTablet }: { isTablet?: boolean }) {
             <div className="flex flex-col items-center gap-2 text-accent">
               <Upload size={isTablet ? 40 : 28} />
               <span className={isTablet ? "text-xl" : "text-base"}>
-                Drop files to upload
+                {__uiText("components.FileManager.drop_files_to_upload.1", "Drop files to upload")}
               </span>
             </div>
           </div>
@@ -1363,13 +1364,13 @@ export function FileManager({ isTablet }: { isTablet?: boolean }) {
 
         {!resourcesReady && !result && (
           <div className="p-4 text-text-muted text-sm">
-            Files will load when the controller is idle.
+            {__uiText("components.FileManager.files_will_load_when_the_controller.1", "Files will load when the controller is idle.")}
           </div>
         )}
 
         {loading && !result && (
           <div className="flex items-center justify-center h-24 text-text-muted text-base">
-            <RefreshCw size={14} className="animate-spin mr-2" /> Loading…
+            <RefreshCw size={14} className="animate-spin mr-2" /> {__uiText("components.FileManager.loading.1", "Loading…")}
           </div>
         )}
 
@@ -1427,7 +1428,7 @@ export function FileManager({ isTablet }: { isTablet?: boolean }) {
 
         {result && !visibleEntries.length && (
           <div className="flex items-center justify-center h-24 text-text-muted text-xl">
-            {search ? "No matches" : "Empty directory"}
+            {search ? __uiText("components.FileManager.no_matches.1", "No matches") : __uiText("components.FileManager.empty_directory.1", "Empty directory")}
           </div>
         )}
       </div>
@@ -1437,8 +1438,8 @@ export function FileManager({ isTablet }: { isTablet?: boolean }) {
           <HardDrive size={12} />
           <div className="flex-1">
             <div className="flex justify-between mb-1">
-              <span>{fmtSize(result.total - result.used)} free</span>
-              <span>{result.occupation}% used</span>
+              <span>{fmtSize(result.total - result.used)} {__uiText("components.FileManager.free.1", "free")}</span>
+              <span>{result.occupation}{__uiText("components.FileManager.used.1", "% used")}</span>
             </div>
             <div className="w-full h-1 bg-elevated rounded-full overflow-hidden">
               <div
@@ -1473,7 +1474,7 @@ export function FileManager({ isTablet }: { isTablet?: boolean }) {
               aria-hidden="true"
             />
             <div className="mt-3 text-base font-semibold text-text-primary">
-              Loading file…
+              {__uiText("components.FileManager.loading_file.1", "Loading file…")}
             </div>
             <div className="mt-1 max-w-64 truncate font-mono text-sm text-text-muted">
               {editLoading}
@@ -1494,16 +1495,16 @@ export function FileManager({ isTablet }: { isTablet?: boolean }) {
             <div className="flex items-center justify-between border-b border-border px-5 py-4">
               <div className="min-w-0">
                 <div className="text-base font-semibold text-text-primary">
-                  Choose Config File
+                  {__uiText("components.FileManager.choose_config_file.1", "Choose Config File")}
                 </div>
                 <div className="mt-0.5 text-sm text-text-muted">
-                  Internal storage
+                  {__uiText("components.FileManager.internal_storage.1", "Internal storage")}
                 </div>
               </div>
               <button
                 className="rounded p-2 text-text-muted hover:bg-elevated hover:text-text-primary"
                 onClick={() => setConfigChoices(null)}
-                title="Close"
+                title={__uiText("components.FileManager.close.1", "Close")}
               >
                 <X size={18} />
               </button>

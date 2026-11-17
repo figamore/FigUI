@@ -1,0 +1,50 @@
+{
+  "store.gcodeSender.ignored": {
+    "one": "{count} wykonywalny wiersz po M2/M30 nie zostanie wysłany.",
+    "few": "{count} wykonywalne wiersze po M2/M30 nie zostaną wysłane.",
+    "many": "{count} wykonywalnych wierszy po M2/M30 nie zostanie wysłanych.",
+    "other": "{count} wykonywalnego wiersza po M2/M30 nie zostanie wysłane."
+  },
+  "components.LimitsTab.active_inputs": {
+    "one": "{count} aktywne wejście",
+    "few": "{count} aktywne wejścia",
+    "many": "{count} aktywnych wejść",
+    "other": "{count} aktywnego wejścia"
+  },
+  "components.FileManager.folder_warning": {
+    "one": "\n\nObejmuje to {count} folder i jego zawartość.",
+    "few": "\n\nObejmuje to {count} foldery i ich zawartość.",
+    "many": "\n\nObejmuje to {count} folderów i ich zawartość.",
+    "other": "\n\nObejmuje to {count} folderu i jego zawartość."
+  },
+  "components.Macros.more_line.1": {
+    "one": "+{count} dodatkowy wiersz",
+    "few": "+{count} dodatkowe wiersze",
+    "many": "+{count} dodatkowych wierszy",
+    "other": "+{count} dodatkowego wiersza"
+  },
+  "components.Macros.more_line.2": {
+    "one": "+{count} dodatkowy wiersz",
+    "few": "+{count} dodatkowe wiersze",
+    "many": "+{count} dodatkowych wierszy",
+    "other": "+{count} dodatkowego wiersza"
+  },
+  "components.Macros.line.1": {
+    "one": "{count} wiersz",
+    "few": "{count} wiersze",
+    "many": "{count} wierszy",
+    "other": "{count} wiersza"
+  },
+  "components.SettingsPanel.result.1": {
+    "one": "{count} wynik",
+    "few": "{count} wyniki",
+    "many": "{count} wyników",
+    "other": "{count} wyniku"
+  },
+  "components.SettingsPanel.save_config_prompt": {
+    "one": "Konfiguracja maszyny została zmieniona. Zapisać tę zmianę w {filename}?\n\n",
+    "few": "Konfiguracja maszyny została zmieniona. Zapisać te zmiany w {filename}?\n\n",
+    "many": "Konfiguracja maszyny została zmieniona. Zapisać te zmiany w {filename}?\n\n",
+    "other": "Konfiguracja maszyny została zmieniona. Zapisać te zmiany w {filename}?\n\n"
+  }
+}
