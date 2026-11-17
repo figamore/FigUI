@@ -16,7 +16,7 @@ import { useGCodeSenderStore } from '../store/gcodeSender'
 import { useSingleBlockStore } from '../store/singleBlock'
 import { SingleBlockNotice, SingleBlockToggle } from './SingleBlockControl'
 import { GCODE_ACCEPT_ATTRIBUTE, isGCodeFileName } from '../lib/gcodeFiles'
-import { controllerRunCommand, isConfigMacro, isRunningFile, runningFilePath } from '../lib/controllerFiles'
+import { controllerRunCommand, isRunningFile } from '../lib/controllerFiles'
 import { buildFramingGCode, getFramingRequiredTravelZ, programMovesZ, type FramingMode } from '../lib/gcodeOutline'
 import { parseDecimalInput } from '../lib/numberInput'
 
@@ -137,7 +137,7 @@ const LARGE_PROGRESS_OVERLAY_SEGMENT_LIMIT = 100_000
 const PLUNGE_MARKER_RADIUS_PX = 3
 /** Above this many lines, 2D pan and zoom briefly stretch the cached layer between sharp redraws. */
 const LARGE_2D_LAYER_LINE_LIMIT = 100_000
-/** Opacity of a loaded toolpath while another window or device runs a different file. */
+/** Opacity of a loaded toolpath while the controller runs a different file. */
 const STALE_PREVIEW_ALPHA = 0.3
 const STATIC_2D_SETTLE_MS = 150
 /** Share of the view size drawn beyond each edge of the cached 2D layer. */
@@ -2168,30 +2168,12 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
   const controllerJobStarting = trackedJobSource === 'controller' && status.state === 'Idle'
   const machineJobActive = status.state === 'Run' || status.state === 'Hold' || senderActive || controllerJobStarting
   const isRunning = machineJobActive || simulationActive
-  // An SD job running a file this page has not loaded: one started from
-  // another window or device. Its preview cannot be fetched meanwhile, as
+  // The controller is running a file whose path does not match this preview.
   // FluidNC refuses to serve files while the machine moves.
   const otherProgram = !simulationActive && !senderActive && machineJobActive && !!status.sdFilename
     && !isRunningFile(status.sdFilename, loadedPath)
     ? status.sdFilename
     : null
-  // FluidNC also reports config macros (e.g. after_homing) in SD:. They are
-  // not downloadable files and do not establish which device started them.
-  const otherJobFile = otherProgram && !isConfigMacro(otherProgram) ? otherProgram : null
-  // The notice outlives the job, so the file can be loaded here once the machine stops.
-  const [otherJobNotice, setOtherJobNotice] = useState<string | null>(null)
-  // A job or simulation of the file loaded here ends it.
-  const runningLoadedFile = simulationActive || senderActive || (!!status.sdFilename && !otherProgram)
-  useEffect(() => {
-    if (otherJobFile) setOtherJobNotice(otherJobFile)
-    else if (runningLoadedFile) setOtherJobNotice(null)
-  }, [otherJobFile, runningLoadedFile])
-  const noticeModelRef = useRef(model)
-  useEffect(() => {
-    if (noticeModelRef.current === model) return
-    noticeModelRef.current = model
-    setOtherJobNotice(null)
-  }, [model])
   useEffect(() => {
     staleModelRef.current = !!otherProgram
     scheduleRender()
@@ -3619,46 +3601,6 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
           onPointerUp={onPointerUp}
           onPointerCancel={onPointerUp}
         />
-
-        {otherJobNotice && !loading && (
-          <div className="absolute top-2 inset-x-2 z-30 flex justify-center pointer-events-none">
-            <div className="pointer-events-auto max-w-full flex items-start gap-3 rounded-lg border border-info/40 bg-surface shadow-lg px-3 py-2 text-sm" role="status" aria-live="polite">
-              <div className="min-w-0">
-                <div className="font-semibold text-info [overflow-wrap:anywhere]">
-                  {otherJobFile ? __uiText("components.GCodeViewer.running.1", "Running ") : __uiText("components.GCodeViewer.ran.1", "Ran ")}
-                  <span className="font-mono">{otherJobNotice.slice(otherJobNotice.replace(/\\/g, '/').lastIndexOf('/') + 1)}</span>
-                  {__uiText("components.GCodeViewer.from_another_window_or_device.1", " from another window or device")}
-                </div>
-                <div className="mt-0.5 text-xs text-text-muted">
-                  {otherJobFile
-                    ? <>{__uiText("components.GCodeViewer.its_live_preview_is_shown_there.1", "Its live preview is shown there.")} {fileName
-                      ? <>{__uiText("components.GCodeViewer.this_page_shows.1", "This page shows")} <span className="font-mono">{fileName}</span>{__uiText("components.GCodeViewer.dimmed.1", ", dimmed.")}</>
-                      : __uiText("components.GCodeViewer.no_file_on_page.1", "No file is loaded on this page.")}</>
-                    : __uiText("components.GCodeViewer.load_it_to_see_it_here.1", "Load it to see it here.")}
-                </div>
-              </div>
-              {!otherJobFile && (
-                <>
-                  <button
-                    className="btn btn-primary shrink-0 px-3 py-1 text-sm"
-                    onClick={() => void loadFile(runningFilePath(otherJobNotice))}
-                    disabled={isRunning}
-                  >
-                    {__uiText("components.GCodeViewer.load.1", "Load")}
-                  </button>
-                  <button
-                    className="shrink-0 self-center text-text-dim hover:text-text-primary"
-                    onClick={() => setOtherJobNotice(null)}
-                    aria-label={__uiText("components.GCodeViewer.dismiss_message_about_the_job_from_.1", "Dismiss message about the job from another window or device")}
-                    title={__uiText("components.GCodeViewer.dismiss.1", "Dismiss")}
-                  >
-                    <X size={14} />
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
-        )}
 
         {isFileDragging && !isRunning && (
           <div className={`absolute inset-3 z-40 flex items-center justify-center rounded-xl border-2 border-dashed pointer-events-none backdrop-blur-sm ${

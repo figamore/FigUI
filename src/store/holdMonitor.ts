@@ -30,16 +30,15 @@ function clearSession() {
 }
 
 // FluidNC wraps program comments as [MSG:INFO: MSG,text] or PRINT,text;
-// older controllers can omit INFO or the comment prefix.
+// older controllers can omit INFO. Unmarked MSG reports are controller
+// notifications, not necessarily instructions from the running program.
 // Diagnostic messages (including Step reports) must not replace instructions.
 export function parseHoldMessage(line: string): string | null {
   const match = line.match(/^\[MSG:(.*)\]$/i)
   if (!match) return null
   let text = match[1].trim()
-  if (/^(?:INFO|ERR(?:OR)?|WARN(?:ING)?|DEBUG):/i.test(text)) {
-    if (!/^INFO:\s*(?:(?:MSG|PRINT),|Install tool\b.*resume to continue)/i.test(text)) return null
-    text = text.replace(/^INFO:\s*/i, '')
-  }
+  text = text.replace(/^INFO:\s*/i, '')
+  if (!/^(?:(?:MSG|PRINT),|Install tool\b.*resume to continue)/i.test(text)) return null
   return text.replace(/^(?:MSG|PRINT),\s*/i, '').trim() || null
 }
 

@@ -465,23 +465,22 @@ try {
     frames.clear()
     timeouts.clear()
 
-    // A config macro must never leave a file-loading notice after it ends.
-    // Mounted files with the same name still retain the normal Load action.
+    // Running another file or a config macro must not create a viewer notice.
     for (const program of ['after_homing', 'after_reset', 'after_unlock', 'Macro0', '/sd/after_homing']) {
       useMachineStore.setState({ status: { ...useMachineStore.getState().status, state: 'Run', sdFilename: program } })
       const notice = panel(GCodeViewer)
       notice.render()
       let noticeTree = notice.render()
-      const realFile = program.startsWith('/sd/')
-      assert.equal(text(noticeTree).includes('from another window or device'), realFile, program)
+      assert(!/Running\s+after_homing/.test(text(noticeTree)), program)
+      assert(!text(noticeTree).includes('another window or device'))
       ready(true)
       noticeTree = notice.render()
-      assert.equal(nodes(noticeTree).some(node => node?.type === 'button' && text(node).trim() === 'Load'), realFile, `${program}: Load after completion`)
+      assert(!text(noticeTree).includes('Load it to see it here'), program)
       notice.unmount()
       frames.clear()
     }
   }
-  console.log('Resource loading, viewer zoom, plunge visibility, and macro notice checks passed')
+  console.log('Resource loading, viewer zoom, plunge visibility, and viewer notice checks passed')
 } finally {
   disconnect()
   globalThis.fetch = originalFetch
