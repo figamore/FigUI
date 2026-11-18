@@ -98,6 +98,9 @@ export interface ControllerSettings {
   accelX?: number
   accelY?: number
   accelZ?: number
+  accelA?: number
+  accelB?: number
+  accelC?: number
   maxTravelX?: number
   maxTravelY?: number
   maxTravelZ?: number

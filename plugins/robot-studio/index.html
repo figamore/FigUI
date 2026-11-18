@@ -1,0 +1,1121 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Robot Studio · FigUI</title>
+    <link rel="stylesheet" href="style.css" />
+    <script>
+      // FluidNC may reject concurrent SD reads with 404 even for existing files.
+      // Wait for the HTML and stylesheet, then fetch one script at a time.
+      window.addEventListener(
+        "load",
+        async () => {
+          const loading = document.getElementById("viewer-loading");
+          const message = document.getElementById("message");
+          async function loadAsset(filename, stylesheet = false) {
+            for (let attempt = 0; attempt < 3; attempt++) {
+              const url = new URL(filename, document.baseURI);
+              if (attempt) url.searchParams.set("robot_retry", String(attempt));
+              const element = document.createElement(
+                stylesheet ? "link" : "script",
+              );
+              if (stylesheet) {
+                element.rel = "stylesheet";
+                element.href = url.href;
+              } else {
+                element.src = url.href;
+                element.async = false;
+              }
+              try {
+                await new Promise((resolve, reject) => {
+                  element.onload = resolve;
+                  element.onerror = () =>
+                    reject(new Error(`Could not load ${url.href}`));
+                  document.head.append(element);
+                });
+                return;
+              } catch (error) {
+                element.remove();
+                if (attempt === 2) throw error;
+                await new Promise((resolve) =>
+                  setTimeout(resolve, 300 * (attempt + 1)),
+                );
+              }
+            }
+          }
+          try {
+            if (!document.querySelector('link[rel="stylesheet"]').sheet) {
+              await loadAsset("style.css", true);
+            }
+            for (const filename of [
+              "kinematics.js",
+              "viewer-lib.js",
+              "tcp-gizmo.js",
+              "viewer.js",
+              "live-control.js",
+              "jog-transport.js",
+              "program-control.js",
+              "singularity-demo.js",
+              "piston-demo.js",
+              "motion-settings.js",
+              "jog-pad.js",
+              "app.js",
+            ]) {
+              loading.textContent = `Loading ${filename}…`;
+              await loadAsset(filename);
+            }
+          } catch (error) {
+            loading.textContent = `${error.message}. Reopen the plugin to retry.`;
+            message.textContent = error.message;
+            message.classList.add("error");
+          }
+        },
+        { once: true },
+      );
+    </script>
+  </head>
+  <body>
+    <header class="viewer-top studio-toolbar" aria-label="Robot workspace tools">
+      <div class="viewport-title">
+        <h2><span id="robot-name">Standard arm · 6-axis</span></h2>
+      </div>
+      <div class="view-tools" role="toolbar" aria-label="Viewport controls">
+        <button id="view-fit" title="Fit robot in view">Fit</button>
+        <button data-view="perspective" class="active">3D</button>
+        <button data-view="front">Front</button>
+        <button data-view="top">Top</button>
+        <button id="toggle-labels" aria-pressed="false">Joints</button>
+        <button id="toggle-frames" aria-pressed="false">Frames</button>
+        <button id="toggle-path" aria-pressed="true" class="active">Path</button>
+        <button id="toggle-tcp-jog" aria-pressed="false" title="Show tool arrows; click a robot joint to place arrows on its housing" disabled>Jog TCP</button>
+        <button id="machine-move" class="machine-move" title="Hold to jog the physical arm to the virtual pose. Release to cancel." disabled>Hold to jog</button>
+        <button id="toggle-tcp-push" aria-pressed="false" title="Find a nearby reachable target by allowing tool rotation and off-axis movement. Hold Shift for temporary Push mode." disabled>Push <kbd>Shift</kbd></button>
+      </div>
+      <span id="viewer-state" class="pill">
+        <span class="status-dot"></span> Simulation
+      </span>
+      <div class="header-actions">
+        <span id="project-save-state" class="save-state" role="status">No changes</span>
+        <button id="import-project">Open…</button>
+        <button id="export-project" title="Download a complete project backup">Export</button>
+        <button id="save-project" class="primary">Save project</button>
+        <button id="help" class="icon-button" aria-label="Setup and help">?</button>
+      </div>
+      <input id="project-file" type="file" accept=".json,application/json" hidden />
+    </header>
+    <main class="workspace">
+      <section class="viewport-panel" aria-label="3D robot viewer">
+        <div class="viewport-stage">
+          <nav class="workspace-tools" aria-label="Robot setup and gripper shortcuts">
+            <button data-shortcut="configure" aria-label="Robot setup" aria-haspopup="dialog" title="Robot setup · Dimensions, joint limits, and axis mapping">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 21h16M8 21v-4l5-5-5-5 4-4 7 7-3 3M5 6l3-3 4 4-3 3z"/><circle cx="14" cy="12" r="2"/><path d="m18 11 3 3-3 3"/></svg>
+            </button>
+            <button data-shortcut="setup-home" aria-label="Set home reference" aria-haspopup="dialog" title="Home reference · Open the pose guide and confirm the physical reference">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 10 9-7 9 7M5 9v11h14V9M9 20v-6h6v6"/><path d="M12 7v4m-2-2h4"/></svg>
+            </button>
+            <button data-shortcut="go-home" aria-label="Go home" title="Go home · Move the physical arm to its configured home pose" disabled>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 10 9-7 9 7M5 9v11h14V9"/><path d="M12 17v-6m-3 3 3-3 3 3"/></svg>
+            </button>
+            <span class="workspace-tool-divider" aria-hidden="true"></span>
+            <button id="gripper-toggle" aria-label="Toggle gripper" aria-pressed="false" title="Close gripper" disabled>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path data-gripper-state="open" d="M8 3h8m-4 0v5M5 8h14M5 8v11h3m11-11v11h-3M9 13H2m0 0 3-3m-3 3 3 3m10-3h7m0 0-3-3m3 3-3 3"/>
+                <path data-gripper-state="close" d="M8 3h8m-4 0v5M8 8h8M8 8v11h3m5-11v11h-3M2 13h4m0 0-3-3m3 3-3 3m19-3h-4m0 0 3-3m-3 3 3 3" hidden/>
+              </svg>
+            </button>
+          </nav>
+          <div id="viewer">
+            <div id="viewer-loading">Loading 3D workcell…</div>
+            <div id="viewer-frame-controls" class="viewer-frame-controls" role="group" aria-label="Arrow coordinate frame" hidden>
+              <button data-jog-frame="tool" class="active" aria-pressed="true">Tool frame</button>
+              <button data-jog-frame="world" aria-pressed="false">World frame</button>
+            </div>
+            <div class="viewer-bottom">
+              <div class="view-legend">
+                <span class="legend-dot teal"></span>
+                <span id="arm-legend">Virtual arm</span>
+                <span class="legend-dot amber"></span> Target / planned TCP
+              </div>
+              <span id="viewer-drag-hint">Drag to orbit · Scroll to zoom</span>
+            </div>
+          </div>
+        </div>
+        <div class="tcp-bar">
+          <div class="tcp-title">
+            <span class="eyebrow">Tool center point</span
+            ><span>WORLD · mm / °</span>
+          </div>
+          <div id="tcp-readouts"></div>
+          <div
+            class="tcp-value controller-feed"
+            title="Reported controller feed in mapped axis units per minute; not Cartesian tool-tip speed."
+          >
+            <span>FEEDRATE · units/min</span
+            ><strong id="controller-feed">—</strong>
+            <span id="controller-override">Controller override · —</span>
+          </div>
+        </div>
+      </section>
+      <div class="inspector">
+        <nav class="workspace-tabs" aria-label="Workspace task">
+          <button
+            data-workspace="move"
+            aria-controls="move-workspace"
+            class="active"
+            aria-pressed="true"
+          >
+            Move
+          </button>
+          <button
+            data-workspace="program"
+            aria-controls="program-workspace"
+            aria-pressed="false"
+          >
+            Program <span id="nav-point-count">0</span>
+          </button>
+        </nav>
+        <aside
+          id="move-workspace"
+          class="control-panel"
+          aria-label="Move robot"
+        >
+          <div class="panel-heading">
+            <button id="teach-point-move">+ Add waypoint</button
+            ><span id="control-mode-badge" class="pill">Virtual</span>
+          </div>
+          <div class="tabs" role="tablist" aria-label="Robot controls">
+            <button
+              role="tab"
+              id="joint-tab"
+              aria-selected="true"
+              aria-controls="joint-panel"
+              data-tab="joint"
+              class="active"
+            >
+              Joints</button
+            ><button
+              role="tab"
+              id="cartesian-tab"
+              tabindex="-1"
+              aria-selected="false"
+              aria-controls="cartesian-panel"
+              data-tab="cartesian"
+            >
+              Cartesian</button
+            ><button
+              role="tab"
+              id="setup-tab"
+              tabindex="-1"
+              aria-selected="false"
+              aria-controls="setup-panel"
+              data-tab="setup"
+            >
+              Setup
+            </button>
+          </div>
+          <section
+            id="joint-panel"
+            role="tabpanel"
+            aria-labelledby="joint-tab"
+            class="tab-panel"
+          >
+            <div class="section-intro">
+              <h2>Joint control</h2>
+              <span>DEGREES</span>
+            </div>
+            <div class="live-controls">
+              <div
+                class="mode-buttons"
+                role="group"
+                aria-label="Joint control mode"
+              >
+                <button id="mode-target" aria-pressed="false">
+                  Target pose
+                </button>
+                <button id="mode-live" class="active" aria-pressed="true">
+                  Live joints
+                </button>
+                <button id="quick-stop" class="stop-button">Stop</button>
+              </div>
+              <select id="joint-mode" hidden aria-label="Joint control mode">
+                <option value="virtual">Target pose</option>
+                <option value="live">Live joints</option>
+              </select>
+              <p id="joint-mode-hint" class="hint" hidden></p>
+              <div class="speed-section">
+                <div class="section-intro">
+                  <h2>Jog speed</h2>
+                  <strong id="speed-value">100%</strong>
+                </div>
+                <input
+                  id="speed"
+                  type="range"
+                  min="1"
+                  max="100"
+                  value="100"
+                  aria-label="Speed override"
+                />
+                <div class="range-labels">
+                  <span>PRECISION</span><span>FULL SPEED</span>
+                </div>
+              </div>
+            </div>
+            <div class="rose-toolbar">
+              <div class="rose-switch" role="group" aria-label="Jog behavior">
+                <button id="rose-step-mode" aria-pressed="false">Step</button>
+                <button
+                  id="rose-hold-mode"
+                  aria-pressed="true"
+                  class="active"
+                  title="Hold a direction to jog; release to stop"
+                  disabled
+                >
+                  Hold
+                </button>
+              </div>
+            </div>
+            <p class="hint" data-info="joint jogging">In Hold mode, hold a direction to jog and release to stop. In Step mode, tap an inner, middle or outer ring for 0.1°, 1° or 5°. Target pose edits the virtual arm; Live joints moves the physical arm.</p>
+            <section class="jog-group" aria-label="Arm joints">
+              <div class="section-intro">
+                <h2>Arm</h2>
+                <span>J1 — J3</span>
+              </div>
+              <div
+                id="joint-rose"
+                class="robot-rose"
+                aria-label="Joint jog controls"
+              ></div>
+            </section>
+            <section class="jog-group" aria-label="Wrist joints">
+              <div class="section-intro">
+                <h2>Wrist</h2>
+                <span>J4 — J6</span>
+              </div>
+              <div
+                id="wrist-rose"
+                class="robot-rose"
+                aria-label="Joints 4 through 6 jog controls"
+              ></div>
+            </section>
+            <details id="exact-joints" class="exact-controls">
+              <summary>
+                Exact angles &amp; sliders <span>All six joints</span>
+              </summary>
+              <div id="joint-controls"></div>
+            </details>
+            <div class="button-row">
+              <button id="home-pose">Preview home</button
+              ><button id="sync-machine">Copy machine pose</button>
+            </div>
+            <details class="motion-details">
+              <summary>Joint limits & controller settings</summary>
+              <label class="check-label"
+                ><input id="jog-maximum-speed" type="checkbox" checked /> Use
+                controller maximum jog speeds</label
+              >
+              <p class="hint" data-info="jog speed limits">
+                FluidNC controls acceleration and braking. Uncheck to use custom
+                speed caps.
+              </p>
+              <label class="motion-limit-field"
+                >Max joint speed · °/s<input
+                  id="jog-speed-limit"
+                  type="number"
+                  min="0.01"
+                  max="10000"
+                  step="any"
+                  value="10"
+              /></label>
+              <button id="jog-controller-max" class="full-width">
+                Use controller maximums
+              </button>
+              <p id="jog-controller-limits" class="hint" data-info="jog controller limits">
+                Reading controller limits…
+              </p>
+            </details>
+            <details class="feedback-options">
+              <summary>Position display</summary>
+              <button id="quick-reference">Set reference</button>
+              <label class="check-label"
+                ><input id="follow-machine" type="checkbox" /> Show reported
+                machine position</label
+              >
+            </details>
+          </section>
+          <section
+            id="cartesian-panel"
+            role="tabpanel"
+            aria-labelledby="cartesian-tab"
+            class="tab-panel"
+            hidden
+          >
+            <div class="section-intro">
+              <select id="jog-target" aria-label="Arrow target" title="Click a joint or the gripper in the 3D view, or choose the arrow target here">
+                <option value="-1">Tool TCP</option>
+                <option value="0">J1 · Base</option>
+                <option value="1">J2 · Shoulder</option>
+                <option value="2">J3 · Elbow</option>
+                <option value="3">J4 · Wrist 1</option>
+                <option value="4">J5 · Wrist 2</option>
+                <option value="5">J6 · Tool flange</option>
+              </select>
+              <select id="jog-frame" aria-label="Cartesian jog frame">
+                <option value="tool" selected>Tool frame</option>
+                <option value="world">World frame</option>
+              </select>
+            </div>
+            <p class="hint" data-info="joint and TCP dragging">Click a joint housing to place arrows there; click the gripper or choose <strong>Tool TCP</strong> to return to the tool. Joint dragging moves its upstream joints. Fixed housings and unavailable directions have no arrows. Enable <strong>Push</strong> or hold <kbd>Shift</kbd> to follow a nearby reachable path. Drag elsewhere to orbit.</p>
+            <div
+              class="rose-switch"
+              role="group"
+              aria-label="Cartesian movement"
+            >
+              <button data-cart-group="0" aria-pressed="true" class="active">
+                Position <span>mm</span>
+              </button>
+              <button data-cart-group="3" aria-pressed="false">
+                Orientation <span>°</span>
+              </button>
+            </div>
+            <div
+              id="cartesian-rose"
+              class="robot-rose"
+              aria-label="Virtual Cartesian steps"
+            ></div>
+            <p class="hint" data-info="Cartesian steps">
+              Steps update the virtual target. Physical motion uses the
+              calibrated Hold to jog button in the toolbar.
+            </p>
+            <button id="cartesian-working-pose" type="button">
+              Preview working pose
+            </button>
+            <p id="cartesian-working-hint" class="hint" data-info="the working pose">
+              From upright home, bend the elbow and wrist before Cartesian
+              jogging. Preview changes the virtual target; Hold to jog
+              positions the physical arm. This changes tool orientation and
+              keeps the manual reference.
+            </p>
+            <details class="exact-controls">
+              <summary>Exact TCP target <span>World frame</span></summary>
+              <div id="target-fields" class="pose-fields"></div>
+              <div class="button-row">
+                <button id="target-current">Use current TCP</button>
+                <button id="solve-ik" class="primary">Solve target</button>
+              </div>
+            </details>
+            <p id="ik-result" class="hint" role="status">
+              Virtual target · No machine motion.
+            </p>
+          </section>
+          <section
+            id="setup-panel"
+            role="tabpanel"
+            aria-labelledby="setup-tab"
+            class="tab-panel"
+            hidden
+          >
+            <div class="section-intro">
+              <h2>Robot definition</h2>
+              <span>STANDARD DH</span>
+            </div>
+            <p class="hint" data-info="robot geometry">
+              Dimensions in mm, angles in degrees. Edit the model and controller
+              mapping in the configuration editor.
+            </p>
+            <div id="model-summary" class="model-summary"></div>
+            <button id="configure" class="primary full-width">
+              Configure dimensions & limits
+            </button>
+            <div class="button-row">
+              <button id="setup-home">Manual homing</button>
+            </div>
+            <p class="hint" data-info="manual reference">
+              No sensors needed. Place the arm in the displayed reference pose
+              and confirm it before physical motion.
+            </p>
+            <p class="hint" data-info="project contents">
+              Projects include all joint parameters, base and tool frames, the
+              virtual pose, and taught points.
+            </p>
+            <details class="end-effector-settings" open>
+              <summary>Gripper commands</summary>
+              <label for="end-effector-open">Open gripper</label>
+              <textarea
+                id="end-effector-open"
+                rows="3"
+                spellcheck="false"
+                aria-label="Open gripper G-code"
+              ></textarea>
+              <label for="end-effector-close">Close gripper</label>
+              <textarea
+                id="end-effector-close"
+                rows="3"
+                spellcheck="false"
+                aria-label="Close gripper G-code"
+              ></textarea>
+              <button id="save-end-effector" class="full-width">
+                Apply gripper commands
+              </button>
+              <p class="hint" data-info="gripper commands">
+                Used by the manual buttons and waypoint actions. Save project to
+                keep your commands.
+              </p>
+            </details>
+          </section>
+          <div id="end-effector-controls" class="end-effector-controls">
+            <div class="section-intro">
+              <h2>Gripper</h2>
+              <span id="end-effector-state">Machine control</span>
+            </div>
+            <div class="button-row">
+              <button id="gripper-open" disabled>Open gripper</button>
+              <button id="gripper-close" disabled>Close gripper</button>
+            </div>
+          </div>
+          <details class="hardware-panel">
+            <summary>Physical machine connection</summary>
+            <div class="section-intro">
+              <h2>Machine control</h2>
+              <span id="machine-state">OFFLINE</span>
+            </div>
+            <button id="manual-home" class="full-width">
+              Set manual home reference
+            </button>
+            <div class="button-row">
+              <button id="recover-reference" hidden>Recover reference</button>
+              <button id="go-home" title="Move the robot to its configured home pose" disabled>Go home</button>
+            </div>
+            <p id="reference-state" class="hint">
+              Manual reference required before physical motion.
+            </p>
+            <label class="check-label"
+              ><input id="enable-machine" type="checkbox" /> Enable calibrated
+              axis mapping</label
+            >
+            <p class="hint" data-info="physical jogging">Use Hold to jog beside Jog TCP to move to the virtual pose. Release to cancel.</p>
+          </details>
+        </aside>
+        <aside
+          id="program-workspace"
+          class="program-panel"
+          aria-label="Waypoint program"
+          hidden
+        >
+          <div class="program-toolbar">
+            <div class="section-intro">
+              <h2>Waypoints</h2>
+              <div class="sequence-tools">
+                <span id="point-count" class="count">00</span>
+                <button id="clear-points" disabled>Clear all</button>
+                <button
+                  id="undo-points"
+                  aria-label="Undo waypoint edit"
+                  title="Undo waypoint edit"
+                  disabled
+                >
+                  ↶
+                </button>
+                <button
+                  id="redo-points"
+                  aria-label="Redo waypoint edit"
+                  title="Redo waypoint edit"
+                  disabled
+                >
+                  ↷
+                </button>
+              </div>
+            </div>
+            <div class="button-row">
+              <button id="teach-point" class="primary">+ Add waypoint</button
+              ><button id="edit-program-pose">Edit pose</button>
+            </div>
+            <p id="end-effector-preview" class="hint" aria-live="polite"></p>
+          </div>
+          <div class="program-body">
+            <div id="waypoints" class="waypoints">
+              <div class="empty-state">
+                <strong>No waypoints</strong>
+                <p>Set a pose in Move, then choose Add waypoint.</p>
+              </div>
+            </div>
+            <div id="demo-moves" class="waypoints" hidden></div>
+            <details class="program-options">
+              <summary>New waypoint defaults</summary>
+              <div class="teach-options">
+                <label
+                  >Next waypoint<select id="move-type">
+                    <option value="MoveJ">Joint move</option>
+                    <option value="MoveL">Linear move</option>
+                  </select></label
+                ><label
+                  >Minimum time · s<input
+                    id="move-duration"
+                    type="number"
+                    min="0.1"
+                    max="600"
+                    step="0.1"
+                    value="0.1"
+                /></label>
+              </div>
+              <label
+                class="waypoint-effector next-effector"
+                for="move-end-effector"
+              >
+                After next waypoint
+                <select id="move-end-effector">
+                  <option value="none">No gripper action</option>
+                  <option value="open">Open gripper</option>
+                  <option value="close">Close gripper</option>
+                </select>
+              </label>
+            </details>
+            <details class="program-motion">
+              <summary id="program-motion-label">
+                Speed · Controller maximums
+              </summary>
+              <label class="check-label"
+                ><input id="program-maximum-speed" type="checkbox" checked />
+                Use controller maximum speed and acceleration</label
+              >
+              <button id="program-controller-max" class="full-width">
+                Refresh controller limits
+              </button>
+              <p id="program-controller-limits" class="hint" data-info="program controller limits">
+                Reading controller limits…
+              </p>
+              <div class="teach-options">
+                <label
+                  >Max joint speed · °/s<input
+                    id="program-speed"
+                    type="number"
+                    min="0.01"
+                    max="10000"
+                    step="any"
+                    value="10"
+                /></label>
+                <label
+                  >Joint acceleration · °/s²<input
+                    id="program-acceleration"
+                    type="number"
+                    min="0.01"
+                    max="1000000"
+                    step="any"
+                    value="20"
+                /></label>
+              </div>
+              <div class="section-intro">
+                <span>Program speed</span
+                ><strong id="program-speed-value">100%</strong>
+              </div>
+              <input
+                id="program-speed-override"
+                type="range"
+                min="1"
+                max="100"
+                value="100"
+                aria-label="Program speed override"
+              />
+              <p class="hint" data-info="program speed">
+                Controller maximums send each MoveJ as one joint-space move,
+                letting FluidNC handle acceleration and braking. Custom limits
+                and MoveL retain sampled motion profiles. Waypoint minimum times,
+                program speed and the controller feed override still apply.
+              </p>
+            </details>
+            <details class="demo-tools">
+              <summary>Motion demos</summary>
+              <label
+                >Tool extension · flange Z, mm<input
+                  id="demo-tool-length"
+                  type="number"
+                  step="any"
+                  value="30"
+              /></label>
+              <p class="hint" data-info="demo tool extension">
+                Applied to the tool model when either demo starts. The colored
+                shaft shows the tool.
+              </p>
+              <span id="demo-tool-hint" class="hint" data-info="the current tool extension"></span>
+              <label
+                >Demo minimum cycle · s<input
+                  id="demo-duration"
+                  type="number"
+                  min="0.1"
+                  max="600"
+                  step="0.1"
+                  value="0.1"
+              /></label>
+              <p class="hint" data-info="demo cycle time">
+                Use 0.1 for the fastest cycle allowed by the joint speed and
+                acceleration limits.
+              </p>
+              <label
+                >Crossing rotation · world axis<select id="singularity-axis">
+                  <option value="x">Red · X</option>
+                  <option value="y">Green · Y</option>
+                  <option value="z">Blue · Z</option>
+                </select></label
+              >
+              <label
+                >Sweep each side · °<input
+                  id="singularity-angle"
+                  type="number"
+                  min="5"
+                  max="80"
+                  step="any"
+                  value="35"
+              /></label>
+              <button id="singularity-demo" class="full-width">
+                Singularity crossing demo
+              </button>
+              <p class="hint" data-info="singularity demo">
+                Moves to a working pose, crosses wrist alignment and back, then
+                returns. The colored reference axes mark the crossing; the tool
+                follows an arc around the selected axis.
+              </p>
+              <label
+                >Stroke direction<select id="piston-axis">
+                  <option value="x">Horizontal X · in / out</option>
+                  <option value="y">Horizontal Y · in / out</option>
+                  <option value="z">Vertical Z · down / up</option>
+                </select></label
+              >
+              <label
+                >Stroke · mm<input
+                  id="piston-stroke"
+                  type="number"
+                  min="1"
+                  max="1000"
+                  step="any"
+                  value="30"
+              /></label>
+              <button id="piston-demo" class="full-width">Piston demo</button>
+              <p class="hint" data-info="piston demo">
+                Two straight strokes with steady tool orientation, then return
+                to the starting pose. A straight arm first bends into a working
+                pose. Directions use world axes.
+              </p>
+            </details>
+          </div>
+          <div class="program-footer">
+            <label>Run from<select id="program-source">
+              <option value="stream">Browser stream</option>
+              <option value="sd">SD card</option>
+            </select></label>
+            <div class="plan-summary">
+              <span id="plan-label">No trajectory planned</span
+              ><strong id="plan-duration">—</strong>
+            </div>
+            <div class="button-row">
+              <button id="plan-program">Plan path</button
+              ><button id="preview-program">Preview</button>
+              <button id="save-gcode" class="primary full-width">
+                Run on machine
+              </button>
+            </div>
+            <details class="export-options">
+              <summary>Export &amp; execution details</summary>
+              <button id="export-gcode" class="full-width">
+                Export G-code
+              </button>
+              <button id="save-sd-program" class="full-width">Save program to SD</button>
+              <p class="hint" data-info="SD execution">
+                SD runs reuse /robot-studio.nc when its contents match, saving
+                only changed programs. Save program to SD does not start motion.
+                Preview starts at the first waypoint; Run and Save use the physical pose. Minimum times
+                can extend moves beyond the selected speed and acceleration.
+              </p>
+              <p id="run-readiness" class="run-readiness">
+                Add a waypoint to begin.
+              </p>
+            </details>
+            <div class="program-execution">
+              <div
+                id="program-execution-feedback"
+                class="program-execution-feedback"
+                aria-live="polite"
+                hidden
+              >
+                <strong id="program-state">Ready · one pass</strong>
+                <span id="program-current-move"
+                  >The arm follows reported joint positions during
+                  execution.</span
+                >
+                <progress
+                  id="program-progress"
+                  max="100"
+                  value="0"
+                  aria-label="Estimated execution progress"
+                ></progress>
+                <span id="program-progress-label">0% · position estimate</span>
+              </div>
+              <div id="program-execution-actions" class="button-row" hidden>
+                <button id="program-pause" disabled>Ⅱ Pause</button>
+                <button id="program-stop" class="stop-button" disabled>
+                  ■ Stop program
+                </button>
+              </div>
+              <div id="program-feed-actions" class="button-row" hidden>
+                <button id="program-slower" disabled>Speed −10%</button>
+                <button id="program-full-speed" disabled>Speed 100%</button>
+              </div>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </main>
+    <footer class="statusbar">
+      <span id="message" role="status" aria-live="polite"
+        >Ready · Simulation workspace</span
+      ><button id="retry-settings" hidden>Retry restore</button
+      ><span id="playback-time"></span
+      ><button id="stop" class="stop-button">Stop <kbd>Esc</kbd></button>
+    </footer>
+    <dialog
+      id="replace-dialog"
+      aria-labelledby="replace-title"
+      aria-describedby="replace-description"
+    >
+      <form method="dialog">
+        <div class="dialog-heading">
+          <h2 id="replace-title">Replace current project?</h2>
+        </div>
+        <p id="replace-description" class="hint"></p>
+        <div class="dialog-actions">
+          <button value="cancel" autofocus>Keep current project</button>
+          <button id="replace-confirm" value="replace" class="primary">
+            Replace project
+          </button>
+        </div>
+      </form>
+    </dialog>
+    <dialog id="config-dialog" aria-labelledby="config-title">
+      <form id="config-form">
+        <div class="dialog-heading">
+          <div>
+            <span class="eyebrow">ROBOT CONFIGURATION</span>
+            <h2 id="config-title">Robot configuration</h2>
+          </div>
+          <button
+            type="button"
+            data-close="config-dialog"
+            aria-label="Close configuration"
+          >
+            ✕
+          </button>
+        </div>
+        <label class="name-field"
+          >Robot name<input id="config-name" maxlength="80" required
+        /></label>
+        <div class="geometry-editor">
+          <section
+            class="config-preview"
+            aria-labelledby="config-preview-title"
+          >
+            <div class="config-preview-heading">
+              <h3 id="config-preview-title">Your arm in 3D</h3>
+              <span class="config-live">Live preview</span>
+            </div>
+            <p class="hint" data-info="configuration preview">
+              Edit a dimension to see it highlighted. Drag to rotate, scroll to
+              zoom, or right-drag to pan. Measurements are between rotation
+              axes.
+            </p>
+            <div
+              class="config-view-tools"
+              role="group"
+              aria-label="Configuration preview views"
+            >
+              <button
+                type="button"
+                data-config-view="perspective"
+                aria-pressed="true"
+              >
+                3D
+              </button>
+              <button
+                type="button"
+                data-config-view="front"
+                aria-pressed="false"
+              >
+                Front
+              </button>
+              <button type="button" data-config-view="top" aria-pressed="false">
+                Top
+              </button>
+              <button type="button" id="config-view-fit">Fit arm</button>
+            </div>
+            <div id="config-viewer">
+              <p id="config-viewer-loading" class="hint" role="status">
+                Loading 3D preview…
+              </p>
+            </div>
+            <p id="config-measurement" class="config-measurement"></p>
+            <p id="config-preview-status" class="hint" role="status">
+              Preview shows your home pose. Changes take effect when you apply.
+            </p>
+          </section>
+          <div>
+            <h3 id="config-dimensions-title">Dimensions · mm</h3>
+            <div id="dimension-fields" class="dimension-fields"></div>
+            <p id="dimension-help" class="hint" data-info="the selected dimension"></p>
+            <p id="config-layout-hint" class="hint" data-info="joint layout">
+              J2, J3 and J4 have parallel axes. J5 and J6 each turn 90°
+              from the preceding axis. Set the tool extension below.
+            </p>
+            <section
+              class="appearance-editor"
+              aria-labelledby="appearance-title"
+            >
+              <h3 id="appearance-title">Appearance · mm</h3>
+              <p id="appearance-help" class="hint" data-info="appearance dimensions">
+                Set the outside diameters to match your arm. These only change
+                the drawing. Leave blank for automatic sizing.
+              </p>
+              <table
+                class="config-table appearance-table"
+                aria-describedby="appearance-help"
+              >
+                <thead>
+                  <tr>
+                    <th scope="col">Part</th>
+                    <th scope="col">Link Ø</th>
+                    <th scope="col">Joint Ø</th>
+                  </tr>
+                </thead>
+                <tbody id="appearance-rows"></tbody>
+              </table>
+              <button type="button" id="appearance-reset">
+                Use automatic sizes
+              </button>
+            </section>
+          </div>
+        </div>
+        <h3>Joint limits & manual reference pose</h3>
+        <p class="hint" data-info="home reference angles">
+          Home is the angle you will physically align and confirm for each
+          joint. Speed and acceleration are commissioning values; set them for
+          your motors and gearing.
+        </p>
+        <div class="table-scroll">
+          <table class="config-table">
+            <thead>
+              <tr>
+                <th>Joint</th>
+                <th>Min · °</th>
+                <th>Max · °</th>
+                <th>Home · °</th>
+                <th>Max °/s</th>
+                <th>Max °/s²</th>
+              </tr>
+            </thead>
+            <tbody id="limits-rows"></tbody>
+          </table>
+        </div>
+        <details>
+          <summary>Advanced DH geometry</summary>
+          <p class="hint" data-info="DH geometry">
+            Rz(θ + offset) · Tz(d) · Tx(a) · Rx(α). The sample link lengths a2 and a3 are
+            negative in this convention. The dimension fields handle this sign
+            for you.
+          </p>
+          <div class="table-scroll">
+            <table class="config-table">
+              <thead>
+                <tr>
+                  <th>Joint</th>
+                  <th>a · mm</th>
+                  <th>d · mm</th>
+                  <th>α · °</th>
+                  <th>Offset · °</th>
+                </tr>
+              </thead>
+              <tbody id="dh-rows"></tbody>
+            </table>
+          </div>
+        </details>
+        <div class="frame-editors">
+          <section>
+            <h3>Base → world</h3>
+            <div id="base-fields" class="pose-fields"></div>
+          </section>
+          <section>
+            <h3>Tool → flange</h3>
+            <div id="tool-fields" class="pose-fields"></div>
+          </section>
+        </div>
+        <details>
+          <summary>FluidNC machine axis mapping</summary>
+          <p class="hint" data-info="axis mapping">
+            Machine coordinate = joint angle × scale + zero. Configure FluidNC
+            with Cartesian kinematics, one motor axis per joint. Scale is
+            controller units per degree; a negative scale reverses direction.
+            These values must match the calibrated physical robot.
+          </p>
+          <div class="table-scroll">
+            <table class="config-table">
+              <thead>
+                <tr>
+                  <th>Joint</th>
+                  <th>Axis</th>
+                  <th>Units / °</th>
+                  <th>Zero · units</th>
+                </tr>
+              </thead>
+              <tbody id="mapping-rows"></tbody>
+            </table>
+          </div>
+          <button id="j6-direct-drive" type="button">
+            Use J6 direct-drive default
+          </button>
+          <p class="hint" data-info="J6 direct drive">
+            J6: 1.8° motor, 1/8 microstepping, no reducer. Default scale is 1
+            unit per degree, retaining the selected direction. Set its FluidNC
+            axis to 4.444444 steps/mm separately, then apply configuration.
+          </p>
+        </details>
+        <p class="hint" data-info="applying configuration">
+          Applying configuration pauses machine control. Joint mapping, angle
+          offset or home angle changes require a new reference; dimensions, tool
+          and limit edits keep the reference. Compatible edits keep your
+          waypoints. Geometry or limit changes that require clearing them ask
+          for confirmation first.
+        </p>
+        <p id="config-error" class="error" role="alert"></p>
+        <div class="dialog-actions">
+          <select id="robot-preset" aria-label="Robot preset">
+            <option value="standard">Standard arm</option>
+            <option value="extended">Extended arm</option>
+            <option value="medium">Medium arm</option>
+            <option value="compact">Compact arm</option>
+            <option value="legacy">Forearm roll (legacy)</option></select
+          ><button type="button" id="default-config">
+            Load selected preset</button
+          ><button type="submit" class="primary">Apply configuration</button>
+        </div>
+      </form>
+    </dialog>
+    <dialog id="recover-dialog" aria-label="Recover previous reference">
+      <div class="dialog-heading">
+        <h2>Recover previous reference</h2>
+        <button data-close="recover-dialog" aria-label="Close reference recovery">✕</button>
+      </div>
+      <p>Use the previous joint offsets if FluidNC retained its machine coordinates during the connection interruption. The arm can stay where it is.</p>
+      <p class="hint">Current joint angles using the previous reference:</p>
+      <p id="recover-angles" class="notice"></p>
+      <label class="check"><input id="recovery-confirmed" type="checkbox" />
+        I have checked that these angles match the arm. The controller retained its coordinates, with no lost steps or movement with the drives disabled.
+      </label>
+      <p class="hint">Recovery restores the old offsets; it does not redefine home or send motion. If the coordinates were lost, use Set reference instead.</p>
+      <p id="recover-error" class="error" role="alert"></p>
+      <div class="dialog-actions">
+        <button data-close="recover-dialog">Cancel</button>
+        <button id="confirm-recovery" class="primary" disabled>Recover reference · no motion</button>
+      </div>
+    </dialog>
+    <dialog id="home-dialog" aria-label="Manual home reference">
+      <div class="dialog-heading">
+        <div>
+          <span class="eyebrow">MANUAL HOMING / NO SENSORS</span>
+          <h2>Place your arm in this pose</h2>
+        </div>
+        <button data-close="home-dialog" aria-label="Close manual reference">
+          ✕
+        </button>
+      </div>
+      <p class="hint">
+        1. Manually align each joint to the angles below, using your physical
+        reference marks. The 3D view shows the configured home pose; drag to
+        inspect all sides.
+      </p>
+      <div id="home-viewer"></div>
+      <div id="home-angles" class="home-angles"></div>
+      <div id="home-upright-option">
+        <button id="home-upright" type="button">Use upright homing pose</button>
+        <p class="hint" data-info="the upright homing pose">
+          Upright pose: upper arm and forearm straight up, wrist vertical, and
+          tool flange pointing horizontally outward along the shoulder axis.
+          Joint dimensions, limits and taught points are kept.
+        </p>
+      </div>
+      <p class="hint">
+        2. Keep the robot stationary and the controller Idle. Confirm when the
+        physical arm matches. We will record the current six machine coordinates
+        as this pose.
+      </p>
+      <p class="notice">
+        This records joint zero offsets in the plugin. It does not move the
+        motors, send a homing command, or clear a firmware alarm. Repeat after a
+        controller restart, lost steps, or moving the arm with the drives
+        disabled.
+      </p>
+      <p class="hint">
+        Confirm only when the physical robot matches every joint angle shown.
+      </p>
+      <p id="home-error" class="error" role="alert"></p>
+      <div class="dialog-actions">
+        <button data-close="home-dialog">Cancel</button
+        ><button id="record-home" class="primary" disabled>
+          Confirm pose & record reference
+        </button>
+      </div>
+    </dialog>
+    <dialog id="help-dialog" aria-label="Robot Studio help">
+      <div class="dialog-heading">
+        <h2>From model to motion</h2>
+        <button data-close="help-dialog" aria-label="Close help">✕</button>
+      </div>
+      <ol class="help-list">
+        <li>
+          <strong>Define the robot.</strong> Setup → Configure dimensions &
+          limits. Enter standard DH geometry, joint limits, velocity and
+          acceleration limits, and base/tool transforms. The built-in samples
+          use six revolute joints. Enter your arm's measured dimensions before
+          connecting hardware.
+        </li>
+        <li>
+          <strong>Teach and plan.</strong> Use joint sliders or solve a
+          Cartesian target. Teach points as MoveJ or MoveL, reorder them, then
+          plan and preview. MoveJ interpolates joints; MoveL interpolates TCP
+          position and orientation. Each segment starts and ends at rest.
+        </li>
+        <li>
+          <strong>Save your work.</strong> Your latest robot setup and workspace
+          are remembered automatically in this browser. Save project also stores
+          settings on the FigUI controller (or in browser storage when opened
+          standalone). Export/import JSON transfers the complete project.
+        </li>
+        <li>
+          <strong>Connect a physical arm.</strong> This plugin controls six
+          independent FluidNC axes with calibrated machine positions. Verify
+          scale, direction and firmware limits, then use Manual homing to align
+          and confirm the reference pose before enabling the mapping. Hold to
+          move sends a joint jog; release or Escape cancels it.
+        </li>
+        <li>
+          <strong>Run a program.</strong> Export G-code or send it to FigUI’s
+          file viewer for normal job execution. Start the machine at the
+          program’s documented starting pose. Output uses G53 machine
+          coordinates, native joint feeds in controller-maximum mode, and G93
+          inverse-time feeds for sampled paths.
+        </li>
+      </ol>
+      <p class="notice">
+        Planning checks kinematic reachability and sampled joint limits. It does
+        not model collisions, payload dynamics, or safety-rated stops. Use the
+        physical emergency stop for an emergency. The 3D viewer is included
+        locally and works offline with WebGL.
+      </p>
+      <p class="hint">
+        Reference:
+        <a
+          href="https://threejs.org/manual/en/installation.html"
+          target="_blank"
+          rel="noopener"
+          >Three.js viewer</a
+        >
+      </p>
+    </dialog>
+  </body>
+</html>

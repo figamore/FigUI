@@ -354,7 +354,9 @@ block().clearError()
 socket.failModeRequest = false
 socket.reportModeChanges = true
 
-const commands = Array.from({ length: 30 }, (_, index) => `G1 X${index} F100`).concat('M30')
+const commands = Array.from({ length: 30 }, (_, index) => index < 10
+  ? `G1 X${index}.12345 Y-74.87500 Z12.34567 A-90.12345 B23.45678 C34.56789 F2376.268916`
+  : `G1 X${index} F100`).concat('M30')
 socket.bufferedAmount = 2048
 assert.equal(useGCodeSenderStore.getState().start(commands.join('\n'), 'window.gcode'), true)
 assert.equal(ws.sendRaw('M9'), false, 'normal commands must be rejected while the stream owns ok responses')
@@ -378,6 +380,7 @@ socket.bufferedAmount = 0
 socket.machineState = 'Run'
 useMachineStore.getState().updateStatus({ state: 'Run' })
 await waitFor(() => programMessages().length > 0, 'stream did not start after backpressure cleared')
+assert.ok(programMessages().length >= 2, 'six-axis motion must pipeline before the first acknowledgement')
 assert.ok(
   programFrames().length > 0,
   'program commands must use websocket text frames',
@@ -396,7 +399,7 @@ while (acknowledged < commands.length) {
   const sent = programMessages()
   const outstandingBytes = sent.slice(acknowledged)
     .reduce((total, command) => total + new TextEncoder().encode(command).byteLength + 1, 0)
-  assert.ok(outstandingBytes <= 127 || sent[acknowledged].length > 127, `stream window overflowed: ${outstandingBytes}`)
+  assert.ok(outstandingBytes <= 255, `stream window overflowed: ${outstandingBytes}`)
   assert.ok(sent.length - acknowledged <= 8, `stream response window overflowed: ${sent.length - acknowledged} blocks`)
   socket.receive('ok\n')
   acknowledged++

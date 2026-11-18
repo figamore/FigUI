@@ -1,0 +1,29 @@
+{
+  "name": "Robot Studio",
+  "description": "Six-axis robot teaching, joint jogging, path preview and single-pass program execution for FigUI.",
+  "version": "1.17.1",
+  "entry": "index.html",
+  "icon": "icon.png",
+  "layout": "full",
+  "layoutTablet": "full",
+  "layoutMobile": "full",
+  "files": [
+    "index.html",
+    "style.css",
+    "kinematics.js",
+    "viewer.js",
+    "tcp-gizmo.js",
+    "app.js",
+    "jog-pad.js",
+    "icon.png",
+    "README.md",
+    "viewer-lib.js",
+    "THREE-LICENSE.txt",
+    "live-control.js",
+    "jog-transport.js",
+    "program-control.js",
+    "singularity-demo.js",
+    "piston-demo.js",
+    "motion-settings.js"
+  ]
+}

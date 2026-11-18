@@ -4,7 +4,7 @@
 # Then browse to http://localhost:8080
 #
 # No FluidNC_IP: Simulates a FluidNC machine locally. No hardware needed.
-# With FluidNC_IP: Forwards HTTP to a real FluidNC device and bridges WebSocket.
+# With FluidNC_IP: Proxies the device, serving plugin code from local plugins/.
 #
 # Dependencies: pip install flask websockets requests zeroconf
 
@@ -26,10 +26,23 @@ parser.add_argument(
     default='',
     help='Real FluidNC IP or host. If provided, the simulator runs in proxy mode.',
 )
+project_root = os.path.dirname(os.path.abspath(__file__))
+parser.add_argument(
+    '--plugins-dir', default=os.path.join(project_root, 'plugins'),
+    help='Directory containing local plugin folders (default: plugins/ beside this script).',
+)
+parser.add_argument(
+    '--device-plugins', action='store_true',
+    help='In proxy mode, load installed plugins from the device instead of local folders.',
+)
 args = parser.parse_args()
 
 fluidnc_ip     = args.fluidnc_ip
 proxy          = bool(fluidnc_ip)
+plugins_dir    = os.path.abspath(args.plugins_dir)
+local_plugins  = proxy and not args.device_plugins
+if local_plugins and not os.path.isdir(plugins_dir):
+    parser.error(f'Local plugin directory does not exist: {plugins_dir}')
 fluidnc_ws_url = ''   # resolved from real ESP800 in proxy mode
 http_port  = 8080
 ws_port    = 8081
@@ -394,7 +407,7 @@ def start_ws_thread():
 
 app = Flask(__name__)
 
-test_files = 'test_files'
+test_files = os.path.join(project_root, 'test_files')
 
 esp800resp = (
     f'FW version:FluidNC v4.1.1-sim'
@@ -490,11 +503,14 @@ esp400resp = json.dumps({'EEPROM': [
 
 def do_proxy(req):
     url = req.url.replace(req.host_url, f'http://{fluidnc_ip}/')
+    # Plugin code is local, but preferences still come from the device's SD.
+    # A slow preference read needs longer than the generic command deadline.
+    timeout = (5, 30) if req.method == 'GET' and req.path.endswith('/settings.json') else 10
     try:
         resp = requests.request(
             method=req.method, url=url,
             headers={k: v for k, v in req.headers if k.lower() != 'host'},
-            data=req.get_data(), cookies=req.cookies, timeout=10,
+            data=req.get_data(), cookies=req.cookies, timeout=timeout,
         )
         excluded = {'content-encoding', 'transfer-encoding', 'connection'}
         headers  = [(k, v) for k, v in resp.headers.items() if k.lower() not in excluded]
@@ -662,6 +678,76 @@ def handle_fs_action(fs_dir, request):
 
     return make_files_list(fs_dir, raw_path, 'Ok')
 
+def _plugin_relative_path(fs_dir, path):
+    rel = _strip_path(fs_dir, path).replace(os.sep, '/')
+    if rel == 'plugins':
+        return ''
+    if rel.startswith('plugins/'):
+        return rel[len('plugins/'):]
+    return None
+
+def _serve_local_plugin(filename):
+    response = send_from_directory(plugins_dir, filename, conditional=False, max_age=0)
+    response.headers['Cache-Control'] = 'no-store'
+    return response
+
+def _local_plugin_files(fs_dir):
+    """Mount checkout plugins as SD plugins, keeping settings on the device."""
+    if request.method == 'POST':
+        # Form parsing consumes the input stream. Preserve the exact multipart
+        # body for settings and non-plugin uploads that still go upstream.
+        request.get_data(cache=True)
+    raw_path = request.args.get('path') or request.form.get('path') or '/'
+    relative = _plugin_relative_path(fs_dir, raw_path)
+    action = request.args.get('action')
+    filename = request.args.get('filename', '')
+    targets = []
+    for upload in request.files.values():
+        name = (upload.filename or '').replace('\\', '/')
+        target = os.path.join(raw_path, os.path.basename(name)) if raw_path != '/' else name
+        targets.append(_plugin_relative_path(fs_dir, target))
+    affected = relative is not None or any(target is not None for target in targets)
+    if action and _plugin_relative_path(fs_dir, os.path.join(raw_path, filename)) is not None:
+        affected = True
+    if not affected:
+        return None
+
+    # The checkout is edited in the IDE. Plugin install/delete operations must
+    # not accidentally modify the device copies behind this virtual mount.
+    if request.method == 'POST':
+        if targets and all(target is not None and target.endswith('/settings.json') for target in targets):
+            return None
+        return {'error': 'Local plugin code is read-only through the proxy; edit files in the plugin directory.'}, 403
+    if action:
+        if filename == 'settings.json' and action == 'delete':
+            return None
+        return {'error': 'Manage local plugin folders on disk, or use --device-plugins.'}, 403
+
+    files = []
+    if fs_dir == 'sd':
+        # send_from_directory performs traversal checks for asset reads; apply
+        # the same containment rule to directory listings as well.
+        directory = os.path.realpath(os.path.join(plugins_dir, relative))
+        root = os.path.realpath(plugins_dir)
+        if os.path.commonpath([root, directory]) != root or not os.path.isdir(directory):
+            return ('Not found', 404)
+        for name in sorted(os.listdir(directory)):
+            path = os.path.join(directory, name)
+            if name.startswith('.'):
+                continue
+            is_dir = os.path.isdir(path)
+            files.append({'name': name, 'shortname': name, 'size': '-1' if is_dir else str(os.path.getsize(path)),
+                          'isDir': is_dir, 'datetime': ''})
+    # FigUI scans both filesystems. Expose the local mount only once, as SD.
+    return {'files': files, 'path': '/plugins' + ('/' + relative if relative else ''),
+            'total': 0, 'used': 0, 'occupation': 0, 'status': 'Ok'}
+
+def _proxy_file(fs_dir, filename):
+    relative = _plugin_relative_path(fs_dir, filename)
+    if local_plugins and relative is not None and os.path.basename(relative) != 'settings.json':
+        return _serve_local_plugin(relative)
+    return do_proxy(request)
+
 @app.route('/')
 def index():
     return send_from_directory('dist', 'index.html.gz')
@@ -688,12 +774,20 @@ def do_command():
 @app.route('/upload', methods=['GET', 'POST'])
 def upload():
     if proxy:
+        if local_plugins:
+            response = _local_plugin_files('sd')
+            if response is not None:
+                return response
         return do_proxy(request)
     return handle_fs_action('sd', request)
 
 @app.route('/files', methods=['GET', 'POST'])
 def do_files():
     if proxy:
+        if local_plugins:
+            response = _local_plugin_files('localfs')
+            if response is not None:
+                return response
         return do_proxy(request)
     return handle_fs_action('localfs', request)
 
@@ -701,40 +795,53 @@ def do_files():
 
 @app.route('/sd/<path:filename>')
 def serve_sd_file(filename):
+    if proxy:
+        return _proxy_file('sd', filename)
     return _serve_fs_file('sd', filename)
 
 @app.route('/ext/<path:filename>')
 def serve_ext_file(filename):
+    if proxy:
+        return _proxy_file('localfs', filename)
     return _serve_fs_file('localfs', filename)
 
 @app.route('/localfs/<path:filename>')
 def serve_localfs_file(filename):
+    if proxy:
+        return _proxy_file('localfs', filename)
     return _serve_fs_file('localfs', filename)
 
 @app.route('/plugins/registry.json')
 def serve_plugin_registry():
-    return send_from_directory('plugins', 'registry.json')
+    return _serve_local_plugin('registry.json')
 
 @app.route('/plugins/<path:filename>')
 def serve_plugin_file(filename):
+    if proxy:
+        return _proxy_file('localfs', os.path.join('plugins', filename))
     local_file = _fs_path('localfs', os.path.join('plugins', filename))
     if _is_deleted(local_file):
         return ('Not found', 404)
     if os.path.isfile(local_file):
         return send_file(local_file)
-    return send_from_directory('plugins', filename)
+    return send_from_directory(plugins_dir, filename)
 
 @app.route('/<path:filename>')
 def serve_internal_file(filename):
+    if proxy:
+        return do_proxy(request)
     return _serve_fs_file('localfs', filename)
 
 # ─── Start ────────────────────────────────────────────────────────────────────
 
-_ensure_sim_storage()
-threading.Thread(target=start_ws_thread, daemon=True).start()
+if __name__ == '__main__':
+    _ensure_sim_storage()
+    threading.Thread(target=start_ws_thread, daemon=True).start()
 
-print(f'Mode : {"proxy → " + fluidnc_ip if proxy else "standalone simulation"}')
-print(f'HTTP : http://localhost:{http_port}')
-print(f'WS   : ws://localhost:{ws_port}')
-print()
-app.run(host='0.0.0.0', port=http_port, threaded=True)
+    print(f'Mode : {"proxy → " + fluidnc_ip if proxy else "standalone simulation"}')
+    if local_plugins:
+        print(f'Plugins : local → {plugins_dir} (saved settings remain on the device)')
+    print(f'HTTP : http://localhost:{http_port}')
+    print(f'WS   : ws://localhost:{ws_port}')
+    print()
+    app.run(host='0.0.0.0', port=http_port, threaded=True)

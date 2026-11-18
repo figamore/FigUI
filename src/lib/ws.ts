@@ -976,10 +976,21 @@ export function resumeBackgroundTraffic() {
  * status polling remains active, which lets an acknowledged G-code stream
  * track Run/Hold/Idle without mistaking query acknowledgements for job lines.
  */
-export function suspendResponseTraffic() {
+function suspendResponseTraffic() {
   responseTrafficSuspensions++
   stopGcStatePoll()
   if (socket?.readyState === WebSocket.OPEN) startStatusPoll()
+}
+
+export function isResponseTrafficSuspended() {
+  return responseTrafficSuspensions > 0
+}
+
+/** Claim the acknowledgement lane without taking it from another sender. */
+export function trySuspendResponseTraffic() {
+  if (responseTrafficSuspensions > 0 || isLineInputHeldByJob() || !isSocketOpen()) return false
+  suspendResponseTraffic()
+  return true
 }
 
 /**

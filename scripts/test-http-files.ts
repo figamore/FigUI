@@ -232,6 +232,15 @@ const chunked = (stallAfterFirst: boolean) => (_url: URL, init?: RequestInit) =>
 }))
 reply = chunked(true)
 await withFastTimers(() => assert.rejects(http.fetchFileContent('/sd/a.nc'), /HTTP timeout/))
+reply = (url, init) => {
+  assert.equal(url.pathname, '/sd/robot%20program.nc')
+  assert.equal(init?.cache, 'no-store')
+  return chunked(false)(url, init)
+}
+assert.equal(await http.fetchFileContent('/robot program.nc', 'sd', { cache: 'no-store' }), 'G0 X1 ; ölçü\n')
+await withFastTimers(() => assert.rejects(
+  http.fetchFileContent('/robot program.nc', 'sd', { cache: 'no-store', timeoutMs: 45_000 }), /HTTP timeout/,
+))
 reply = chunked(false)
 // A character split between two chunks survives.
 assert.equal(await withFastTimers(() => http.fetchFileContent('/sd/a.nc')), 'G0 X1 ; ölçü\n')

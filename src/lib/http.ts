@@ -86,11 +86,17 @@ function serializeFilesystem<T>(fs: Filesystem, fn: () => Promise<T>): Promise<T
 // preview on a slow link is not cut off.
 const FILESYSTEM_STALL_TIMEOUT_MS = 20_000
 
-async function fetchFilesystemText(url: string): Promise<string> {
+interface FileReadOptions {
+  cache?: RequestCache
+  timeoutMs?: number
+}
+
+async function fetchFilesystemText(url: string, options?: FileReadOptions): Promise<string> {
   const ctl = new AbortController()
+  const deadline = options?.timeoutMs ? setTimeout(() => ctl.abort(), options.timeoutMs) : undefined
   let timer = setTimeout(() => ctl.abort(), FILESYSTEM_STALL_TIMEOUT_MS)
   try {
-    const res = await fetch(url, { signal: ctl.signal })
+    const res = await fetch(url, { signal: ctl.signal, cache: options?.cache })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     if (!res.body) return await res.text()
     const reader = res.body.getReader()
@@ -108,6 +114,7 @@ async function fetchFilesystemText(url: string): Promise<string> {
     throw e
   } finally {
     clearTimeout(timer)
+    clearTimeout(deadline)
   }
 }
 
@@ -380,9 +387,9 @@ function mountedFilePath(fullPath: string, fs: Filesystem): string {
     : fullPath
 }
 
-export function fetchFileContent(fullPath: string, fs: Filesystem = 'sd'): Promise<string> {
+export function fetchFileContent(fullPath: string, fs: Filesystem = 'sd', options?: FileReadOptions): Promise<string> {
   return serializeFilesystem(fs, () =>
-    fetchFilesystemText(`${base}${encodeFilePath(mountedFilePath(fullPath, fs))}`))
+    fetchFilesystemText(`${base}${encodeFilePath(mountedFilePath(fullPath, fs))}`, options))
 }
 
 export function downloadFile(fullPath: string, filename: string, fs: Filesystem): Promise<void> {

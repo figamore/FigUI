@@ -152,6 +152,8 @@ function deriveControllerSettingsFromFluidNCSettings(settings: FluidNCSetting[])
     const maxRate = getSettingNumber(settings, `axes/${axis}/max_rate_mm_per_min`)
       ?? getSettingNumber(settings, `Grbl/MaxRate/${axis}`)
     if (maxRate !== undefined) derived[`maxRate${axis}`] = maxRate
+    const acceleration = getSettingNumber(settings, `axes/${axis}/acceleration_mm_per_sec2`)
+    if (acceleration !== undefined) derived[`accel${axis}`] = acceleration
   }
   const reportInches = getSettingBoolean(settings, 'report_inches')
     ?? getSettingBoolean(settings, 'report/inches')

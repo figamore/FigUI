@@ -5,6 +5,7 @@ import { useGCodeStore } from './gcode'
 import {
   getLastDisconnectReason,
   isResponseTrafficQuiescent,
+  isResponseTrafficSuspended,
   isSocketOpen,
   isStreamTransportWritable,
   onLine,
@@ -14,7 +15,7 @@ import {
   sendExclusiveResponseCommand,
   sendRealtimeNow,
   sendStreamRaw,
-  suspendResponseTraffic,
+  trySuspendResponseTraffic,
 } from '../lib/ws'
 
 export type SenderPhase = 'idle' | 'streaming' | 'paused' | 'draining' | 'completed' | 'aborted' | 'error'
@@ -42,14 +43,21 @@ interface SenderState {
   totalBlocks: number
   notice: string | null
   error: string | null
-  start: (text: string, fileName: string, options?: { showRuntimeEstimate?: boolean }) => boolean
+  start: (text: string, fileName: string, options?: {
+    showRuntimeEstimate?: boolean
+    trackSourcePosition?: boolean
+    validateStart?: () => boolean
+  }) => boolean
   pause: () => void
   resume: () => void
   abort: () => void
   dismiss: () => void
 }
 
-const STREAM_WINDOW_BYTES = 127
+// FluidNC's WebSocket channel advertises 256 receive bytes (WSChannel.h).
+// Leave one byte spare. The old serial-sized window serialized six-axis lines
+// behind individual network round trips, starving short robot motion blocks.
+const STREAM_WINDOW_BYTES = 255
 //Bound response count as well as byte count so a burst of tiny commands cannot fill it with `ok`s.
 const STREAM_WINDOW_BLOCKS = 8
 const MAX_COMMAND_BYTES = 240
@@ -88,6 +96,8 @@ let previousReportInterval: number | null = null
 let autoReportChanged = false
 let finishing = false
 let resettingAfterError = false
+let trackSourcePosition = true
+let validateStreamStart: (() => boolean) | null = null
 let wakeLock: { release: () => Promise<void> } | null = null
 let wakeLockPending = false
 
@@ -268,6 +278,7 @@ interface FinishRequest {
 }
 
 function finalizeFinish(request: FinishRequest) {
+  validateStreamStart = null
   previousReportInterval = null
   autoReportChanged = false
   releaseExclusiveTraffic()
@@ -278,7 +289,7 @@ function finalizeFinish(request: FinishRequest) {
 function finish(phase: 'completed' | 'aborted' | 'error', error: string | null = null) {
   if (finishing) return
   finishing = true
-  const trackedLine = phase === 'error' ? useGCodeStore.getState().activeSourceLine : null
+  const trackedLine = phase === 'error' && trackSourcePosition ? useGCodeStore.getState().activeSourceLine : null
   const failureLine = phase === 'error' ? trackedLine ?? lastAcknowledgedLine : null
   const request: FinishRequest = {
     phase,
@@ -408,6 +419,10 @@ async function configureStreamAutoReporting() {
     }
   }
 
+  if (validateStreamStart && !validateStreamStart()) {
+    finish('error', 'The machine moved or became unavailable while preparing the stream. Plan again from its current position.')
+    return
+  }
   responseChannelReady = true
   pump()
 }
@@ -486,7 +501,7 @@ export const useGCodeSenderStore = create<SenderState>((set, get) => ({
 
   start: (text, fileName, options) => {
     const machine = useMachineStore.getState()
-    if (!isSocketOpen() || !machine.connected || machine.status.state !== 'Idle') return false
+    if (!isSocketOpen() || !machine.connected || machine.status.state !== 'Idle' || isResponseTrafficSuspended()) return false
     if (['streaming', 'paused', 'draining'].includes(get().phase)) return false
 
     const built = buildStreamBlocks(text)
@@ -505,6 +520,8 @@ export const useGCodeSenderStore = create<SenderState>((set, get) => ({
       return false
     }
 
+    if (!trySuspendResponseTraffic()) return false
+
     blocks = built.blocks
     pendingBlocks = []
     nextBlock = 0
@@ -521,8 +538,9 @@ export const useGCodeSenderStore = create<SenderState>((set, get) => ({
     previousReportInterval = null
     autoReportChanged = false
     finishing = false
+    trackSourcePosition = options?.trackSourcePosition !== false
+    validateStreamStart = options?.validateStart ?? null
     clearTimers()
-    suspendResponseTraffic()
     ownsExclusiveTraffic = true
     set({
       phase: 'streaming',

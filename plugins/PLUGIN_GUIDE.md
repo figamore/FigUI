@@ -20,6 +20,9 @@ Plugins are self-contained HTML files that run inside FigUI and can communicate 
 - [API](#api)
   - [getStatus](#getstatus)
   - [sendCommand](#sendcommand)
+  - [sendJog / endJog](#sendjog--endjog)
+  - [startProgramFile](#startprogramfile)
+  - [Browser program streaming](#browser-program-streaming)
   - [sendQuery](#sendquery)
   - [subscribe / unsubscribe](#subscribe--unsubscribe)
   - [readFile](#readfile)
@@ -29,6 +32,8 @@ Plugins are self-contained HTML files that run inside FigUI and can communicate 
   - [getMachineSettings](#getmachinesettings)
   - [setCloseCommand](#setclosecommand)
   - [getSettings / saveSettings](#getsettings--savesettings)
+  - [getLocalState / setLocalState](#getlocalstate--setlocalstate)
+  - [getSessionState / setSessionState](#getsessionstate--setsessionstate)
 - [Minimal example](#minimal-example)
 - [Installing a plugin](#installing-a-plugin)
 - [Publishing to the store](#publishing-to-the-store)
@@ -210,8 +215,9 @@ body {
 | `--info` | Blue — informational |
 | `--purple` | Purple |
 | `--teal` | Teal |
+| `--plugin-color-scheme` | Host color scheme for native form controls |
 
-Theme changes (light/dark switch) are pushed to your plugin automatically via `postMessage` — no action needed on your end.
+FigUI updates these variables when the theme changes. Set `color-scheme: var(--plugin-color-scheme, dark)` to match native controls to the host theme.
 
 ---
 
@@ -247,7 +253,7 @@ window.addEventListener('message', e => {
 ### Methods
 
 #### `getStatus`
-Returns the current machine status snapshot.
+Returns the current machine status snapshot. Treat `state: "Unknown"` as unavailable feedback, even if the snapshot includes cached positions.
 
 ```js
 const status = await call('getStatus')
@@ -262,14 +268,65 @@ const status = await call('getStatus')
 ```
 
 #### `sendCommand`
-Sends a G-code command via WebSocket. Fire-and-forget — no response data.
+Queues a G-code command for WebSocket delivery. The response reports whether FigUI accepted the command into its queue. Use controller feedback to confirm execution.
 
 ```js
 await call('sendCommand', { command: 'G0 X0 Y0' })
 await call('sendCommand', { command: 'G10 L20 P0 X0 Y0 Z0' })
 ```
 
-Use this for all motion commands and G-code execution.
+Use this for individual G-code commands. Jogging and guarded six-axis program starts have dedicated methods below.
+
+#### `sendJog` / `endJog`
+Sends one `$J=` jog command over WebSocket and resolves with its controller acknowledgement. Only one command may await acknowledgement at a time. The plugin owns the acknowledgement channel until `endJog`; status polling continues, while background queries and program streaming are excluded. Initial acquisition waits for earlier command responses to settle.
+
+```js
+await call('sendJog', { command: '$J=G53 G90 G21 X10 F100' })
+// End the session when leaving live control or stopping.
+await call('endJog')
+```
+
+Realtime jog cancel (`sendRealtime`, byte `0x85`) also discards a destination that has not yet been sent. `endJog` and closing the plugin cancel the jog before releasing the channel. Use this API for continuous jogging that needs controller acknowledgements; HTTP queries can be blocked during motion.
+
+#### `startProgramFile`
+Dispatch a previously saved SD program after checking its six starting machine-axis positions. FigUI closes the plugin's jog session, checks the controller session and requires Idle with no open file or active browser stream before dispatching `$SD/Run` over WebSocket.
+
+```js
+const result = await call('startProgramFile', {
+  path: '/robot-studio.nc', // Relative to the SD root; no /sd prefix
+  startPosition: ['X', 'Y', 'Z', 'A', 'B', 'C'].map(axis => ({
+    axis, position: plannedStart[axis], tolerance: 0.25,
+  })),
+})
+// result.started means FigUI queued the request for WebSocket delivery.
+```
+
+Paths start with `/` and may contain letters, digits, underscores, dots, hyphens and slashes. Each axis must appear once, with finite position and positive tolerance in machine units. Use status and line events to confirm the job started and track it through completion. A lost reply leaves the start uncertain. Check the controller before retrying. Confirm job ownership before using `sendRealtime` for feed hold (`0x21`), cycle start (`0x7e`), or reset (`0x18`).
+
+#### Browser program streaming
+
+`startProgramStream` sends G-code from browser memory through the FigUI sender. It takes the same six-axis `startPosition` array as `startProgramFile`. FigUI checks the controller session, Idle state, and machine coordinates again after setting up the stream and before sending the first block.
+
+```js
+const stream = await call('startProgramStream', { gcode, startPosition })
+const { jobId } = stream
+await call('pauseProgramStream', { jobId })
+await call('resumeProgramStream', { jobId })
+await call('stopProgramStream', { jobId })
+```
+
+The start and control calls return a snapshot. Use `getProgramStreamState` to read it again. FigUI also sends the snapshot as `{ type: 'fluid-event', event: 'program-stream', data: snapshot }` while the plugin owns the stream.
+
+| Field | Meaning |
+|---|---|
+| `jobId` | Stream identifier. Pass it to pause, resume, and stop. |
+| `phase` | `streaming`, `paused`, `draining`, `completed`, `aborted`, `error`, or `idle` after dismissal. |
+| `completedBlocks`, `totalBlocks` | Acknowledged and total command blocks. |
+| `acceptedLine` | Most recent acknowledged source line, or `null`. |
+| `error` | Failure message, or `null`. |
+| `reset` | Whether the controller session generation has changed since the start. |
+
+The state query returns `null` when the plugin has no matching stream. `draining` means the command queue is exhausted and the sender is waiting for the controller to finish. Closing the plugin aborts its active browser stream. A newer FigUI host is required for both guarded program start methods.
 
 #### `sendQuery`
 Sends a command via HTTP and returns the response text. Use for commands that return data.
@@ -281,9 +338,9 @@ const modes   = await call('sendQuery', { command: '$G' })  // parser state
 ```
 
 #### `subscribe` / `unsubscribe`
-Subscribe to live events. Two events are available: `'status'` and `'line'`.
+Use these methods for the `status` and `line` events. FigUI sends `session`, `control-taken`, and `program-stream` without a subscription.
 
-**`status`** — fires whenever the machine status changes (same shape as `getStatus`):
+**`status`** sends the same shape as `getStatus` on a new machine status or a change in connection or feedback availability.
 
 ```js
 await call('subscribe', { event: 'status' })
@@ -317,12 +374,14 @@ Read a file from the device filesystem. Returns the file contents as a string.
 ```js
 const content = await call('readFile', { path: '/config.yaml' })
 const sdFile  = await call('readFile', { path: '/sd/data.txt', fs: 'sd' })
+const current = await call('readFile', { path: '/robot-studio.nc', fs: 'sd', fresh: true })
 ```
 
 | Param | Default | Description |
 |---|---|---|
 | `path` | — | Full file path |
 | `fs` | `'local'` | `'local'` for internal flash, `'sd'` for SD card |
+| `fresh` | `false` | Bypass the browser HTTP cache, e.g. when comparing or verifying a saved program |
 
 #### `writeFile`
 Write a string to a file on the device filesystem.
@@ -366,13 +425,15 @@ const info = await call('getDeviceInfo')
 ```
 
 #### `getMachineSettings`
-Returns the controller settings collected from `$$` at startup.
+Returns the controller settings collected from `$$` and FluidNC's runtime settings tree. Maximum rates and acceleration cover X/Y/Z/A/B/C.
 
 ```js
 const s = await call('getMachineSettings')
 // s.stepsPerMmX / stepsPerMmY / stepsPerMmZ  → steps per mm ($100–$102)
 // s.maxRateX    / maxRateY    / maxRateZ      → max feed rate mm/min ($110–$112)
+// s.maxRateA    / maxRateB    / maxRateC      → mapped rotary-axis feed units/min ($113–$115)
 // s.accelX      / accelY      / accelZ        → acceleration mm/s² ($120–$122)
+// s.accelA      / accelB      / accelC        → mapped rotary-axis units/s² ($123–$125)
 // s.maxTravelX  / maxTravelY  / maxTravelZ    → travel limits mm ($130–$132)
 // s.spindleMax  / spindleMin                  → spindle RPM range ($30–$31)
 // s.junctionDeviation                         → junction deviation ($11)
@@ -419,7 +480,27 @@ const settings = await call('getSettings')
 await call('saveSettings', { data: { speed: 100, units: 'mm' } })
 ```
 
-Settings are stored at `/plugins/<plugin-id>/settings.json`, co-located with the plugin files. They are automatically removed when the plugin is deleted.
+Settings are stored at `/plugins/<plugin-id>/settings.json` alongside the plugin files and are removed with the plugin. Missing or empty files return `{}`. Read failures and invalid JSON reject the request.
+
+#### `getLocalState` / `setLocalState`
+
+Browser-local JSON state, isolated by controller address and plugin ID. This survives page reloads and controller reconnects without writing to the controller. The host accesses localStorage on behalf of sandboxed plugins. Storage errors are returned to the caller; older hosts return `Unknown method`. Clearing site data removes this copy. Never treat persistent state as confirmation that the physical machine is referenced or ready for motion.
+
+```js
+const workspace = await call('getLocalState') // null when absent
+await call('setLocalState', { data: { config, waypoints } })
+```
+
+#### `getSessionState` / `setSessionState`
+Per-plugin memory retained when a plugin is closed and reopened. A connection interruption clears active `data` and archives it as `recovery` for explicit user verification after reconnecting to the same controller address. Repeated reconnect attempts retain this candidate. Controller changes, resets, alarms, firmware homing and FigUI reload discard both copies. Neither copy is written to device or browser storage. Another client taking control retains this memory and emits a `fluid-event` with `event: 'control-taken'`; stop local motion and require explicit user action before resuming, while retaining joint calibration.
+
+```js
+const session = await call('getSessionState') // { generation, reason, data, recovery }; data/recovery default to null
+await call('setSessionState', { generation: session.generation, data: { calibration } })
+// Pass data: null to clear this plugin's value.
+```
+
+Writes with an outdated generation fail with `Controller session changed`. On invalidation, open plugins receive a `fluid-event` with `event: 'session'` and the complete session snapshot without needing a subscription. Discard local motion authorization on this event. `reason: 'connection'` permits offering the recovery candidate, but is not proof that machine coordinates survived while offline. Verify calibration and fresh feedback before accepting it; recovery must not automatically enable motion. Writing new `data` (including `null`) removes that plugin's recovery candidate, so do not write `null` merely to acknowledge a connection interruption. Older hosts may omit `reason`/`recovery`, or return `Unknown method` for these APIs.
 
 ---
 

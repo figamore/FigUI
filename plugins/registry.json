@@ -112,6 +112,14 @@
       "version": "1.0.0",
       "author": "ErkanGench",
       "base": "https://raw.githubusercontent.com/figamore/FigUI/main/plugins/job-sound/"
+    },
+    {
+      "id": "robot-studio",
+      "name": "Robot Studio",
+      "description": "Six-axis robot teaching, joint jogging, path preview and single-pass program execution for FigUI.",
+      "version": "1.17.1",
+      "author": "figamore",
+      "base": "https://raw.githubusercontent.com/figamore/FigUI/main/plugins/robot-studio/"
     }
   ]
 }
