@@ -772,6 +772,38 @@ const ISOMETRIC_PHI = Math.acos(1 / Math.sqrt(3))
 const VIEW_CUBE_CHAMFER = 0.34
 const VIEW_CUBE_AXIS_EXTENSION = 0.36
 
+function ViewCubeFaceLabel({ label, transform }: { label: string; transform: string }) {
+  const textRef = useRef<SVGTextElement>(null)
+  const [scale, setScale] = useState(0.01)
+
+  useLayoutEffect(() => {
+    const bounds = textRef.current?.getBBox()
+    if (!bounds) return
+
+    // Measure at a normal font size, then fit inside the chamfered face's local coordinates.
+    const halfWidth = Math.max(-bounds.x, bounds.x + bounds.width)
+    const halfHeight = Math.max(-bounds.y, bounds.y + bounds.height)
+    setScale(Math.min(0.01, 0.86 / halfWidth, 0.35 / halfHeight))
+  }, [label])
+
+  return (
+    <text
+      ref={textRef}
+      transform={`${transform} scale(${scale})`}
+      y="5"
+      fontSize="55"
+      fill="rgba(34, 38, 45, 0.88)"
+      fontFamily="ui-sans-serif,system-ui,sans-serif"
+      fontWeight="600"
+      textAnchor="middle"
+      dominantBaseline="middle"
+      style={{ pointerEvents: 'none', userSelect: 'none' }}
+    >
+      {label}
+    </text>
+  )
+}
+
 function get3DViewCubeData(orbit: OrbitState, up: Vector3, cx: number, cy: number, s: number): ViewCubeData {
   const { forward, right, screenUp } = getOrbitCameraBasis(orbit, up)
 
@@ -3883,9 +3915,10 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
               const fillAlpha = 0.38 + visF * 0.38
               const targetId = `face-${face.label}`
               const isHovered = hoveredViewTarget === targetId
+              const label = viewFaceLabel(face.label)
               return (
                 <g key={face.label}>
-                  <title>{formatUi(__uiText("components.GCodeViewer.dynamic.8", "View {v0}"), { v0: viewFaceLabel(face.label) })}</title>
+                  <title>{formatUi(__uiText("components.GCodeViewer.dynamic.8", "View {v0}"), { v0: label })}</title>
                   <polygon
                     points={points}
                     fill={isHovered ? 'rgba(42, 194, 156, 0.88)' : `rgba(170, 176, 186, ${fillAlpha})`}
@@ -3898,20 +3931,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
                     onMouseLeave={face.isVisible ? () => setHoveredViewTarget(null) : undefined}
                   />
                   {face.isVisible && (
-                    <text
-                      transform={face.labelTransform}
-                      x="0"
-                      y="0.08"
-                      fontSize="0.55"
-                      fill="rgba(34, 38, 45, 0.88)"
-                      fontFamily="ui-sans-serif,system-ui,sans-serif"
-                      fontWeight="600"
-                      textAnchor="middle"
-                      dominantBaseline="middle"
-                      style={{ pointerEvents: 'none', userSelect: 'none' }}
-                    >
-                      {viewFaceLabel(face.label)}
-                    </text>
+                    <ViewCubeFaceLabel label={label} transform={face.labelTransform} />
                   )}
                 </g>
               )
