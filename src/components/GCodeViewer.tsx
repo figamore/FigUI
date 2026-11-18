@@ -1,6 +1,6 @@
 import { uiText as __uiText, formatUi } from '../lib/i18n'
 import { useRef, useEffect, useLayoutEffect, useState, useCallback } from 'react'
-import { Eye, Circle, Axis3D, Maximize2, Crosshair, Play, Pause, Square, CloudDrizzle, Waves, PowerOff, Zap, Orbit, Hand, ListStart, RotateCcw, FilePlus, X, AlertTriangle, Maximize, ChevronDown, Check, StepForward, Camera as CameraIcon, Columns2, Settings2, RefreshCw } from 'lucide-react'
+import { Eye, Circle, Axis3D, Maximize2, Crosshair, Play, Pause, Square, CloudDrizzle, Waves, PowerOff, Zap, Orbit, Hand, ListStart, RotateCcw, FilePlus, X, AlertTriangle, Maximize, ChevronDown, Check, StepForward, Camera as CameraIcon, Rows2, Settings2, RefreshCw } from 'lucide-react'
 import { MOVE_FEED, MOVE_RAPID, NO_TOOL, type GCodeModel, type Segment, type SegmentTable } from '../lib/gcode'
 import { useMachineStore } from '../store'
 import { useGCodeStore } from '../store/gcode'
@@ -204,7 +204,7 @@ const CAMERA_UI = {
 const VIEWER_LAYOUTS = {
   toolpath: { label: CAMERA_UI.toolpath, Icon: Eye },
   camera: { label: CAMERA_UI.camera, Icon: CameraIcon },
-  split: { label: CAMERA_UI.split, Icon: Columns2 },
+  split: { label: CAMERA_UI.split, Icon: Rows2 },
 } satisfies Record<ViewerPanelMode, { label: string, Icon: typeof Eye }>
 const VIEWER_LAYOUT_ENTRIES = Object.entries(VIEWER_LAYOUTS) as [ViewerPanelMode, typeof VIEWER_LAYOUTS[ViewerPanelMode]][]
 
@@ -3868,7 +3868,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
         }}
       />
 
-      <div className={`flex-1 min-h-0 ${viewerPanelMode === 'split' ? 'grid grid-cols-1 grid-rows-2 gap-px bg-border sm:grid-cols-2 sm:grid-rows-1' : 'flex'}`}>
+      <div className={`flex-1 min-h-0 ${viewerPanelMode === 'split' ? 'grid grid-cols-1 grid-rows-2 gap-px bg-border' : 'flex'}`}>
       <div
         hidden={viewerPanelMode === 'camera'}
         ref={containerRef}
