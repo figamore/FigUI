@@ -1,6 +1,6 @@
 import { uiText as __uiText, formatUi } from '../lib/i18n'
 import { useRef, useEffect, useLayoutEffect, useState, useCallback } from 'react'
-import { Eye, Circle, Axis3D, Maximize2, Crosshair, Navigation, Play, Pause, Square, CloudDrizzle, Waves, PowerOff, Box, Zap, Orbit, Hand, ListStart, RotateCcw, FilePlus, X, AlertTriangle, Maximize, ChevronDown, Wrench, StepForward } from 'lucide-react'
+import { Eye, Circle, Axis3D, Maximize2, Crosshair, Play, Pause, Square, CloudDrizzle, Waves, PowerOff, Zap, Orbit, Hand, ListStart, RotateCcw, FilePlus, X, AlertTriangle, Maximize, ChevronDown, Check, StepForward, Camera as CameraIcon, Columns2, Settings2, RefreshCw } from 'lucide-react'
 import { MOVE_FEED, MOVE_RAPID, NO_TOOL, type GCodeModel, type Segment, type SegmentTable } from '../lib/gcode'
 import { useMachineStore } from '../store'
 import { useGCodeStore } from '../store/gcode'
@@ -173,6 +173,60 @@ const SIMULATION_SPEED_STEP = 25
 const CONTROLLER_START_TIMEOUT_MS = 5000
 /** An error reply this soon after $SD/Run is taken as the controller refusing the file. */
 const CONTROLLER_START_ERROR_WINDOW_MS = 3000
+const MJPEG_STREAM_URL_KEY = 'fluidui.mjpegStreamUrl'
+
+type ViewerPanelMode = 'toolpath' | 'camera' | 'split'
+type ViewerMenu = 'layout' | 'options'
+
+// Kept here rather than adding a streaming library: browsers render MJPEG
+// directly in an image element, including camera streams that do not send CORS
+// headers. The text is grouped so this small optional panel stays self-contained.
+const CAMERA_UI = {
+  panelLabel: __uiText('components.GCodeViewer.camera_panel.1', 'Viewer panel'),
+  toolpath: __uiText('components.GCodeViewer.camera_toolpath.1', 'Toolpath'),
+  camera: __uiText('components.GCodeViewer.camera_tab.1', 'Camera'),
+  split: __uiText('components.GCodeViewer.camera_split.1', 'Split'),
+  streamAlt: __uiText('components.GCodeViewer.camera_stream_alt.1', 'Live camera stream'),
+  editStream: __uiText('components.GCodeViewer.camera_edit_stream.1', 'Edit camera stream'),
+  reconnect: __uiText('components.GCodeViewer.camera_reconnect.1', 'Reconnect camera stream'),
+  urlLabel: __uiText('components.GCodeViewer.camera_url_label.1', 'MJPEG stream URL'),
+  urlPlaceholder: __uiText('components.GCodeViewer.camera_url_placeholder.1', 'http://camera.local:8080/stream'),
+  save: __uiText('components.GCodeViewer.camera_save.1', 'Save stream'),
+  cancel: __uiText('components.GCodeViewer.camera_cancel.1', 'Cancel'),
+  remove: __uiText('components.GCodeViewer.camera_remove.1', 'Remove saved stream'),
+  setupTitle: __uiText('components.GCodeViewer.camera_setup_title.1', 'Connect a camera'),
+  setupDetail: __uiText('components.GCodeViewer.camera_setup_detail.1', 'Enter the direct URL for your MJPEG stream. It is saved only in this browser.'),
+  help: __uiText('components.GCodeViewer.camera_help.1', 'Use an http(s) MJPEG URL, such as http://camera.local:8080/stream.'),
+  invalidUrl: __uiText('components.GCodeViewer.camera_invalid_url.1', 'Enter a valid http(s) stream URL.'),
+  error: __uiText('components.GCodeViewer.camera_error.1', 'The camera stream could not be loaded. Check the URL and any mixed-content warning from your browser.'),
+}
+
+const VIEWER_LAYOUTS = {
+  toolpath: { label: CAMERA_UI.toolpath, Icon: Eye },
+  camera: { label: CAMERA_UI.camera, Icon: CameraIcon },
+  split: { label: CAMERA_UI.split, Icon: Columns2 },
+} satisfies Record<ViewerPanelMode, { label: string, Icon: typeof Eye }>
+const VIEWER_LAYOUT_ENTRIES = Object.entries(VIEWER_LAYOUTS) as [ViewerPanelMode, typeof VIEWER_LAYOUTS[ViewerPanelMode]][]
+
+const VIEWER_MENU_CLASS = 'absolute top-full mt-1.5 max-h-[min(24rem,42vh,var(--viewer-menu-room,100vh))] max-w-[calc(100%-1rem)] overflow-y-auto overscroll-contain rounded-lg border border-border bg-surface p-1.5 text-sm shadow-lg'
+const VIEWER_MENU_ROW_CLASS = 'flex min-h-8 w-full items-center gap-2.5 rounded px-2 py-1.5 text-start text-text-primary transition-colors hover:bg-elevated focus-visible:bg-elevated'
+
+function loadMjpegStreamUrl() {
+  try {
+    return typeof window === 'undefined' ? '' : localStorage.getItem(MJPEG_STREAM_URL_KEY) ?? ''
+  } catch {
+    return ''
+  }
+}
+
+function normalizeMjpegStreamUrl(value: string) {
+  try {
+    const url = new URL(value.trim(), window.location.href)
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.href : null
+  } catch {
+    return null
+  }
+}
 
 const ENTRY_MARKER_LINE = [0.13, 0.77, 0.37, 1.0] as const
 const ENTRY_MARKER_FILL = [0.13, 0.77, 0.37, 0.26] as const
@@ -1473,11 +1527,105 @@ function ViewerOverrideControl({
   )
 }
 
+function MjpegCamera({ streamUrl, onSave }: { streamUrl: string, onSave: (url: string | null) => void }) {
+  const [editing, setEditing] = useState(!streamUrl)
+  const [draft, setDraft] = useState(streamUrl)
+  const [error, setError] = useState<string | null>(null)
+  const [reloadKey, setReloadKey] = useState(0)
+
+  useEffect(() => {
+    setDraft(streamUrl)
+    if (!streamUrl) setEditing(true)
+  }, [streamUrl])
+
+  function save(event: React.FormEvent) {
+    event.preventDefault()
+    const url = normalizeMjpegStreamUrl(draft)
+    if (!url) {
+      setError(CAMERA_UI.invalidUrl)
+      return
+    }
+    setError(null)
+    onSave(url)
+    setEditing(false)
+    setReloadKey(key => key + 1)
+  }
+
+  if (editing) {
+    return (
+      <section className="flex min-h-0 min-w-0 flex-1 flex-col items-center overflow-y-auto bg-elevated/30 p-3">
+        <form className="my-auto w-full max-w-md shrink-0 space-y-4 rounded-xl border border-border bg-surface p-5 shadow-sm" onSubmit={save}>
+          <div className="flex items-center gap-2 text-text-primary">
+            <CameraIcon size={20} className="text-accent" />
+            <h2 className="font-semibold">{CAMERA_UI.setupTitle}</h2>
+          </div>
+          <p className="text-sm leading-relaxed text-text-muted">{CAMERA_UI.setupDetail}</p>
+          <label className="block space-y-1.5">
+            <span className="text-xs font-semibold uppercase tracking-wide text-text-muted">{CAMERA_UI.urlLabel}</span>
+            <input
+              type="url"
+              inputMode="url"
+              className="w-full rounded border border-border bg-elevated px-3 py-2 font-mono text-sm text-text-primary outline-none transition-colors placeholder:text-text-dim focus:border-accent"
+              value={draft}
+              onChange={event => { setDraft(event.target.value); setError(null) }}
+              placeholder={CAMERA_UI.urlPlaceholder}
+              aria-label={CAMERA_UI.urlLabel}
+            />
+          </label>
+          <p className="text-xs leading-relaxed text-text-muted">{CAMERA_UI.help}</p>
+          {error && <p className="text-sm text-danger" role="alert">{error}</p>}
+          <div className="flex flex-wrap items-center gap-2">
+            <button className="btn btn-ok-solid" type="submit">{CAMERA_UI.save}</button>
+            {streamUrl && (
+              <>
+                <button className="btn btn-ghost" type="button" onClick={() => { setEditing(false); setDraft(streamUrl); setError(null) }}>{CAMERA_UI.cancel}</button>
+                <button className="btn btn-ghost text-danger hover:border-danger/50" type="button" onClick={() => onSave(null)}>{CAMERA_UI.remove}</button>
+              </>
+            )}
+          </div>
+        </form>
+      </section>
+    )
+  }
+
+  return (
+    <section className="relative flex min-h-0 min-w-0 flex-1 items-center justify-center overflow-hidden bg-black">
+      <img
+        key={`${streamUrl}:${reloadKey}`}
+        src={streamUrl}
+        alt={CAMERA_UI.streamAlt}
+        className="h-full w-full object-contain"
+        onLoad={() => setError(null)}
+        onError={() => setError(CAMERA_UI.error)}
+      />
+      <div className="absolute right-3 top-3 flex gap-1.5">
+        <button className="rounded border border-border bg-surface/85 p-2 text-text-primary shadow-sm backdrop-blur-sm hover:border-accent hover:text-accent" type="button" onClick={() => setReloadKey(key => key + 1)} title={CAMERA_UI.reconnect} aria-label={CAMERA_UI.reconnect}>
+          <RefreshCw size={15} />
+        </button>
+        <button className="rounded border border-border bg-surface/85 p-2 text-text-primary shadow-sm backdrop-blur-sm hover:border-accent hover:text-accent" type="button" onClick={() => setEditing(true)} title={CAMERA_UI.editStream} aria-label={CAMERA_UI.editStream}>
+          <Settings2 size={15} />
+        </button>
+      </div>
+      {error && (
+        <div className="absolute inset-x-4 bottom-4 rounded border border-danger/40 bg-surface/90 px-3 py-2 text-center text-sm text-danger shadow-sm backdrop-blur-sm" role="alert">
+          {error}
+        </div>
+      )}
+    </section>
+  )
+}
+
 export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSignal }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const webglCanvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const localFileInputRef = useRef<HTMLInputElement>(null)
+  const [viewerPanelMode, setViewerPanelMode] = useState<ViewerPanelMode>('toolpath')
+  const [openViewerMenu, setOpenViewerMenu] = useState<ViewerMenu | null>(null)
+  const layoutButtonRef = useRef<HTMLButtonElement>(null)
+  const optionsButtonRef = useRef<HTMLButtonElement>(null)
+  const viewerMenuRef = useRef<HTMLDivElement>(null)
+  const [mjpegStreamUrl, setMjpegStreamUrl] = useState(loadMjpegStreamUrl)
   const model = useGCodeStore(s => s.model)
   const fileName = useGCodeStore(s => s.fileName)
   const loadedPath = useGCodeStore(s => s.loadedPath)
@@ -1518,7 +1666,6 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
   const sourceLineStartsRef = useRef<{ text: string; starts: Uint32Array } | null>(null)
   const [showTool, setShowTool] = useState(true)
   const [hiddenTools, setHiddenTools] = useState<Set<number>>(() => new Set())
-  const [showToolPathMenu, setShowToolPathMenu] = useState(false)
   const [fileDragStatus, setFileDragStatus] = useState<'idle' | 'valid' | 'invalid' | 'unknown'>('idle')
   const [senderExecutionProgressPercent, setSenderExecutionProgressPercent] = useState<number | null>(null)
   const showRapidsRef = useRef(true)
@@ -1558,6 +1705,53 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
   const [simulationWallElapsedSeconds, setSimulationWallElapsedSeconds] = useState(0)
   const [simulationTotalSeconds, setSimulationTotalSeconds] = useState<number | null>(null)
   const [simulationSpeedPercent, setSimulationSpeedPercent] = useState(100)
+
+  const saveMjpegStreamUrl = useCallback((url: string | null) => {
+    try {
+      if (url) localStorage.setItem(MJPEG_STREAM_URL_KEY, url)
+      else localStorage.removeItem(MJPEG_STREAM_URL_KEY)
+    } catch { /* The stream still works for this session if storage is unavailable. */ }
+    setMjpegStreamUrl(url ?? '')
+  }, [])
+
+  useLayoutEffect(() => {
+    if (!openViewerMenu) return
+    const trigger = (openViewerMenu === 'layout' ? layoutButtonRef : optionsButtonRef).current
+    const menu = viewerMenuRef.current
+    const viewport = containerRef.current?.parentElement
+    const resize = viewport && menu ? new ResizeObserver(fitMenu) : null
+
+    function fitMenu() {
+      if (!menu || !viewport) return
+      const height = viewport.getBoundingClientRect().height - 12
+      menu.style.setProperty('--viewer-menu-room', `${Math.max(0, height)}px`)
+    }
+
+    if (viewport) resize?.observe(viewport)
+    fitMenu()
+
+    function closeOnOutside(event: Event) {
+      const target = event.target as Node
+      if (!trigger?.contains(target) && !viewerMenuRef.current?.contains(target)) setOpenViewerMenu(null)
+    }
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key !== 'Escape' || event.defaultPrevented) return
+      event.preventDefault()
+      setOpenViewerMenu(null)
+      trigger?.focus()
+    }
+
+    document.addEventListener('pointerdown', closeOnOutside)
+    document.addEventListener('focusin', closeOnOutside)
+    document.addEventListener('keydown', closeOnEscape)
+    return () => {
+      resize?.disconnect()
+      document.removeEventListener('pointerdown', closeOnOutside)
+      document.removeEventListener('focusin', closeOnOutside)
+      document.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [openViewerMenu])
 
   useEffect(() => {
     if (!fitToViewSignal) return
@@ -2278,7 +2472,6 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
   const is3DToggleDisabled = pendingPath !== null || isProcessing2D || (!!model && !is3DReady)
   const [autoFollow, setAutoFollow] = useState(true)
   const [followMode, setFollowMode] = useState<FollowMode>(() => getStoredFollowMode())
-  const [showFollowMenu, setShowFollowMenu] = useState(false)
   const [coolantState, setCoolantState] = useState<'off' | 'mist' | 'flood'>('off')
   const [showRestartFromLine, setShowRestartFromLine] = useState(false)
   const [showLocalSenderWarning, setShowLocalSenderWarning] = useState(false)
@@ -2347,7 +2540,6 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
       if (simulationPhaseRef.current !== 'idle') stopSimulation()
       progressRef.current = null
       setHiddenTools(new Set())
-      setShowToolPathMenu(false)
     }
     if (model && modelChanged) {
       needsFitRef.current = true
@@ -2653,6 +2845,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
 
   function render() {
     const { w, h } = canvasLogicalSize()
+    if (w < 1 || h < 1) return
 
     if (is3D) {
       const webglCanvas = webglCanvasRef.current
@@ -2875,7 +3068,6 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
   function chooseFollowMode(mode: FollowMode) {
     setFollowMode(mode)
     localStorage.setItem(FOLLOW_MODE_KEY, mode)
-    setShowFollowMenu(false)
     followReleasedByPanRef.current = false
     setAutoFollow(true)
     centerOnRunningTool()
@@ -2991,7 +3183,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
     prevModelRef.current = model
 
     // Leave the view alone while a 2D drag is in progress; the drag rebuilds the offset from where it started.
-    if (isRunning && autoFollow && showTool && !dragRef.current) {
+    if (viewerPanelMode !== 'camera' && isRunning && autoFollow && showTool && !dragRef.current) {
       if (followMode === 'center') centerViewOn(status.wpos.x, status.wpos.y)
       else ensureToolVisible(status.wpos.x, status.wpos.y)
     }
@@ -3027,6 +3219,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
     controllerSettings.machineMaxY,
     units,
     is3D,
+    viewerPanelMode,
     setActiveSourceLine,
   ])
 
@@ -3058,6 +3251,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
 
     const ro = new ResizeObserver(() => {
       const rect = container.getBoundingClientRect()
+      if (rect.width < 1 || rect.height < 1) return
       const dpr = window.devicePixelRatio || 1
 
       if (canvas2d) {
@@ -3412,6 +3606,39 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
   const toolList = model?.tools ?? []
   const showToolPathControls = toolList.length > 1
   const visibleToolCount = showToolPathControls ? toolList.length - hiddenTools.size : 0
+  const showOpenFile = !isJobRunning && !isJobHeld && !simulationActive
+  const showEmptyFilePicker = !model && !loading && viewerPanelMode !== 'camera'
+  const layout = VIEWER_LAYOUTS[viewerPanelMode]
+  const LayoutIcon = layout.Icon
+  const toolbarButtonClass = `inline-flex shrink-0 items-center justify-center gap-1.5 rounded-md px-2 text-sm font-medium text-text-muted transition-colors hover:bg-elevated hover:text-text-primary ${isTablet ? 'min-h-10' : 'min-h-8'}`
+  const viewOptionsLabel = __uiText("components.GCodeViewer.view_options.1", "View options")
+  const preparing3D = __uiText("components.GCodeViewer.3d_preview_is_still_being_prepared.1", "3D preview is still being prepared")
+  const toggle3DLabel = __uiText("components.GCodeViewer.toggle_3d_view.1", "Toggle 3D view")
+  const offLabel = __uiText("components.GCodeViewer.off.1", "Off")
+  const openFileTitle = __uiText("components.GCodeViewer.open_a_g_code_file_from_this_device.1", "Open a G-code file from this device")
+  const visibilityOptions = [
+    {
+      label: __uiText("components.GCodeViewer.rapids.1", "Rapids"),
+      title: __uiText("components.GCodeViewer.toggle_rapid_moves_dashed_blue_line.1", "Toggle rapid moves (dashed blue lines)"),
+      Icon: Eye,
+      visible: showRapids,
+      toggle: () => setShowRapids(!showRapids),
+    },
+    ...(!is3D ? [{
+      label: __uiText("components.GCodeViewer.plunges.1", "Plunges"),
+      title: __uiText("components.GCodeViewer.toggle_plunge_markers_circles_at_do.1", "Toggle plunge markers (circles at downward Z feed moves)"),
+      Icon: Circle,
+      visible: showPlunges,
+      toggle: () => setShowPlunges(!showPlunges),
+    }] : []),
+    {
+      label: __uiText("components.GCodeViewer.tool_position.1", "Tool position"),
+      title: __uiText("components.GCodeViewer.toggle_tool_position_marker.1", "Toggle tool position marker"),
+      Icon: Crosshair,
+      visible: showTool,
+      toggle: () => setShowTool(v => !v),
+    },
+  ]
 
   function toggleToolPath(tool: number) {
     setHiddenTools(prev => {
@@ -3429,186 +3656,223 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
 
   return (
     <div className={`panel flex flex-col overflow-hidden ${className ?? ''}`}>
-      <div className="panel-header !flex-col !items-stretch sm:!flex-row sm:!flex-wrap sm:!items-center sm:justify-between gap-y-1.5">
-        {!isTablet && (
-        <div className="flex items-center gap-2 min-w-0 sm:min-w-24 sm:flex-1">
-          {fileName ? (
-            <span
-              className="text-text-primary font-mono normal-case tracking-normal font-normal truncate text-sm min-w-0"
-              title={fileName}
-            >
-              {fileName}
-            </span>
-          ) : (
-            <span className="text-text-dim text-sm normal-case tracking-normal truncate min-w-0">{__uiText("components.GCodeViewer.no_file_loaded.1", "No file loaded")}</span>
-          )}
-          {isLocalFile && <span className="tag border-info/30 bg-info/10 text-info normal-case tracking-normal">{__uiText("components.GCodeViewer.local.1", "Local")}</span>}
-          {restoredFromCache && <span className="tag normal-case tracking-normal" title={__uiText("components.GCodeViewer.preview_restored_from_this_browser_.1", "Preview restored from this browser's saved copy")}>{__uiText("components.GCodeViewer.cached.1", "Cached")}</span>}
-          {restartSource && (
-            <span className="px-1.5 py-0.5 rounded text-xs font-semibold text-accent bg-accent/10 border border-accent/25 shrink-0" title={formatUi(__uiText("components.GCodeViewer.dynamic.4", "Prepared from {v0}, requested line {v1}"), { v0: restartSource.fileName, v1: restartSource.requestedLine })}>
-              {__uiText("components.GCodeViewer.coverage.1", "Restart L")}{restartSource.resumeLine}
-            </span>
-          )}
-          {isLargeProgressOverlayDisabled && (
-            <span
-              className="px-1.5 py-0.5 rounded text-sm text-text-dim bg-elevated shrink-0"
-              title={formatUi(__uiText("components.GCodeViewer.dynamic.5", "Toolpath completion overlay disabled above {v0} segments while a job is running"), { v0: LARGE_PROGRESS_OVERLAY_SEGMENT_LIMIT.toLocaleString() })}
-            >
-              {__uiText("components.GCodeViewer.progress_overlay_off.1", "Progress overlay off")}
-            </span>
-          )}
-          {!loading && isProcessing3D && (
-            <span
-              className="px-1.5 py-0.5 rounded text-sm text-text-dim bg-elevated shrink-0"
-              title={__uiText("components.GCodeViewer.3d_preview_is_still_being_prepared_.1", "3D preview is still being prepared in the background")}
-            >
-              3D {processing3DProgress}%
-            </span>
-          )}
-        </div>
-        )}
-        {/* Right: toggle buttons with visible labels */}
-        <div className="flex min-w-0 max-w-full items-center gap-1 flex-wrap justify-start sm:justify-end sm:ml-auto sm:flex-[0_1_auto]">
-          <input
-            ref={localFileInputRef}
-            type="file"
-            className="hidden"
-            accept={GCODE_ACCEPT_ATTRIBUTE}
-            onChange={event => {
-              const file = event.currentTarget.files?.[0]
-              if (file) void loadLocalFile(file)
-              event.currentTarget.value = ''
-            }}
-          />
-          {(() => {
-            const btnCls = isTablet
-              ? 'flex shrink-0 items-center gap-1.5 px-3 py-1.5 rounded text-base transition-colors'
-              : 'flex shrink-0 items-center gap-1 px-1.5 py-0.5 rounded text-base transition-colors'
-            const iconSize = isTablet ? 16 : 11
-            return (<>
-          <button
-            className={`${btnCls} ${is3D ? 'text-ok bg-ok/10' : 'text-text-dim bg-elevated hover:text-text-primary'} ${is3DToggleDisabled ? 'opacity-50 cursor-not-allowed hover:text-text-dim hover:bg-elevated' : ''}`}
-            onClick={() => {
-              if (is3DToggleDisabled) return
-              setIs3D(v => !v)
-              needsFitRef.current = true
-              scheduleRender()
-            }}
-            title={is3DToggleDisabled ? __uiText("components.GCodeViewer.3d_preview_is_still_being_prepared.1", "3D preview is still being prepared") : __uiText("components.GCodeViewer.toggle_3d_view.1", "Toggle 3D view")}
-            disabled={is3DToggleDisabled}
-          >
-            <Box size={iconSize} />
-            <span>3D</span>
-          </button>
-          {is3D && (
-            <>
-              <button
-                className={`${btnCls} ${projectionMode === 'orthographic' ? 'text-info bg-info/10' : 'text-text-dim bg-elevated hover:text-text-primary'}`}
-                onClick={() => setProjectionMode(mode => mode === 'perspective' ? 'orthographic' : 'perspective')}
-                title={projectionMode === 'orthographic' ? __uiText("components.GCodeViewer.switch_to_perspective_projection.1", "Switch to perspective projection") : __uiText("components.GCodeViewer.switch_to_orthographic_projection.1", "Switch to orthographic projection")}
-              >
-                <Axis3D size={iconSize} />
-                <span>{projectionMode === 'orthographic' ? __uiText("components.GCodeViewer.ortho.1", "Ortho") : __uiText("components.GCodeViewer.persp.1", "Persp")}</span>
-              </button>
-              <button
-                className={`${btnCls} ${dragMode === 'pan' ? 'text-info bg-info/10' : 'text-text-dim bg-elevated hover:text-text-primary'}`}
-                onClick={() => setDragMode(mode => mode === 'orbit' ? 'pan' : 'orbit')}
-                title={dragMode === 'orbit'
-                  ? __uiText("components.GCodeViewer.drag_to_orbit_shift_middle_or_right.1", "Drag to orbit. Shift-, middle-, or right-drag to pan.")
-                  : __uiText("components.GCodeViewer.drag_to_pan.1", "Drag to pan.")}
-              >
-                {dragMode === 'orbit' ? <Orbit size={iconSize} /> : <Hand size={iconSize} />}
-                <span>{dragMode === 'orbit' ? __uiText("components.GCodeViewer.orbit.1", "Orbit") : __uiText("components.GCodeViewer.pan.1", "Pan")}</span>
-              </button>
-            </>
-          )}
-          <button
-            className={`${btnCls} ${showRapids ? 'text-accent bg-accent/10' : 'text-text-dim bg-elevated hover:text-text-primary'}`}
-            onClick={() => setShowRapids(!showRapids)}
-            title={__uiText("components.GCodeViewer.toggle_rapid_moves_dashed_blue_line.1", "Toggle rapid moves (dashed blue lines)")}
-          >
-            <Eye size={iconSize} />
-            <span>{__uiText("components.GCodeViewer.rapids.1", "Rapids")}</span>
-          </button>
-          {!is3D && (
+      <div className="relative z-30 flex shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b border-border px-2.5 py-2">
+        <div className="flex min-w-0 flex-[1_1_7rem] items-center gap-2">
+          <div role="group" aria-label={CAMERA_UI.panelLabel} className="min-w-0 shrink-0">
             <button
-              className={`${btnCls} ${showPlunges ? 'text-accent bg-accent/10' : 'text-text-dim bg-elevated hover:text-text-primary'}`}
-              onClick={() => setShowPlunges(!showPlunges)}
-              title={__uiText("components.GCodeViewer.toggle_plunge_markers_circles_at_do.1", "Toggle plunge markers (circles at downward Z feed moves)")}
-              aria-pressed={showPlunges}
+              ref={layoutButtonRef}
+              type="button"
+              className={`${toolbarButtonClass} bg-elevated text-text-primary hover:bg-surface`}
+              onClick={() => setOpenViewerMenu(open => open === 'layout' ? null : 'layout')}
+              aria-expanded={openViewerMenu === 'layout'}
             >
-              <Circle size={iconSize} />
-              <span>{__uiText("components.GCodeViewer.plunges.1", "Plunges")}</span>
+              <LayoutIcon size={16} className="shrink-0 text-text-muted" />
+              <span>{layout.label}</span>
+              <ChevronDown size={12} className="shrink-0 text-text-muted" />
             </button>
-          )}
-          <button
-            className={`${btnCls} ${showTool ? 'text-danger bg-danger/10' : 'text-text-dim bg-elevated hover:text-text-primary'}`}
-            onClick={() => setShowTool(v => !v)}
-            title={__uiText("components.GCodeViewer.toggle_tool_position_marker.1", "Toggle tool position marker")}
-          >
-            <Crosshair size={iconSize} />
-            <span>{__uiText("components.GCodeViewer.tool.1", "Tool")}</span>
-          </button>
-          {!is3D && (
-            <div className="relative flex items-center">
-              <button
-                className={`${btnCls} rounded-r-none ${isTablet ? 'pr-1' : 'pr-0.5'} ${autoFollow ? 'text-info bg-info/10' : 'text-text-dim bg-elevated hover:text-text-primary'}`}
-                onClick={() => {
-                  const follow = !autoFollow
-                  followReleasedByPanRef.current = false
-                  setAutoFollow(follow)
-                  if (follow) centerOnRunningTool()
-                }}
-                title={formatUi(__uiText("components.GCodeViewer.dynamic.6", "Keep the tool in view while running ({v0})"), { v0: FOLLOW_MODE_OPTIONS.find(option => option.mode === followMode)?.label })}
-              >
-                <Navigation size={iconSize} />
-                <span>{__uiText("components.GCodeViewer.follow.1", "Follow")}</span>
-              </button>
-              <button
-                className={`flex items-center self-stretch rounded rounded-l-none transition-colors ${isTablet ? 'px-1' : 'px-0.5'} ${autoFollow ? 'text-info bg-info/10' : 'text-text-dim bg-elevated hover:text-text-primary'}`}
-                onClick={() => setShowFollowMenu(open => !open)}
-                title={__uiText("components.GCodeViewer.choose_how_follow_moves_the_view.1", "Choose how Follow moves the view")}
-                aria-expanded={showFollowMenu}
-              >
-                <ChevronDown size={isTablet ? 12 : 10} className={`transition-transform ${showFollowMenu ? 'rotate-180' : ''}`} />
-              </button>
-              {showFollowMenu && (
-                <div className="absolute right-0 top-full z-30 mt-1 flex w-56 flex-col gap-1 rounded border border-border bg-surface p-1 shadow-lg">
-                  {FOLLOW_MODE_OPTIONS.map(option => (
-                    <button
-                      key={option.mode}
-                      type="button"
-                      className={`w-full rounded border px-2 py-1.5 text-left text-xs transition-colors ${
-                        followMode === option.mode
-                          ? 'border-info/60 bg-info/10 text-info'
-                          : 'border-border/80 bg-surface text-text-primary hover:border-info/60'
-                      }`}
-                      onClick={() => chooseFollowMode(option.mode)}
-                    >
-                      <span className="block font-semibold">{option.label}</span>
-                      <span className="block text-text-muted">{option.detail}</span>
-                    </button>
-                  ))}
-                </div>
+            {openViewerMenu === 'layout' && (
+              <div ref={viewerMenuRef} className={`${VIEWER_MENU_CLASS} start-2.5 w-44`}>
+                {VIEWER_LAYOUT_ENTRIES.map(([mode, { label, Icon }]) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    className={VIEWER_MENU_ROW_CLASS}
+                    aria-pressed={viewerPanelMode === mode}
+                    onClick={() => {
+                      if (mode !== viewerPanelMode && (mode === 'split' || viewerPanelMode === 'split')) {
+                        needsFitRef.current = true
+                      }
+                      setViewerPanelMode(mode)
+                      setOpenViewerMenu(null)
+                      layoutButtonRef.current?.focus()
+                    }}
+                  >
+                    <Icon size={16} className="shrink-0 text-text-muted" />
+                    <span className="flex-1">{label}</span>
+                    {viewerPanelMode === mode && <Check size={15} className="shrink-0 text-accent" />}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          {!isTablet && fileName && (
+            <div className="flex min-w-0 items-center gap-1.5 border-s border-border ps-2.5">
+              <span className="min-w-0 truncate font-mono text-sm text-text-primary" title={fileName}>{fileName}</span>
+              {isLocalFile && <span className="tag border-info/30 bg-info/10 text-info">{__uiText("components.GCodeViewer.local.1", "Local")}</span>}
+              {restoredFromCache && <span className="tag" title={__uiText("components.GCodeViewer.preview_restored_from_this_browser_.1", "Preview restored from this browser's saved copy")}>{__uiText("components.GCodeViewer.cached.1", "Cached")}</span>}
+              {restartSource && (
+                <span className="shrink-0 rounded border border-accent/25 bg-accent/10 px-1.5 py-0.5 text-xs font-semibold text-accent" title={formatUi(__uiText("components.GCodeViewer.dynamic.4", "Prepared from {v0}, requested line {v1}"), { v0: restartSource.fileName, v1: restartSource.requestedLine })}>
+                  {__uiText("components.GCodeViewer.coverage.1", "Restart L")}{restartSource.resumeLine}
+                </span>
+              )}
+              {isLargeProgressOverlayDisabled && (
+                <span
+                  className="min-w-0 truncate rounded bg-elevated px-1.5 py-0.5 text-xs text-text-muted"
+                  title={formatUi(__uiText("components.GCodeViewer.dynamic.5", "Toolpath completion overlay disabled above {v0} segments while a job is running"), { v0: LARGE_PROGRESS_OVERLAY_SEGMENT_LIMIT.toLocaleString() })}
+                >
+                  {__uiText("components.GCodeViewer.progress_overlay_off.1", "Progress overlay off")}
+                </span>
               )}
             </div>
           )}
-          <button
-            className={`${btnCls} text-text-muted hover:text-text-primary hover:bg-elevated`}
-            onClick={() => fitToView()}
-            title={__uiText("components.GCodeViewer.fit_entire_path_to_view.1", "Fit entire path to view")}
-          >
-            <Maximize2 size={iconSize} />
-            <span>{__uiText("components.GCodeViewer.fit.1", "Fit")}</span>
-          </button>
-            </>)
-          })()}
         </div>
+        {viewerPanelMode !== 'camera' && (
+          <div className="ms-auto flex shrink-0 items-center gap-1.5">
+            <div className="flex items-center rounded-md bg-elevated p-0.5">
+              {[false, true].map(view3D => (
+                <button
+                  key={view3D ? '3D' : '2D'}
+                  type="button"
+                  className={`rounded px-2 py-1 text-xs font-semibold leading-5 transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${isTablet ? 'min-h-9' : ''} ${is3D === view3D ? 'bg-surface text-text-primary shadow-sm' : 'text-text-muted hover:text-text-primary'}`}
+                  aria-pressed={is3D === view3D}
+                  disabled={view3D && is3DToggleDisabled && !is3D}
+                  title={view3D ? (is3DToggleDisabled && !is3D ? preparing3D : toggle3DLabel) : undefined}
+                  onClick={() => {
+                    if (is3D === view3D) return
+                    setIs3D(view3D)
+                    needsFitRef.current = true
+                    scheduleRender()
+                  }}
+                >
+                  {view3D ? '3D' : '2D'}
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              className={toolbarButtonClass}
+              onClick={() => fitToView()}
+              title={__uiText("components.GCodeViewer.fit_entire_path_to_view.1", "Fit entire path to view")}
+            >
+              <Maximize2 size={15} className="shrink-0" />
+              <span>{__uiText("components.GCodeViewer.fit.1", "Fit")}</span>
+            </button>
+            <div className="h-5 w-px bg-border" aria-hidden="true" />
+            <button
+              ref={optionsButtonRef}
+              type="button"
+              className={`${toolbarButtonClass} ${openViewerMenu === 'options' ? 'bg-elevated text-text-primary' : ''}`}
+              onClick={() => setOpenViewerMenu(open => open === 'options' ? null : 'options')}
+              title={viewOptionsLabel}
+              aria-label={viewOptionsLabel}
+              aria-expanded={openViewerMenu === 'options'}
+            >
+              <Settings2 size={17} className="shrink-0" />
+              <span className="hidden sm:inline">{viewOptionsLabel}</span>
+            </button>
+            {openViewerMenu === 'options' && (
+              <div ref={viewerMenuRef} className={`${VIEWER_MENU_CLASS} end-2.5 w-64`}>
+                <h3 className="px-2 pb-1 pt-1 text-xs font-semibold text-text-muted">{__uiText("components.GCodeViewer.visibility.1", "Visibility")}</h3>
+                {visibilityOptions.map(({ label, title, Icon, visible, toggle }) => (
+                  <button
+                    key={label}
+                    type="button"
+                    className={VIEWER_MENU_ROW_CLASS}
+                    onClick={toggle}
+                    title={title}
+                    aria-pressed={visible}
+                  >
+                    <Icon size={15} className="shrink-0 text-text-muted" />
+                    <span className="flex-1">{label}</span>
+                    {visible && <Check size={15} className="shrink-0 text-accent" />}
+                  </button>
+                ))}
+                <div className="mt-1.5 border-t border-border pt-1.5">
+                  {is3D ? (
+                    <>
+                      <button
+                        type="button"
+                        className={VIEWER_MENU_ROW_CLASS}
+                        onClick={() => setProjectionMode(mode => mode === 'perspective' ? 'orthographic' : 'perspective')}
+                        title={projectionMode === 'orthographic' ? __uiText("components.GCodeViewer.switch_to_perspective_projection.1", "Switch to perspective projection") : __uiText("components.GCodeViewer.switch_to_orthographic_projection.1", "Switch to orthographic projection")}
+                      >
+                        <Axis3D size={15} className="shrink-0 text-text-muted" />
+                        <span className="flex-1">{__uiText("components.GCodeViewer.projection.1", "Projection")}</span>
+                        <span className="text-xs text-text-muted">{projectionMode === 'orthographic' ? __uiText("components.GCodeViewer.ortho.1", "Ortho") : __uiText("components.GCodeViewer.persp.1", "Persp")}</span>
+                      </button>
+                      <button
+                        type="button"
+                        className={VIEWER_MENU_ROW_CLASS}
+                        onClick={() => setDragMode(mode => mode === 'orbit' ? 'pan' : 'orbit')}
+                        title={dragMode === 'orbit'
+                          ? __uiText("components.GCodeViewer.drag_to_orbit_shift_middle_or_right.1", "Drag to orbit. Shift-, middle-, or right-drag to pan.")
+                          : __uiText("components.GCodeViewer.drag_to_pan.1", "Drag to pan.")}
+                      >
+                        {dragMode === 'orbit' ? <Orbit size={15} className="shrink-0 text-text-muted" /> : <Hand size={15} className="shrink-0 text-text-muted" />}
+                        <span className="flex-1">{__uiText("components.GCodeViewer.drag.1", "Drag")}</span>
+                        <span className="text-xs text-text-muted">{dragMode === 'orbit' ? __uiText("components.GCodeViewer.orbit.1", "Orbit") : __uiText("components.GCodeViewer.pan.1", "Pan")}</span>
+                      </button>
+                    </>
+                  ) : (
+                    <div className="space-y-1.5 px-2 pb-1.5 pt-0.5">
+                      <label className="block space-y-1.5">
+                        <span className="block text-xs font-semibold text-text-muted">{__uiText("components.GCodeViewer.follow.1", "Follow")}</span>
+                        <select
+                          className="min-h-8 w-full rounded border border-border bg-elevated px-2 text-sm text-text-primary focus-visible:outline-accent"
+                          value={autoFollow ? followMode : 'off'}
+                          onChange={event => {
+                            const mode = event.currentTarget.value
+                            if (mode === 'edge' || mode === 'center') chooseFollowMode(mode)
+                            else {
+                              followReleasedByPanRef.current = false
+                              setAutoFollow(false)
+                            }
+                          }}
+                        >
+                          <option value="off">{offLabel}</option>
+                          {FOLLOW_MODE_OPTIONS.map(option => <option key={option.mode} value={option.mode}>{option.label}</option>)}
+                        </select>
+                      </label>
+                      {autoFollow && <p className="text-xs leading-relaxed text-text-muted">{FOLLOW_MODE_OPTIONS.find(option => option.mode === followMode)?.detail}</p>}
+                    </div>
+                  )}
+                </div>
+                {showToolPathControls && !loading && (
+                  <div className="mt-1.5 border-t border-border pt-1.5">
+                    <h3 className="flex items-center justify-between px-2 pb-1 text-xs font-semibold text-text-muted">
+                      <span>{__uiText("components.GCodeViewer.tools.1", "Tools")}</span>
+                      <span className="tabular-nums">{visibleToolCount}/{toolList.length}</span>
+                    </h3>
+                    {toolList.map(tool => {
+                      const visible = !hiddenTools.has(tool.number)
+                      return (
+                        <button
+                          key={tool.number}
+                          type="button"
+                          className={VIEWER_MENU_ROW_CLASS}
+                          onClick={() => toggleToolPath(tool.number)}
+                          aria-pressed={visible}
+                        >
+                          <span className="mx-0.5 h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: toolPathColor(tool.number) }} />
+                          <span className="min-w-0 flex-1 truncate" title={tool.label}>{tool.label}</span>
+                          {visible && <Check size={15} className="shrink-0 text-accent" />}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
+      <input
+        ref={localFileInputRef}
+        type="file"
+        className="hidden"
+        accept={GCODE_ACCEPT_ATTRIBUTE}
+        onChange={event => {
+          const file = event.currentTarget.files?.[0]
+          if (file) void loadLocalFile(file)
+          event.currentTarget.value = ''
+        }}
+      />
 
+      <div className={`flex-1 min-h-0 ${viewerPanelMode === 'split' ? 'grid grid-cols-1 grid-rows-2 gap-px bg-border sm:grid-cols-2 sm:grid-rows-1' : 'flex'}`}>
       <div
+        hidden={viewerPanelMode === 'camera'}
         ref={containerRef}
-        className="flex-1 min-h-0 relative cursor-grab active:cursor-grabbing"
+        className="relative h-full min-h-0 min-w-0 flex-1 cursor-grab overflow-hidden bg-surface active:cursor-grabbing"
         style={{ touchAction: 'none' }}
         onDrop={onDrop}
         onDragOver={onDragOver}
@@ -3729,59 +3993,6 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
           </div>
         )}
 
-        {showToolPathControls && !loading && (
-          <div className={`absolute ${isProcessing3D ? 'top-20' : 'top-3'} left-3 z-20 ${showToolPathMenu ? 'w-[min(15rem,calc(100%-1.5rem))]' : 'w-auto'} pointer-events-none`}>
-            <div className="pointer-events-auto inline-block w-full rounded border border-border bg-surface/80 backdrop-blur-sm p-1 shadow-sm">
-              <button
-                type="button"
-                className={`h-8 inline-flex items-center justify-between gap-2 rounded px-2 text-xs font-semibold transition-colors ${showToolPathMenu ? 'w-full' : 'w-auto'} ${
-                  showToolPathMenu
-                    ? 'bg-elevated text-text-primary'
-                    : 'text-text-primary hover:bg-elevated'
-                }`}
-                onClick={() => setShowToolPathMenu(open => !open)}
-                title={__uiText("components.GCodeViewer.show_toolpath_visibility_controls.1", "Show toolpath visibility controls")}
-              >
-                <span className="inline-flex min-w-0 items-center gap-1.5">
-                  <Wrench size={12} className="shrink-0 text-text-muted" />
-                  <span className="text-text-muted">{__uiText("components.GCodeViewer.tools.1", "Tools")}</span>
-                  <span className="font-mono tabular-nums text-text-primary">{visibleToolCount}/{toolList.length}</span>
-                </span>
-                <ChevronDown
-                  size={13}
-                  className={`shrink-0 text-text-muted transition-transform ${showToolPathMenu ? 'rotate-180' : ''}`}
-                />
-              </button>
-              {showToolPathMenu && (
-                <div className="mt-1 flex flex-col gap-1">
-                  {toolList.map(tool => {
-                    const hidden = hiddenTools.has(tool.number)
-                    return (
-                      <button
-                        key={tool.number}
-                        type="button"
-                        className={`h-7 w-full min-w-0 inline-flex items-center gap-1.5 rounded border px-2 text-xs font-semibold transition-colors ${
-                          hidden
-                            ? 'border-border bg-elevated text-text-dim opacity-60'
-                            : 'border-border/80 bg-surface text-text-primary hover:border-info/60'
-                        }`}
-                        onClick={() => toggleToolPath(tool.number)}
-                        title={`${hidden ? 'Show' : 'Hide'} ${tool.label}`}
-                      >
-                        <span
-                          className="h-2 w-2 shrink-0 rounded-full"
-                          style={{ backgroundColor: toolPathColor(tool.number), opacity: hidden ? 0.35 : 1 }}
-                        />
-                        <span className="min-w-0 truncate text-left">{tool.label}</span>
-                      </button>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
         {model && !isViewerStartBlocked && !machineJobActive && (
           <div className={`absolute ${isProcessing3D ? 'top-20' : 'top-3'} right-3 left-3 sm:left-auto z-20 flex justify-end pointer-events-none`}>
             {!simulationActive ? (
@@ -3866,7 +4077,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
         )}
 
         {!model && !loading && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center text-text-dim text-2xl gap-2">
+          <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-3 px-4 text-center">
             {loadError ? (
               <>
                 <AlertTriangle size={24} className="text-warn" />
@@ -3874,9 +4085,26 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
               </>
             ) : (
               <>
-                <Eye size={24} className="opacity-30" />
-                <span>{__uiText("components.GCodeViewer.click_a_g_code_file_to_preview.1", "Click a G-code file to preview")}</span>
+                <span className="grid h-11 w-11 place-items-center rounded-lg border border-border bg-elevated text-text-muted">
+                  <Eye size={20} />
+                </span>
+                <div className="space-y-1">
+                  <div className="text-base font-semibold text-text-primary">{__uiText("components.GCodeViewer.no_file_loaded.1", "No file loaded")}</div>
+                  <p className="text-sm text-text-muted">{__uiText("components.GCodeViewer.click_a_g_code_file_to_preview.1", "Click a G-code file to preview")}</p>
+                </div>
               </>
+            )}
+            {showOpenFile && (
+              <button
+                type="button"
+                className="btn btn-ghost pointer-events-auto gap-2 text-sm"
+                onClick={() => localFileInputRef.current?.click()}
+                disabled={isRunning}
+                title={openFileTitle}
+              >
+                <FilePlus size={16} />
+                {__uiText("components.GCodeViewer.open_file.1", "Open file")}
+              </button>
             )}
           </div>
         )}
@@ -3999,6 +4227,8 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
             <text x="16" y="18" fontSize="10" fill={AXIS_Y_COLOR} fontFamily="ui-monospace,monospace" fontWeight="700">Y</text>
           </svg>
         )}
+      </div>
+      {viewerPanelMode !== 'toolpath' && <MjpegCamera streamUrl={mjpegStreamUrl} onSave={saveMjpegStreamUrl} />}
       </div>
 
       {/* Permanent bottom strip */}
@@ -4190,7 +4420,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
               className={`btn gap-1.5 job-action ${isTablet ? 'text-base' : 'text-sm'} justify-center flex-1 ${coolantState === 'off' ? 'border-danger/50 text-danger' : 'btn-ghost'}`}
             >
               <PowerOff size={isTablet ? 18 : 13} />
-              {__uiText("components.GCodeViewer.off.1", "Off")}
+              {offLabel}
             </button>
           </div>
           <div className="hidden sm:block w-px bg-border self-stretch" />
@@ -4198,13 +4428,13 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
 
         <div className={`flex flex-wrap items-center gap-1.5 ${(controllerSettings.hasMist || controllerSettings.hasFlood) ? 'sm:flex-[3]' : 'sm:ml-auto'}`}>
           <SingleBlockToggle isTablet={isTablet} unavailable={senderActive || simulationActive || (isLocalFile && !machineJobActive)} />
-          {!isJobRunning && !isJobHeld && !simulationActive && (
+          {showOpenFile && !showEmptyFilePicker && (
             <button
               className={`btn btn-ghost justify-center shrink-0 job-action px-2`}
               onClick={() => localFileInputRef.current?.click()}
               disabled={isRunning}
-              title={__uiText("components.GCodeViewer.open_a_g_code_file_from_this_device.1", "Open a G-code file from this device")}
-              aria-label={__uiText("components.GCodeViewer.open_a_g_code_file_from_this_device.2", "Open a G-code file from this device")}
+              title={openFileTitle}
+              aria-label={openFileTitle}
             >
               <FilePlus size={isTablet ? 22 : 17} />
             </button>

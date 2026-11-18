@@ -1,8 +1,7 @@
 #!/usr/bin/env node
-// Scans src/ for lucide-react icon imports and generates src/icons.tsx with
-// only the needed icons as minimal SVG components
+// Scans src/ for icon imports from lucide-react and the generated module.
 import { readFileSync, writeFileSync, readdirSync, statSync } from 'fs'
-import { join, resolve, extname } from 'path'
+import { dirname, join, resolve, extname } from 'path'
 import { fileURLToPath } from 'url'
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url))
@@ -26,13 +25,15 @@ function getAllFiles(dir, exts) {
 
 const files = getAllFiles(srcDir, ['.tsx', '.ts', '.jsx', '.js'])
 const iconNames = new Set()
-const importPattern = /import\s+(?:type\s+)?\{([^}]*)\}\s+from\s+['"]lucide-react['"]/g
+const importPattern = /import\s+\{([^}]*)\}\s+from\s+['"]([^'"]+)['"]/g
 
 for (const file of files) {
   if (file === outFile) continue
   const content = readFileSync(file, 'utf-8')
   let match
   while ((match = importPattern.exec(content)) !== null) {
+    const source = match[2]
+    if (source !== 'lucide-react' && resolve(dirname(file), `${source}.tsx`) !== outFile) continue
     for (const part of match[1].split(',')) {
       const name = part.trim().replace(/\s+as\s+\w+/, '').trim()
       if (!name || name.startsWith('type ') || name === 'LucideIcon') continue

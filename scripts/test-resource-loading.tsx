@@ -417,6 +417,9 @@ try {
     assert(layerStrokes > 0)
     assert(rings > 0, 'vertical plunges initially have rings')
 
+    const viewOptions = () => find(viewerTree, node => node.props['aria-label'] === 'View options')
+    viewOptions().props.onClick()
+    viewerTree = viewer.render()
     const plungeToggle = () => find(viewerTree, node => node.props.title?.startsWith('Toggle plunge markers'))
     plungeToggle().props.onClick()
     viewerTree = viewer.render()
@@ -432,6 +435,7 @@ try {
     assert(rings > 0, 'plunge rings can be shown again')
 
     find(viewerTree, node => node.props.title === 'Toggle tool position marker').props.onClick()
+    viewOptions().props.onClick()
     viewerTree = viewer.render()
     find(viewerTree, node => node.type === 'button' && text(node).trim() === 'Simulate').props.onClick()
     viewerTree = viewer.render()
@@ -454,6 +458,8 @@ try {
     completedDots = 0
     frame()
     assert(completedDots > 0, 'simulation fills completed plunge markers')
+    viewOptions().props.onClick()
+    viewerTree = viewer.render()
     plungeToggle().props.onClick()
     viewerTree = viewer.render()
     rings = 0
