@@ -271,12 +271,14 @@ export function DRO({
         <span className={`font-bold ${tightLayout ? 'text-base' : 'text-lg'}`}>{__uiText("components.DRO.position.1", "Position")}</span>
         <div className={`flex items-center ${tightLayout ? 'flex-wrap justify-end' : ''}`}>
           <div className={`grid grid-cols-2 items-stretch shrink-0 ${tightLayout ? 'gap-1 w-[13.5rem]' : 'gap-1.5 w-[14.5rem]'}`}>
-          <div className="flex min-w-0 overflow-hidden items-stretch gap-0.5 bg-elevated rounded-sm border border-border p-0.5">
+          <div className="segmented-control min-w-0 normal-case tracking-normal">
             {(['WPos', 'MPos'] as const).map(m => {
               const active = positionMode === m || positionMode === 'Both'
               return (
                 <button
                   key={m}
+                  type="button"
+                  aria-pressed={active}
                   onClick={() => {
                     if (m === 'WPos') {
                       if (positionMode === 'WPos') return
@@ -286,10 +288,7 @@ export function DRO({
                       setPositionMode(positionMode === 'Both' ? 'WPos' : 'Both')
                     }
                   }}
-                  className={`min-w-0 flex-1 text-center whitespace-nowrap rounded-sm transition-colors ${tightLayout ? 'px-1 py-0.5 text-sm' : 'px-2 py-0.5 text-base'} ${active
-                    ? 'bg-surface text-text-primary'
-                    : 'text-text-muted hover:text-text-primary'
-                  }`}
+                  className={`min-w-0 flex-1 whitespace-nowrap ${isTablet && !tightLayout ? 'min-h-9' : ''}`}
                 >
                   {m}
                 </button>

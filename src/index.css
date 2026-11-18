@@ -507,6 +507,18 @@ textarea {
     border-radius: 3px;
   }
 
+  .segmented-control {
+    @apply flex items-center rounded-md bg-elevated p-0.5;
+  }
+
+  .segmented-control > button {
+    @apply rounded px-2 py-1 text-xs font-semibold leading-5 text-text-muted transition-colors hover:text-text-primary;
+  }
+
+  .segmented-control > button[aria-pressed="true"] {
+    @apply bg-surface text-text-primary shadow-sm;
+  }
+
   /* ── Resize handles ───────────────────────────────────────────────────────── */
   .resize-handle {
     position: relative;

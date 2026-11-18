@@ -3718,12 +3718,12 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
         </div>
         {viewerPanelMode !== 'camera' && (
           <div className="ms-auto flex shrink-0 items-center gap-1.5">
-            <div className="flex items-center rounded-md bg-elevated p-0.5">
+            <div className="segmented-control">
               {[false, true].map(view3D => (
                 <button
                   key={view3D ? '3D' : '2D'}
                   type="button"
-                  className={`rounded px-2 py-1 text-xs font-semibold leading-5 transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${isTablet ? 'min-h-9' : ''} ${is3D === view3D ? 'bg-surface text-text-primary shadow-sm' : 'text-text-muted hover:text-text-primary'}`}
+                  className={`disabled:cursor-not-allowed disabled:opacity-50 ${isTablet ? 'min-h-9' : ''}`}
                   aria-pressed={is3D === view3D}
                   disabled={view3D && is3DToggleDisabled && !is3D}
                   title={view3D ? (is3DToggleDisabled && !is3D ? preparing3D : toggle3DLabel) : undefined}
