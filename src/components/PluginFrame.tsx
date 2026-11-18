@@ -6,6 +6,7 @@ import { sendCommand, listFiles as listDeviceFiles, fetchFileContent, saveFileCo
 import { invalidateFileCache } from './FileManager'
 import { lineRefusalReason, sendRaw, sendRealtime, onLine } from '../lib/ws'
 import { sendCloseCommand } from '../lib/pluginClose'
+import { loadPluginEntry } from '../lib/plugins'
 import type { Plugin } from '../types'
 
 interface PluginRequest {
@@ -72,15 +73,19 @@ export function PluginFrame({ plugin, onClose, inline }: { plugin: Plugin; onClo
   const resizeRef = useRef<{ ox: number; oy: number; ow: number; oh: number } | null>(null)
 
   useEffect(() => {
+    const controller = new AbortController()
     setSrcDoc(null)
     setLoadError(null)
     setFrameLoaded(false)
-    const baseUrl = plugin.entryUrl.substring(0, plugin.entryUrl.lastIndexOf('/') + 1)
-    fetch(plugin.entryUrl)
-      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.text() })
-      .then(html => setSrcDoc(prepareHtml(html, baseUrl, getThemeVars())))
-      .catch(err => setLoadError(err.message))
-  }, [plugin.entryUrl])
+    loadPluginEntry(plugin, controller.signal)
+      .then(({ html, entryUrl }) => {
+        if (controller.signal.aborted) return
+        const baseUrl = entryUrl.substring(0, entryUrl.lastIndexOf('/') + 1)
+        setSrcDoc(prepareHtml(html, baseUrl, getThemeVars()))
+      })
+      .catch(err => { if (!controller.signal.aborted) setLoadError(err.message) })
+    return () => controller.abort()
+  }, [plugin])
 
   useEffect(() => {
     function onMessage(e: MessageEvent) {

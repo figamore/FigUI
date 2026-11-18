@@ -58,7 +58,7 @@ class FakeXhr {
 }
 Object.assign(globalThis, { XMLHttpRequest: FakeXhr })
 
-const { installStorePlugin } = await import('../src/lib/plugins')
+const { installStorePlugin, loadPluginEntry, STORE_REGISTRY_URL } = await import('../src/lib/plugins')
 
 // A failed download writes nothing to the card.
 const entry = { id: 'p', name: 'P', version: '2.0.0', base: 'https://store.test/p/' } as Parameters<typeof installStorePlugin>[0]
@@ -90,6 +90,78 @@ assert.deepEqual(log.filter(line => !line.startsWith('FETCH') && !line.startsWit
 ])
 cardFiles = []
 
+// An installed plugin can use its matching GitHub copy before reading the card.
+const deviceFetch = globalThis.fetch
+const githubBase = 'https://raw.githubusercontent.com/figamore/FigUI/main/plugins/utility-generator/'
+const cdnBase = 'https://cdn.jsdelivr.net/gh/figamore/FigUI@main/plugins/utility-generator/'
+const installed = {
+  id: 'Utility Generator',
+  manifest: { name: 'Utility Generator', version: '2.0.0', entry: 'plugin page.html' },
+  entryUrl: 'http://fluidnc.local/sd/plugins/Utility%20Generator/plugin%20page.html',
+  fs: 'sd',
+} as const
+let onlineManifest: Parameters<typeof loadPluginEntry>[0]['manifest'] = installed.manifest
+let unavailableUrl: string | undefined
+let stalledUrl: string | undefined
+globalThis.fetch = async (input, init) => {
+  const url = String(input)
+  log.push(url)
+  if (url === stalledUrl) return new Promise((_, reject) => {
+    init?.signal?.addEventListener('abort', () => reject(init.signal?.reason), { once: true })
+  })
+  if (url === unavailableUrl) return new Response('', { status: 404 })
+  if (url === STORE_REGISTRY_URL) return Response.json({ plugins: [{ id: installed.id, base: githubBase }] })
+  if (url === githubBase + 'plugin.json' || url === cdnBase + 'plugin.json') return Response.json(onlineManifest)
+  if (url === githubBase + 'plugin%20page.html' || url === cdnBase + 'plugin%20page.html') return new Response('<html>GitHub</html>')
+  if (url === cdnBase + 'style.css') return new Response('body { color: red }')
+  if (url === installed.entryUrl) return new Response('<html>SD</html>')
+  throw new Error(`Unexpected request: ${url}`)
+}
+try {
+  const load = (plugin = installed) => loadPluginEntry(plugin, new AbortController().signal)
+  const cardCopy = { html: '<html>SD</html>', entryUrl: installed.entryUrl }
+  log = []
+  assert.deepEqual(await load(), { html: '<html>GitHub</html>', entryUrl: githubBase + 'plugin%20page.html' })
+  assert.deepEqual(log, [STORE_REGISTRY_URL, githubBase + 'plugin.json', githubBase + 'plugin%20page.html'])
+
+  onlineManifest = { ...installed.manifest, files: ['plugin page.html', 'style.css', 'settings.json'] }
+  const withAssets = { ...installed, manifest: { ...installed.manifest, files: onlineManifest.files } }
+  log = []
+  assert.deepEqual(await load(withAssets), { html: '<html>GitHub</html>', entryUrl: cdnBase + 'plugin%20page.html' })
+  assert.deepEqual(log, [STORE_REGISTRY_URL, cdnBase + 'plugin.json', cdnBase + 'plugin%20page.html', cdnBase + 'style.css'])
+
+  unavailableUrl = cdnBase + 'style.css'
+  assert.deepEqual(await load(withAssets), cardCopy)
+  unavailableUrl = githubBase + 'plugin%20page.html'
+  assert.deepEqual(await load(), cardCopy)
+  unavailableUrl = undefined
+  onlineManifest = { ...installed.manifest, version: '3.0.0' }
+  assert.deepEqual(await load(), cardCopy)
+  log = []
+  assert.deepEqual(await loadPluginEntry({ ...installed, id: 'custom' }, new AbortController().signal), cardCopy)
+  assert.deepEqual(log, [STORE_REGISTRY_URL, installed.entryUrl])
+
+  Object.defineProperty(globalThis, 'navigator', { value: { onLine: false }, configurable: true })
+  log = []
+  assert.deepEqual(await load(), cardCopy)
+  assert.deepEqual(log, [installed.entryUrl])
+  Object.defineProperty(globalThis, 'navigator', { value: {}, configurable: true })
+
+  stalledUrl = STORE_REGISTRY_URL
+  log = []
+  assert.deepEqual(await load(), cardCopy)
+  assert.deepEqual(log, [STORE_REGISTRY_URL, installed.entryUrl])
+
+  log = []
+  const controller = new AbortController()
+  const cancelled = loadPluginEntry(installed, controller.signal)
+  controller.abort()
+  await assert.rejects(cancelled, { name: 'AbortError' })
+  assert.deepEqual(log, [STORE_REGISTRY_URL])
+} finally {
+  globalThis.fetch = deviceFetch
+}
+
 // A macro that cannot run says why in the terminal instead of doing nothing.
 const { runMacro } = await import('../src/lib/macros')
 const { useTerminalStore } = await import('../src/store/terminal')
@@ -101,4 +173,4 @@ assert.match(lastLine(), /Macro "Blank" not run: \/empty\.macro is empty/)
 await runMacro({ id: '3', label: '', command: '', color: 'default', filename: '/air.macro' })
 assert.match(lastLine(), /Macro "Unnamed" not run: no storage is set for \/air\.macro/)
 
-console.log('Plugin install and macro tests passed.')
+console.log('Plugin install, launch, and macro tests passed.')

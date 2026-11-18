@@ -1,15 +1,18 @@
 import { uiText as __uiText, formatUi } from './i18n'
-import { listFiles, fetchFileContent, getBase, createDir, deleteFile, deleteDir, uploadFile } from './http'
+import { listFiles, fetchFileContent, getBase, createDir, deleteFile, deleteDir, uploadFile, encodeFilePath } from './http'
 import type { Plugin, PluginManifest, StoreEntry } from '../types'
 
 const PLUGINS_PATH = '/plugins'
 /** Where the host's saveSettings stores a plugin's settings, inside its folder. */
 const PLUGIN_SETTINGS_FILE = 'settings.json'
+const GITHUB_PLUGINS_URL = 'https://raw.githubusercontent.com/figamore/FigUI/main/plugins/'
+const GITHUB_CDN_PLUGINS_URL = 'https://cdn.jsdelivr.net/gh/figamore/FigUI@main/plugins/'
+const ONLINE_PLUGIN_TIMEOUT_MS = 2500
 export const PLUGIN_SD_REQUIRED_MESSAGE = __uiText("lib.plugins.coverage.1", "Plugins can only be installed on SD storage. Please insert an SD card and try again.")
 
 export const STORE_REGISTRY_URL = import.meta.env.DEV
   ? '/plugins/registry.json'
-  : 'https://raw.githubusercontent.com/figamore/FigUI/main/plugins/registry.json'
+  : GITHUB_PLUGINS_URL + 'registry.json'
 
 async function scanFs(fs: 'sd' | 'local'): Promise<Plugin[]> {
   const result = await listFiles(PLUGINS_PATH, fs)
@@ -52,6 +55,65 @@ export async function discoverPlugins(): Promise<Plugin[]> {
     ...(local.status === 'fulfilled' ? local.value : []),
     ...(sd.status === 'fulfilled' ? sd.value : []),
   ]
+}
+
+async function fetchPluginFile(url: string, signal?: AbortSignal): Promise<Response> {
+  const res = await fetch(url, { signal })
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  return res
+}
+
+async function loadOnlinePluginEntry(plugin: Plugin, signal: AbortSignal) {
+  const entries = await fetchRegistry(signal)
+  const storeBase = entries.find(entry => entry.id === plugin.id)?.base
+  if (!storeBase?.startsWith(GITHUB_PLUGINS_URL)) return
+  const folder = storeBase.slice(GITHUB_PLUGINS_URL.length)
+  if (!/^[\w-]+\/$/.test(folder)) return
+
+  const { name, version, files } = plugin.manifest
+  const entry = plugin.manifest.entry ?? 'index.html'
+  // Store icons are discovered separately and may already be blob URLs here.
+  const assets = (files ?? []).filter(file =>
+    file !== entry && file !== 'plugin.json' && file !== PLUGIN_SETTINGS_FILE && file !== 'icon.png')
+  // Raw GitHub serves CSS and JS as plain text. The CDN serves browser-ready
+  // assets and the same repository files for plugins that depend on them.
+  const base = assets.length ? GITHUB_CDN_PLUGINS_URL + folder : storeBase
+  const fileUrl = (file: string) => {
+    const url = new URL(encodeFilePath(file), base).href
+    if (!url.startsWith(base)) throw new Error('Invalid plugin file path')
+    return url
+  }
+  const entryUrl = fileUrl(entry)
+  const [manifest, html] = await Promise.all([
+    fetchPluginFile(base + 'plugin.json', signal).then(res => res.json() as Promise<PluginManifest>),
+    fetchPluginFile(entryUrl, signal).then(res => res.text()),
+    ...assets.map(async file => { await (await fetchPluginFile(fileUrl(file), signal)).arrayBuffer() }),
+  ])
+  if (manifest.name !== name || manifest.version !== version ||
+      (manifest.entry ?? 'index.html') !== entry || !html.trimStart().startsWith('<')) return
+  return { html, entryUrl }
+}
+
+export async function loadPluginEntry(plugin: Plugin, signal: AbortSignal): Promise<{ html: string; entryUrl: string }> {
+  if (!signal.aborted && plugin.manifest.version && globalThis.navigator?.onLine !== false) {
+    const online = new AbortController()
+    const abortOnline = () => online.abort()
+    signal.addEventListener('abort', abortOnline, { once: true })
+    const timer = setTimeout(abortOnline, ONLINE_PLUGIN_TIMEOUT_MS)
+    try {
+      const result = await loadOnlinePluginEntry(plugin, online.signal)
+      if (result && !online.signal.aborted) return result
+    } catch {
+      // The installed copy also works when the online source is unavailable.
+    } finally {
+      clearTimeout(timer)
+      signal.removeEventListener('abort', abortOnline)
+      online.abort()
+    }
+  }
+  if (signal.aborted) throw new DOMException('Plugin loading was cancelled', 'AbortError')
+  const html = await (await fetchPluginFile(plugin.entryUrl, signal)).text()
+  return { html, entryUrl: plugin.entryUrl }
 }
 
 export async function uploadFolderPlugin(
@@ -164,9 +226,8 @@ export async function deletePlugin(plugin: Plugin): Promise<void> {
   await deleteDir(PLUGINS_PATH, plugin.id, plugin.fs)
 }
 
-export async function fetchRegistry(): Promise<StoreEntry[]> {
-  const res = await fetch(STORE_REGISTRY_URL)
-  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+export async function fetchRegistry(signal?: AbortSignal): Promise<StoreEntry[]> {
+  const res = await fetchPluginFile(STORE_REGISTRY_URL, signal)
   const data = await res.json()
   if (!Array.isArray(data?.plugins)) throw new Error(__uiText("lib.plugins.coverage.5", "Invalid registry format"))
   return data.plugins as StoreEntry[]
