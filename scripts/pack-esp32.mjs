@@ -6,9 +6,9 @@ import postcss from 'postcss'
 import { gzipAsync } from '@gfx/zopfli'
 import { encodeSource, decodeSource, decodeUnicodeSource } from './pack-source.mjs'
 import { separateStringLiterals, restoreStringLiterals } from './pack-literals.mjs'
+import { unpackLzma } from './unpack-lzma.mjs'
 
 const require = createRequire(import.meta.url)
-const decoder = readFileSync(require.resolve('lzma/src/lzma-d-min.js'), 'utf8')
 const license = readFileSync(require.resolve('lzma/LICENSE'), 'utf8')
 
 /** Pack the inline module, optionally sharing its dictionary with Vite's CSS. */
@@ -31,38 +31,41 @@ export async function packEsp32Html(html, { packStyles = false, unicodeDictionar
   const compress = input => new Promise((resolve, reject) => {
     lzma.compress(input, 3, (result, error) => error ? reject(error) : resolve(Buffer.from(result)))
   })
-  const plain = unicodeDictionary ? null : await compress(input)
-  const encoded = await compress(encodeSource(input, { unicode: unicodeDictionary }))
+  const plainInput = unicodeDictionary ? null : Buffer.from(input)
+  const encodedInput = encodeSource(input, { unicode: unicodeDictionary })
+  const plain = plainInput ? await compress(plainInput) : null
+  const encoded = await compress(encodedInput)
   // Leave small inputs alone: the dictionary decoder must earn its own bytes.
   // The Unicode variant is compared against the original variant after gzip.
   const useDictionary = unicodeDictionary || encoded.length + 512 < plain.length
   const packed = useDictionary ? encoded : plain
+  const size = (useDictionary ? encodedInput : plainInput).length
   const restoreSource = unicodeDictionary ? decodeUnicodeSource : decodeSource
 
   // Verify the original JavaScript and CSS before generating the browser loader.
-  const codec = {}
-  Function(decoder).call(codec)
-  const decoded = restoreSource(codec.LZMA.decompress(packed))
+  const uncompressed = await unpackLzma(packed, size)
+  const decoded = useDictionary
+    ? restoreSource(uncompressed)
+    : new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(uncompressed)
   if ((separated ? restoreStringLiterals(decoded) : decoded) !== payload) {
     throw new Error('ESP32 packing failed its lossless round-trip check.')
   }
 
   const { code: loader } = await minify(`
     const packedScript = document.querySelector('script[data-figui-packed]');
-    const codec = {};
-    (function () { ${decoder} }).call(codec);
+    ${unpackLzma.toString()}
     function failed(error) {
       console.error('Could not unpack FigUI', error);
       const root = document.getElementById('root');
       if (root) root.textContent = 'Could not load FigUI. Please reload the page.';
     }
-    try {
-      const bytes = Uint8Array.from(atob('${packed.toString('base64')}'), c => c.charCodeAt(0));
-      codec.LZMA.decompress(bytes, (source, error) => {
-        if (error) { failed(error); return; }
+    (async () => {
         try {
-          ${useDictionary ? `source = (${restoreSource.toString()})(source);` : ''}
-          if (typeof source !== 'string') throw new Error('Invalid application module');
+          const bytes = Uint8Array.from(atob('${packed.toString('base64')}'), c => c.charCodeAt(0));
+          const uncompressed = await unpackLzma(bytes, ${size});
+          let source = ${useDictionary
+            ? `(${restoreSource.toString()})(uncompressed)`
+            : "new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(uncompressed)"};
           ${separated ? `source = (${restoreStringLiterals.toString()})(source);` : ''}
           ${styles.length ? `
           let offset = ${source.length};
@@ -87,8 +90,7 @@ export async function packEsp32Html(html, { packStyles = false, unicodeDictionar
           packedScript.after(script);
           packedScript.remove();
         } catch (error) { failed(error); }
-      });
-    } catch (error) { failed(error); }
+    })();
   `, { ecma: 2022, module: true, format: { comments: false } })
 
   // Leave page colors, fonts and margins available during decompression. Restore

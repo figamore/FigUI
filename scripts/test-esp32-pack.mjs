@@ -105,9 +105,11 @@ for (const unicodeDictionary of [false, true]) {
   const dictionaryLoaded = await unpack(dictionaryPacked)
   assert.equal(dictionaryLoaded.source, largeSource, 'browser loader restores the original module byte for byte')
   assert.deepEqual(dictionaryLoaded.errors, [])
-  const invalidDictionary = await new Promise((resolve, reject) => {
-    lzma.compress([255, ...Buffer.from('1 word'), 0, 129], 3, (data, error) => error ? reject(error) : resolve(Buffer.from(data)))
-  })
+  const { 1: base64 } = /atob\("([A-Za-z0-9+/=]+)"\)/.exec(dictionaryPacked)
+  const invalidSource = lzma.decompress(Buffer.from(base64, 'base64'))
+  // Keep the LZMA stream and length valid so the dictionary decoder rejects it.
+  invalidSource[0] = 254
+  const invalidDictionary = Buffer.from(lzma.compress(invalidSource, 3))
   const damagedDictionary = dictionaryPacked.replace(/atob\("[A-Za-z0-9+/=]+"\)/, `atob("${invalidDictionary.toString('base64')}")`)
   const dictionaryFailed = await unpack(damagedDictionary)
   assert.equal(dictionaryFailed.source, null, 'do not execute a damaged dictionary payload')
