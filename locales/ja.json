@@ -1493,14 +1493,14 @@
   "components.GCodeViewer.camera_stream_alt.1": "ライブカメラ映像",
   "components.GCodeViewer.camera_edit_stream.1": "カメラ映像を編集",
   "components.GCodeViewer.camera_reconnect.1": "カメラ映像に再接続",
-  "components.GCodeViewer.camera_url_label.1": "MJPEG ストリーム URL",
+  "components.GCodeViewer.camera_url_label.1": "カメラの URL",
   "components.GCodeViewer.camera_url_placeholder.1": "http://camera.local:8080/stream",
   "components.GCodeViewer.camera_save.1": "映像を保存",
   "components.GCodeViewer.camera_cancel.1": "キャンセル",
   "components.GCodeViewer.camera_remove.1": "保存した映像を削除",
   "components.GCodeViewer.camera_setup_title.1": "カメラを接続",
-  "components.GCodeViewer.camera_setup_detail.1": "MJPEG ストリームの直接 URL を入力してください。このブラウザにのみ保存されます。",
-  "components.GCodeViewer.camera_help.1": "http://camera.local:8080/stream のような http(s) MJPEG URL を使用してください。",
+  "components.GCodeViewer.camera_setup_detail.1": "カメラの URL を入力してください。このブラウザーにのみ保存されます。",
+  "components.GCodeViewer.camera_help.1": "MJPEG ストリーム、または .jpg か .jpeg で終わるスナップショットの HTTP(S) URL を使用してください。",
   "components.GCodeViewer.camera_invalid_url.1": "有効な http(s) ストリーム URL を入力してください。",
   "components.GCodeViewer.camera_error.1": "カメラ映像を読み込めませんでした。URL とブラウザの混在コンテンツ警告を確認してください。"
 }

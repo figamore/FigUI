@@ -1493,14 +1493,14 @@
   "components.GCodeViewer.camera_stream_alt.1": "लाइव कैमरा स्ट्रीम",
   "components.GCodeViewer.camera_edit_stream.1": "कैमरा स्ट्रीम संपादित करें",
   "components.GCodeViewer.camera_reconnect.1": "कैमरा स्ट्रीम से फिर से जुड़ें",
-  "components.GCodeViewer.camera_url_label.1": "MJPEG स्ट्रीम URL",
+  "components.GCodeViewer.camera_url_label.1": "कैमरा URL",
   "components.GCodeViewer.camera_url_placeholder.1": "http://camera.local:8080/stream",
   "components.GCodeViewer.camera_save.1": "स्ट्रीम सहेजें",
   "components.GCodeViewer.camera_cancel.1": "रद्द करें",
   "components.GCodeViewer.camera_remove.1": "सहेजी गई स्ट्रीम हटाएँ",
   "components.GCodeViewer.camera_setup_title.1": "कैमरा कनेक्ट करें",
-  "components.GCodeViewer.camera_setup_detail.1": "अपनी MJPEG स्ट्रीम का सीधा URL दर्ज करें। यह केवल इस ब्राउज़र में सहेजा जाता है।",
-  "components.GCodeViewer.camera_help.1": "http://camera.local:8080/stream जैसा http(s) MJPEG URL इस्तेमाल करें।",
+  "components.GCodeViewer.camera_setup_detail.1": "अपने कैमरे का URL दर्ज करें। यह केवल इस ब्राउज़र में सहेजा जाता है।",
+  "components.GCodeViewer.camera_help.1": "MJPEG स्ट्रीम या .jpg या .jpeg पर समाप्त होने वाले स्नैपशॉट के लिए HTTP(S) URL इस्तेमाल करें।",
   "components.GCodeViewer.camera_invalid_url.1": "मान्य http(s) स्ट्रीम URL दर्ज करें।",
   "components.GCodeViewer.camera_error.1": "कैमरा स्ट्रीम लोड नहीं हो सकी। URL और ब्राउज़र की मिश्रित-सामग्री चेतावनियाँ जाँचें।"
 }

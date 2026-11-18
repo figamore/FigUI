@@ -1493,14 +1493,14 @@
   "components.GCodeViewer.camera_stream_alt.1": "실시간 카메라 스트림",
   "components.GCodeViewer.camera_edit_stream.1": "카메라 스트림 편집",
   "components.GCodeViewer.camera_reconnect.1": "카메라 스트림 다시 연결",
-  "components.GCodeViewer.camera_url_label.1": "MJPEG 스트림 URL",
+  "components.GCodeViewer.camera_url_label.1": "카메라 URL",
   "components.GCodeViewer.camera_url_placeholder.1": "http://camera.local:8080/stream",
   "components.GCodeViewer.camera_save.1": "스트림 저장",
   "components.GCodeViewer.camera_cancel.1": "취소",
   "components.GCodeViewer.camera_remove.1": "저장된 스트림 제거",
   "components.GCodeViewer.camera_setup_title.1": "카메라 연결",
-  "components.GCodeViewer.camera_setup_detail.1": "MJPEG 스트림의 직접 URL을 입력하세요. 이 브라우저에만 저장됩니다.",
-  "components.GCodeViewer.camera_help.1": "http://camera.local:8080/stream 같은 http(s) MJPEG URL을 사용하세요.",
+  "components.GCodeViewer.camera_setup_detail.1": "카메라 URL을 입력하세요. 이 브라우저에만 저장됩니다.",
+  "components.GCodeViewer.camera_help.1": "MJPEG 스트림 또는 주소가 .jpg나 .jpeg로 끝나는 스냅샷의 HTTP(S) URL을 사용하세요.",
   "components.GCodeViewer.camera_invalid_url.1": "유효한 http(s) 스트림 URL을 입력하세요.",
   "components.GCodeViewer.camera_error.1": "카메라 스트림을 불러올 수 없습니다. URL과 브라우저의 혼합 콘텐츠 경고를 확인하세요."
 }

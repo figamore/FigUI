@@ -1493,14 +1493,14 @@
   "components.GCodeViewer.camera_stream_alt.1": "Transmisja z kamery na żywo",
   "components.GCodeViewer.camera_edit_stream.1": "Edytuj transmisję z kamery",
   "components.GCodeViewer.camera_reconnect.1": "Połącz ponownie transmisję z kamery",
-  "components.GCodeViewer.camera_url_label.1": "Adres URL transmisji MJPEG",
+  "components.GCodeViewer.camera_url_label.1": "Adres URL kamery",
   "components.GCodeViewer.camera_url_placeholder.1": "http://camera.local:8080/stream",
   "components.GCodeViewer.camera_save.1": "Zapisz transmisję",
   "components.GCodeViewer.camera_cancel.1": "Anuluj",
   "components.GCodeViewer.camera_remove.1": "Usuń zapisaną transmisję",
   "components.GCodeViewer.camera_setup_title.1": "Połącz kamerę",
-  "components.GCodeViewer.camera_setup_detail.1": "Wpisz bezpośredni adres URL transmisji MJPEG. Zostanie zapisany tylko w tej przeglądarce.",
-  "components.GCodeViewer.camera_help.1": "Użyj adresu URL MJPEG http(s), np. http://camera.local:8080/stream.",
+  "components.GCodeViewer.camera_setup_detail.1": "Wpisz adres URL kamery. Zostanie zapisany tylko w tej przeglądarce.",
+  "components.GCodeViewer.camera_help.1": "Użyj adresu HTTP(S) strumienia MJPEG lub zdjęcia z kamery z adresem kończącym się na .jpg lub .jpeg.",
   "components.GCodeViewer.camera_invalid_url.1": "Wpisz prawidłowy adres URL transmisji http(s).",
   "components.GCodeViewer.camera_error.1": "Nie można było wczytać transmisji z kamery. Sprawdź adres URL i ostrzeżenia przeglądarki o mieszanej zawartości."
 }

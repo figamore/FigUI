@@ -1493,14 +1493,14 @@
   "components.GCodeViewer.camera_stream_alt.1": "Canlı kamera akışı",
   "components.GCodeViewer.camera_edit_stream.1": "Kamera akışını düzenle",
   "components.GCodeViewer.camera_reconnect.1": "Kamera akışına yeniden bağlan",
-  "components.GCodeViewer.camera_url_label.1": "MJPEG akış URL’si",
+  "components.GCodeViewer.camera_url_label.1": "Kamera URL’si",
   "components.GCodeViewer.camera_url_placeholder.1": "http://camera.local:8080/stream",
   "components.GCodeViewer.camera_save.1": "Akışı kaydet",
   "components.GCodeViewer.camera_cancel.1": "İptal",
   "components.GCodeViewer.camera_remove.1": "Kaydedilmiş akışı kaldır",
   "components.GCodeViewer.camera_setup_title.1": "Kamera bağla",
-  "components.GCodeViewer.camera_setup_detail.1": "MJPEG akışınızın doğrudan URL’sini girin. Yalnızca bu tarayıcıda kaydedilir.",
-  "components.GCodeViewer.camera_help.1": "http://camera.local:8080/stream gibi bir http(s) MJPEG URL’si kullanın.",
+  "components.GCodeViewer.camera_setup_detail.1": "Kameranızın URL’sini girin. Bu adres yalnızca bu tarayıcıda kaydedilir.",
+  "components.GCodeViewer.camera_help.1": "MJPEG akışı veya adresi .jpg ya da .jpeg ile biten bir anlık görüntü için HTTP(S) URL’si kullanın.",
   "components.GCodeViewer.camera_invalid_url.1": "Geçerli bir http(s) akış URL’si girin.",
   "components.GCodeViewer.camera_error.1": "Kamera akışı yüklenemedi. URL’yi ve tarayıcınızdaki karma içerik uyarılarını kontrol edin."
 }

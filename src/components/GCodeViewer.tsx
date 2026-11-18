@@ -1,5 +1,5 @@
 import { uiText as __uiText, formatUi } from '../lib/i18n'
-import { useRef, useEffect, useLayoutEffect, useState, useCallback } from 'react'
+import { useRef, useEffect, useLayoutEffect, useState, useCallback, useMemo } from 'react'
 import { Eye, Circle, Axis3D, Maximize2, Crosshair, Play, Pause, Square, CloudDrizzle, Waves, PowerOff, Zap, Orbit, Hand, ListStart, RotateCcw, FilePlus, X, AlertTriangle, Maximize, ChevronDown, Check, StepForward, Camera as CameraIcon, Rows2, Settings2, RefreshCw } from 'lucide-react'
 import { MOVE_FEED, MOVE_RAPID, NO_TOOL, type GCodeModel, type Segment, type SegmentTable } from '../lib/gcode'
 import { useMachineStore } from '../store'
@@ -174,13 +174,14 @@ const CONTROLLER_START_TIMEOUT_MS = 5000
 /** An error reply this soon after $SD/Run is taken as the controller refusing the file. */
 const CONTROLLER_START_ERROR_WINDOW_MS = 3000
 const MJPEG_STREAM_URL_KEY = 'fluidui.mjpegStreamUrl'
+const CAMERA_SNAPSHOT_REFRESH_MS = 1000
+const CAMERA_SNAPSHOT_RETRY_MS = 5000
 
 type ViewerPanelMode = 'toolpath' | 'camera' | 'split'
 type ViewerMenu = 'layout' | 'options'
 
-// Kept here rather than adding a streaming library: browsers render MJPEG
-// directly in an image element, including camera streams that do not send CORS
-// headers. The text is grouped so this small optional panel stays self-contained.
+// Browsers can display MJPEG and JPEG directly in an image element, including
+// cameras that do not send CORS headers.
 const CAMERA_UI = {
   panelLabel: __uiText('components.GCodeViewer.camera_panel.1', 'Viewer panel'),
   toolpath: __uiText('components.GCodeViewer.camera_toolpath.1', 'Toolpath'),
@@ -189,16 +190,16 @@ const CAMERA_UI = {
   streamAlt: __uiText('components.GCodeViewer.camera_stream_alt.1', 'Live camera stream'),
   editStream: __uiText('components.GCodeViewer.camera_edit_stream.1', 'Edit camera stream'),
   reconnect: __uiText('components.GCodeViewer.camera_reconnect.1', 'Reconnect camera stream'),
-  urlLabel: __uiText('components.GCodeViewer.camera_url_label.1', 'MJPEG stream URL'),
+  urlLabel: __uiText('components.GCodeViewer.camera_url_label.1', 'Camera URL'),
   urlPlaceholder: __uiText('components.GCodeViewer.camera_url_placeholder.1', 'http://camera.local:8080/stream'),
   save: __uiText('components.GCodeViewer.camera_save.1', 'Save stream'),
   cancel: __uiText('components.GCodeViewer.camera_cancel.1', 'Cancel'),
   remove: __uiText('components.GCodeViewer.camera_remove.1', 'Remove saved stream'),
   setupTitle: __uiText('components.GCodeViewer.camera_setup_title.1', 'Connect a camera'),
-  setupDetail: __uiText('components.GCodeViewer.camera_setup_detail.1', 'Enter the direct URL for your MJPEG stream. It is saved only in this browser.'),
-  help: __uiText('components.GCodeViewer.camera_help.1', 'Use an http(s) MJPEG URL, such as http://camera.local:8080/stream.'),
+  setupDetail: __uiText('components.GCodeViewer.camera_setup_detail.1', 'Enter your camera URL. It is saved only in this browser.'),
+  help: __uiText('components.GCodeViewer.camera_help.1', 'Use an HTTP(S) URL for an MJPEG stream or a snapshot ending in .jpg or .jpeg.'),
   invalidUrl: __uiText('components.GCodeViewer.camera_invalid_url.1', 'Enter a valid http(s) stream URL.'),
-  error: __uiText('components.GCodeViewer.camera_error.1', 'The camera stream could not be loaded. Check the URL and any mixed-content warning from your browser.'),
+  error: __uiText('components.GCodeViewer.camera_error.1', 'The camera stream could not be loaded. Check the URL and ensure it is online.'),
 }
 
 const VIEWER_LAYOUTS = {
@@ -1527,16 +1528,77 @@ function ViewerOverrideControl({
   )
 }
 
-function MjpegCamera({ streamUrl, onSave }: { streamUrl: string, onSave: (url: string | null) => void }) {
+function CameraPanel({ streamUrl, onSave }: { streamUrl: string, onSave: (url: string | null) => void }) {
   const [editing, setEditing] = useState(!streamUrl)
   const [draft, setDraft] = useState(streamUrl)
   const [error, setError] = useState<string | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
+  const imageRef = useRef<HTMLImageElement>(null)
+  const snapshotUrl = useMemo(() => {
+    if (!streamUrl) return null
+    try {
+      const url = new URL(streamUrl)
+      return /\.jpe?g$/i.test(url.pathname) ? url.href : null
+    } catch {
+      return null
+    }
+  }, [streamUrl])
 
   useEffect(() => {
     setDraft(streamUrl)
     if (!streamUrl) setEditing(true)
   }, [streamUrl])
+
+  useEffect(() => {
+    const image = imageRef.current
+    if (!snapshotUrl || editing || !image) return
+
+    const url = new URL(snapshotUrl)
+    const query = url.search
+    const separator = query ? '&' : '?'
+    let timer: number | undefined
+    let loading = false
+    let delay = 0
+    let inView = typeof IntersectionObserver === 'undefined'
+
+    const scheduleRefresh = () => {
+      window.clearTimeout(timer)
+      if (!inView || document.hidden || loading) return
+
+      timer = window.setTimeout(() => {
+        if (document.hidden) return
+        loading = true
+        url.search = `${query}${separator}_fluidui=${Date.now()}`
+        image.src = url.href
+      }, delay)
+    }
+
+    const onSettled = (event: Event) => {
+      loading = false
+      delay = event.type === 'load' ? CAMERA_SNAPSHOT_REFRESH_MS : CAMERA_SNAPSHOT_RETRY_MS
+      scheduleRefresh()
+    }
+
+    const observer = inView ? null : new IntersectionObserver(entries => {
+      inView = entries[entries.length - 1].isIntersecting
+      scheduleRefresh()
+    })
+    observer?.observe(image)
+    image.addEventListener('load', onSettled)
+    image.addEventListener('error', onSettled)
+    document.addEventListener('visibilitychange', scheduleRefresh)
+    scheduleRefresh()
+
+    return () => {
+      window.clearTimeout(timer)
+      observer?.disconnect()
+      observer?.takeRecords()
+      image.removeEventListener('load', onSettled)
+      image.removeEventListener('error', onSettled)
+      document.removeEventListener('visibilitychange', scheduleRefresh)
+      image.removeAttribute('src')
+    }
+  }, [snapshotUrl, editing, reloadKey])
 
   function save(event: React.FormEvent) {
     event.preventDefault()
@@ -1592,7 +1654,8 @@ function MjpegCamera({ streamUrl, onSave }: { streamUrl: string, onSave: (url: s
     <section className="relative flex min-h-0 min-w-0 flex-1 items-center justify-center overflow-hidden bg-black">
       <img
         key={`${streamUrl}:${reloadKey}`}
-        src={streamUrl}
+        ref={imageRef}
+        src={snapshotUrl ? undefined : streamUrl}
         alt={CAMERA_UI.streamAlt}
         className="h-full w-full object-contain"
         onLoad={() => setError(null)}
@@ -4228,7 +4291,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
           </svg>
         )}
       </div>
-      {viewerPanelMode !== 'toolpath' && <MjpegCamera streamUrl={mjpegStreamUrl} onSave={saveMjpegStreamUrl} />}
+      {viewerPanelMode !== 'toolpath' && <CameraPanel streamUrl={mjpegStreamUrl} onSave={saveMjpegStreamUrl} />}
       </div>
 
       {/* Permanent bottom strip */}

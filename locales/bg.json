@@ -1493,14 +1493,14 @@
   "components.GCodeViewer.camera_stream_alt.1": "Поток от камера на живо",
   "components.GCodeViewer.camera_edit_stream.1": "Редактиране на потока от камерата",
   "components.GCodeViewer.camera_reconnect.1": "Свързване отново с потока от камерата",
-  "components.GCodeViewer.camera_url_label.1": "URL на MJPEG потока",
+  "components.GCodeViewer.camera_url_label.1": "URL на камерата",
   "components.GCodeViewer.camera_url_placeholder.1": "http://camera.local:8080/stream",
   "components.GCodeViewer.camera_save.1": "Запазване на потока",
   "components.GCodeViewer.camera_cancel.1": "Отказ",
   "components.GCodeViewer.camera_remove.1": "Премахване на запазения поток",
   "components.GCodeViewer.camera_setup_title.1": "Свързване на камера",
-  "components.GCodeViewer.camera_setup_detail.1": "Въведете директния URL на вашия MJPEG поток. Той се запазва само в този браузър.",
-  "components.GCodeViewer.camera_help.1": "Използвайте http(s) URL за MJPEG, например http://camera.local:8080/stream.",
+  "components.GCodeViewer.camera_setup_detail.1": "Въведете URL адреса на камерата. Той се запазва само в този браузър.",
+  "components.GCodeViewer.camera_help.1": "Използвайте HTTP(S) URL за MJPEG поток или за моментна снимка с адрес, завършващ на .jpg или .jpeg.",
   "components.GCodeViewer.camera_invalid_url.1": "Въведете валиден http(s) URL на поток.",
   "components.GCodeViewer.camera_error.1": "Потокът от камерата не можа да се зареди. Проверете URL адреса и предупрежденията на браузъра за смесено съдържание."
 }

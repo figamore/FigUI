@@ -1493,14 +1493,14 @@
   "components.GCodeViewer.camera_stream_alt.1": "Live camera stream",
   "components.GCodeViewer.camera_edit_stream.1": "Edit camera stream",
   "components.GCodeViewer.camera_reconnect.1": "Reconnect camera stream",
-  "components.GCodeViewer.camera_url_label.1": "MJPEG stream URL",
+  "components.GCodeViewer.camera_url_label.1": "Camera URL",
   "components.GCodeViewer.camera_url_placeholder.1": "http://camera.local:8080/stream",
   "components.GCodeViewer.camera_save.1": "Save stream",
   "components.GCodeViewer.camera_cancel.1": "Cancel",
   "components.GCodeViewer.camera_remove.1": "Remove saved stream",
   "components.GCodeViewer.camera_setup_title.1": "Connect a camera",
-  "components.GCodeViewer.camera_setup_detail.1": "Enter the direct URL for your MJPEG stream. It is saved only in this browser.",
-  "components.GCodeViewer.camera_help.1": "Use an http(s) MJPEG URL, such as http://camera.local:8080/stream.",
+  "components.GCodeViewer.camera_setup_detail.1": "Enter your camera URL. It is saved only in this browser.",
+  "components.GCodeViewer.camera_help.1": "Use an HTTP(S) URL for an MJPEG stream or a snapshot URL ending in .jpg or .jpeg.",
   "components.GCodeViewer.camera_invalid_url.1": "Enter a valid http(s) stream URL.",
-  "components.GCodeViewer.camera_error.1": "The camera stream could not be loaded. Check the URL and any mixed-content warning from your browser."
+  "components.GCodeViewer.camera_error.1": "The camera stream could not be loaded. Check the URL and ensure it is online."
 }

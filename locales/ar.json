@@ -1493,14 +1493,14 @@
   "components.GCodeViewer.camera_stream_alt.1": "بث مباشر للكاميرا",
   "components.GCodeViewer.camera_edit_stream.1": "تحرير بث الكاميرا",
   "components.GCodeViewer.camera_reconnect.1": "إعادة الاتصال ببث الكاميرا",
-  "components.GCodeViewer.camera_url_label.1": "عنوان URL لبث MJPEG",
+  "components.GCodeViewer.camera_url_label.1": "عنوان URL للكاميرا",
   "components.GCodeViewer.camera_url_placeholder.1": "http://camera.local:8080/stream",
   "components.GCodeViewer.camera_save.1": "حفظ البث",
   "components.GCodeViewer.camera_cancel.1": "إلغاء",
   "components.GCodeViewer.camera_remove.1": "إزالة البث المحفوظ",
   "components.GCodeViewer.camera_setup_title.1": "توصيل كاميرا",
-  "components.GCodeViewer.camera_setup_detail.1": "أدخل عنوان URL المباشر لبث MJPEG. يُحفظ في هذا المتصفح فقط.",
-  "components.GCodeViewer.camera_help.1": "استخدم عنوان URL لبث MJPEG عبر http(s)، مثل http://camera.local:8080/stream.",
+  "components.GCodeViewer.camera_setup_detail.1": "أدخل عنوان URL للكاميرا. يُحفظ في هذا المتصفح فقط.",
+  "components.GCodeViewer.camera_help.1": "استخدم عنوان URL عبر HTTP(S) لبث MJPEG أو لصورة ثابتة ينتهي عنوانها بـ .jpg أو .jpeg.",
   "components.GCodeViewer.camera_invalid_url.1": "أدخل عنوان URL صالحًا لبث http(s).",
   "components.GCodeViewer.camera_error.1": "تعذر تحميل بث الكاميرا. تحقق من عنوان URL وأي تحذير من المحتوى المختلط في المتصفح."
 }

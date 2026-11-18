@@ -1493,14 +1493,14 @@
   "components.GCodeViewer.camera_stream_alt.1": "Flusso della fotocamera in diretta",
   "components.GCodeViewer.camera_edit_stream.1": "Modifica flusso della fotocamera",
   "components.GCodeViewer.camera_reconnect.1": "Riconnetti flusso della fotocamera",
-  "components.GCodeViewer.camera_url_label.1": "URL del flusso MJPEG",
+  "components.GCodeViewer.camera_url_label.1": "URL della videocamera",
   "components.GCodeViewer.camera_url_placeholder.1": "http://camera.local:8080/stream",
   "components.GCodeViewer.camera_save.1": "Salva flusso",
   "components.GCodeViewer.camera_cancel.1": "Annulla",
   "components.GCodeViewer.camera_remove.1": "Rimuovi flusso salvato",
   "components.GCodeViewer.camera_setup_title.1": "Connetti una fotocamera",
-  "components.GCodeViewer.camera_setup_detail.1": "Inserisci l’URL diretto del tuo flusso MJPEG. Viene salvato solo in questo browser.",
-  "components.GCodeViewer.camera_help.1": "Usa un URL MJPEG http(s), ad esempio http://camera.local:8080/stream.",
+  "components.GCodeViewer.camera_setup_detail.1": "Inserisci l’URL della videocamera. Viene salvato solo in questo browser.",
+  "components.GCodeViewer.camera_help.1": "Usa un URL HTTP(S) per un flusso MJPEG o per un’istantanea con URL che termina in .jpg o .jpeg.",
   "components.GCodeViewer.camera_invalid_url.1": "Inserisci un URL di flusso http(s) valido.",
   "components.GCodeViewer.camera_error.1": "Non è stato possibile caricare il flusso della fotocamera. Controlla l’URL e gli avvisi di contenuto misto del browser."
 }

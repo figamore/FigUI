@@ -1493,14 +1493,14 @@
   "components.GCodeViewer.camera_stream_alt.1": "Прямая трансляция с камеры",
   "components.GCodeViewer.camera_edit_stream.1": "Изменить трансляцию с камеры",
   "components.GCodeViewer.camera_reconnect.1": "Переподключить трансляцию с камеры",
-  "components.GCodeViewer.camera_url_label.1": "URL трансляции MJPEG",
+  "components.GCodeViewer.camera_url_label.1": "URL камеры",
   "components.GCodeViewer.camera_url_placeholder.1": "http://camera.local:8080/stream",
   "components.GCodeViewer.camera_save.1": "Сохранить трансляцию",
   "components.GCodeViewer.camera_cancel.1": "Отмена",
   "components.GCodeViewer.camera_remove.1": "Удалить сохранённую трансляцию",
   "components.GCodeViewer.camera_setup_title.1": "Подключить камеру",
-  "components.GCodeViewer.camera_setup_detail.1": "Введите прямой URL вашей трансляции MJPEG. Он сохраняется только в этом браузере.",
-  "components.GCodeViewer.camera_help.1": "Используйте URL MJPEG с http(s), например http://camera.local:8080/stream.",
+  "components.GCodeViewer.camera_setup_detail.1": "Введите URL камеры. Он сохраняется только в этом браузере.",
+  "components.GCodeViewer.camera_help.1": "Используйте URL с HTTP(S) для потока MJPEG или снимка, адрес которого оканчивается на .jpg или .jpeg.",
   "components.GCodeViewer.camera_invalid_url.1": "Введите допустимый URL трансляции http(s).",
   "components.GCodeViewer.camera_error.1": "Не удалось загрузить трансляцию с камеры. Проверьте URL и предупреждения браузера о смешанном содержимом."
 }
