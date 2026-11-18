@@ -5,13 +5,14 @@ import { minify } from 'terser'
 import postcss from 'postcss'
 import { gzipAsync } from '@gfx/zopfli'
 import { encodeSource, decodeSource, decodeUnicodeSource } from './pack-source.mjs'
+import { separateStringLiterals, restoreStringLiterals } from './pack-literals.mjs'
 
 const require = createRequire(import.meta.url)
 const decoder = readFileSync(require.resolve('lzma/src/lzma-d-min.js'), 'utf8')
 const license = readFileSync(require.resolve('lzma/LICENSE'), 'utf8')
 
 /** Pack the inline module, optionally sharing its dictionary with Vite's CSS. */
-export async function packEsp32Html(html, { packStyles = false, unicodeDictionary = false } = {}) {
+export async function packEsp32Html(html, { packStyles = false, unicodeDictionary = false, separateStrings = false } = {}) {
   const scripts = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi)]
   const modules = scripts.filter(match => /\btype\s*=\s*(["'])module\1/i.test(match[1]))
   if (modules.length !== 1 || /\bsrc\s*=/i.test(modules[0][1])) {
@@ -22,23 +23,27 @@ export async function packEsp32Html(html, { packStyles = false, unicodeDictionar
   const styles = packStyles ? [...html.matchAll(/<style\b([^>]*)>([\s\S]*?)<\/style\s*>/gi)]
     .filter(match => /\brel\s*=\s*(["'])stylesheet\1/i.test(match[1])
       && !scripts.some(script => match.index >= script.index && match.index < script.index + script[0].length)) : []
-  const payload = source + styles.map(style => style[2]).join('')
+  const css = styles.map(style => style[2]).join('')
+  const payload = source + css
+  const separated = separateStrings ? separateStringLiterals(source, css) : null
+  const input = separated ?? payload
 
   const compress = input => new Promise((resolve, reject) => {
     lzma.compress(input, 3, (result, error) => error ? reject(error) : resolve(Buffer.from(result)))
   })
-  const plain = unicodeDictionary ? null : await compress(payload)
-  const encoded = await compress(encodeSource(payload, { unicode: unicodeDictionary }))
+  const plain = unicodeDictionary ? null : await compress(input)
+  const encoded = await compress(encodeSource(input, { unicode: unicodeDictionary }))
   // Leave small inputs alone: the dictionary decoder must earn its own bytes.
   // The Unicode variant is compared against the original variant after gzip.
   const useDictionary = unicodeDictionary || encoded.length + 512 < plain.length
   const packed = useDictionary ? encoded : plain
   const restoreSource = unicodeDictionary ? decodeUnicodeSource : decodeSource
 
-  // Verify
+  // Verify the original JavaScript and CSS before generating the browser loader.
   const codec = {}
   Function(decoder).call(codec)
-  if (restoreSource(codec.LZMA.decompress(packed)) !== payload) {
+  const decoded = restoreSource(codec.LZMA.decompress(packed))
+  if ((separated ? restoreStringLiterals(decoded) : decoded) !== payload) {
     throw new Error('ESP32 packing failed its lossless round-trip check.')
   }
 
@@ -58,6 +63,7 @@ export async function packEsp32Html(html, { packStyles = false, unicodeDictionar
         try {
           ${useDictionary ? `source = (${restoreSource.toString()})(source);` : ''}
           if (typeof source !== 'string') throw new Error('Invalid application module');
+          ${separated ? `source = (${restoreStringLiterals.toString()})(source);` : ''}
           ${styles.length ? `
           let offset = ${source.length};
           ${JSON.stringify(styles.map(style => style[2].length))}.forEach((length, index) => {

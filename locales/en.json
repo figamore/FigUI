@@ -1500,7 +1500,7 @@
   "components.GCodeViewer.camera_remove.1": "Remove saved stream",
   "components.GCodeViewer.camera_setup_title.1": "Connect a camera",
   "components.GCodeViewer.camera_setup_detail.1": "Enter your camera URL. It is saved only in this browser.",
-  "components.GCodeViewer.camera_help.1": "Use an HTTP(S) URL for an MJPEG stream or a snapshot URL ending in .jpg or .jpeg.",
+  "components.GCodeViewer.camera_help.1": "Use an HTTP(S) URL for an MJPEG stream or a snapshot ending in .jpg or .jpeg.",
   "components.GCodeViewer.camera_invalid_url.1": "Enter a valid http(s) stream URL.",
   "components.GCodeViewer.camera_error.1": "The camera stream could not be loaded. Check the URL and ensure it is online."
 }

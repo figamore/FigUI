@@ -38,7 +38,11 @@ console.log('\n[4/5] Packing inline app...')
 const candidates = [{ name: 'unpacked', html }]
 if (!process.argv.includes('--no-pack')) {
   candidates.push({ name: 'ASCII dictionary', html: await packEsp32Html(html, { packStyles: true }) })
-  candidates.push({ name: 'Unicode dictionary', html: await packEsp32Html(html, { packStyles: true, unicodeDictionary: true }) })
+  const unicode = { packStyles: true, unicodeDictionary: true }
+  const unicodeHtml = await packEsp32Html(html, unicode)
+  candidates.push({ name: 'Unicode dictionary', html: unicodeHtml })
+  const groupedHtml = await packEsp32Html(html, { ...unicode, separateStrings: true })
+  if (groupedHtml !== unicodeHtml) candidates.push({ name: 'Unicode dictionary with grouped strings', html: groupedHtml })
 } else console.log('  Packing disabled by --no-pack')
 
 console.log('\n[5/5] Compressing with Zopfli...')

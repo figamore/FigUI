@@ -150,6 +150,27 @@ for (const unicodeDictionary of [false, true]) {
   }
 }
 
+const groupedSource = [
+  'const classes = "min-h-0 text-text-primary";',
+  'const message = `Vista previa ${classes} العربية ${`nested ${1 + 2}`} 中文`;',
+  'const escaped = "Quoted \\"text\\" and a \\u0001 escape";',
+].join('\n')
+const groupedCss = 'body{color:red}.label:after{content:"Café 中文"}'
+const groupedHtml = `<script type="module">${groupedSource}</script><style rel="stylesheet">${groupedCss}</style>`
+const unicodeOptions = { packStyles: true, unicodeDictionary: true }
+const grouped = await packEsp32Html(groupedHtml, { ...unicodeOptions, separateStrings: true })
+assert.match(grouped, /Invalid packed string literals/, 'the loader restores grouped strings')
+const groupedLoaded = await unpack(grouped, [groupedCss])
+assert.equal(groupedLoaded.source, groupedSource, 'recover template parts, escapes, and Unicode verbatim')
+assert.deepEqual(groupedLoaded.errors, [])
+
+const reservedMarker = groupedHtml.replace('Vista previa', 'Vista\x01previa')
+assert.equal(
+  await packEsp32Html(reservedMarker, { ...unicodeOptions, separateStrings: true }),
+  await packEsp32Html(reservedMarker, unicodeOptions),
+  'leave an existing group separator untouched',
+)
+
 // The smallest raw HTML need not be the smallest download. Check the actual
 // gzip selection and that the saved HTML and gzip describe the same candidate.
 const varied = Array.from({ length: 500 }, (_, i) => Math.imul(i, 2654435761).toString(36)).join('')
