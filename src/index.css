@@ -6,27 +6,29 @@
   /* Keeps UA-painted widgets (and any dropped author rule) in sync with the theme. */
   color-scheme: light;
 
-  --bg: #f0f2f8;
+  --bg: #edf1f7;
   --surface: #ffffff;
-  --elevated: #e8ebf4;
-  --border: #d0d5e8;
-  --border-strong: #a8b0cc;
-  --accent: #c97a00;
-  --accent-hover: #a86400;
-  --text-primary: #0c0f1a;
-  --text-muted: #5a6280;
-  --text-dim: #9ba3c0;
-  --jog-step-label: #5a6280;
+  --elevated: #e9edf5;
+  --border: #cfd8e6;
+  --border-strong: #a5b4cc;
+  --accent: #3b4bbe;
+  --accent-hover: #2e3d9e;
+  --text-primary: #111a2c;
+  --text-muted: #53617a;
+  --text-dim: #75839a;
+  --jog-step-label: #53617a;
   --ok: #16a34a;
+  --ok-solid-text: #fff;
   --danger: #dc2626;
-  --warn: #ca8a04;
+  --warn: #98531f;
+  --warn-solid-text: #fff;
   --info: #2563eb;
 
   --ok-rgb: 22 163 74;
   --danger-rgb: 220 38 38;
-  --warn-rgb: 202 138 4;
+  --warn-rgb: 152 83 31;
   --info-rgb: 37 99 235;
-  --accent-rgb: 201 122 0;
+  --accent-rgb: 59 75 190;
   --purple-rgb: 124 58 237;
   --teal-rgb: 13 148 136;
 
@@ -38,6 +40,12 @@
   --jog-r2: #b8bfce;
   --jog-r3: #a2aaba;
   --jog-label: #6a7290;
+}
+
+:root:not(.dark):not(.anthracite-dark):not(.midnight-dark) {
+  --workspace-surface: #f7f9fe;
+  --selected-bg: #e4e9ff;
+  --selected-text: var(--accent);
 }
 
 .dark {
@@ -55,8 +63,10 @@
   --text-dim: #3c4860;
   --jog-step-label: #ffffff;
   --ok: #22c55e;
+  --ok-solid-text: #071c16;
   --danger: #ef4444;
   --warn: #facc15;
+  --warn-solid-text: #000;
   --info: #60a5fa;
 
   --ok-rgb: 34 197 94;
@@ -92,8 +102,10 @@
   --text-dim: #4c5775;
   --jog-step-label: #ffffff;
   --ok: #22c55e;
+  --ok-solid-text: #071c16;
   --danger: #ef4444;
   --warn: #facc15;
+  --warn-solid-text: #000;
   --info: #60a5fa;
 
   --ok-rgb: 34 197 94;
@@ -129,8 +141,10 @@
   --text-dim: #6c6c6c;
   --jog-step-label: #cccccc;
   --ok: #4ec9b0;
+  --ok-solid-text: #071c16;
   --danger: #f44747;
   --warn: #ffcc02;
+  --warn-solid-text: #000;
   --info: #4fc3f7;
 
   --ok-rgb: 78 201 176;
@@ -372,7 +386,7 @@ textarea {
 
   .btn-ok-solid {
     background: var(--ok);
-    color: #fff;
+    color: var(--ok-solid-text);
     border-color: var(--ok);
   }
   .btn-ok-solid:disabled {
@@ -439,7 +453,7 @@ textarea {
 
   .btn-warn-solid {
     background: var(--warn);
-    color: #000;
+    color: var(--warn-solid-text);
     border-color: var(--warn);
   }
 
@@ -516,7 +530,18 @@ textarea {
   }
 
   .segmented-control > button[aria-pressed="true"] {
-    @apply bg-surface text-text-primary shadow-sm;
+    @apply shadow-sm;
+    background: var(--selected-bg, var(--surface));
+    color: var(--selected-text, var(--text-primary));
+  }
+
+  .viewer-workspace {
+    background: var(--workspace-surface, var(--surface));
+  }
+
+  .viewer-empty-icon {
+    background: var(--selected-bg, var(--elevated));
+    color: var(--selected-text, var(--text-muted));
   }
 
   /* ── Resize handles ───────────────────────────────────────────────────────── */

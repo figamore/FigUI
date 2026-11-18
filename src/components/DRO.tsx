@@ -88,6 +88,7 @@ export function DRO({
   const controllerJobStarting = useControllerJobStarting()
   const positionMode = useMachineStore(s => s.positionMode)
   const setPositionMode = useMachineStore(s => s.setPositionMode)
+  const isLightTheme = useMachineStore(s => s.theme === 'light')
   const axes = useMachineStore(s => s.axes)
   const units = useMachineStore(s => s.units)
   const hasManualATC = useMachineStore(s => s.controllerSettings.hasManualATC === true)
@@ -482,7 +483,7 @@ export function DRO({
       <div dir="ltr" className={`border-t border-border px-3 flex gap-2 shrink-0 ${topBandLayout ? 'py-1' : 'py-2'}`}>
         {!shouldHideMotionControls && !isHomeAllPending && (
           <button
-            className={`btn btn-warn min-w-0 flex-1 whitespace-normal py-1 leading-tight font-bold ${tabletActionBtnClass}`}
+            className={`btn ${isLightTheme ? 'btn-accent-soft' : 'btn-warn'} min-w-0 flex-1 whitespace-normal py-1 leading-tight font-bold ${tabletActionBtnClass}`}
             onClick={zeroAll}
             title={__uiText("components.DRO.set_current_position_as_work_zero_f.1", "Set current position as work zero for all axes")}
             disabled={areAxisButtonsDisabled}

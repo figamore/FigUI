@@ -3872,7 +3872,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
       <div
         hidden={viewerPanelMode === 'camera'}
         ref={containerRef}
-        className="relative h-full min-h-0 min-w-0 flex-1 cursor-grab overflow-hidden bg-surface active:cursor-grabbing"
+        className="viewer-workspace relative h-full min-h-0 min-w-0 flex-1 cursor-grab overflow-hidden active:cursor-grabbing"
         style={{ touchAction: 'none' }}
         onDrop={onDrop}
         onDragOver={onDragOver}
@@ -4085,7 +4085,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
               </>
             ) : (
               <>
-                <span className="grid h-11 w-11 place-items-center rounded-lg border border-border bg-elevated text-text-muted">
+                <span className="viewer-empty-icon grid h-11 w-11 place-items-center rounded-lg border border-border">
                   <Eye size={20} />
                 </span>
                 <div className="space-y-1">
@@ -4097,7 +4097,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
             {showOpenFile && (
               <button
                 type="button"
-                className="btn btn-ghost pointer-events-auto gap-2 text-sm"
+                className="btn btn-ghost pointer-events-auto gap-2 bg-surface text-sm"
                 onClick={() => localFileInputRef.current?.click()}
                 disabled={isRunning}
                 title={openFileTitle}

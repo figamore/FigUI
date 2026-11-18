@@ -137,9 +137,8 @@ export function Header({ onSettingsClick, onAboutClick, isTablet, sticky }: Prop
 
       <div className="ml-auto flex items-center gap-1">
         {connected ? (
-          <div className={`flex items-center gap-1 text-base text-ok mr-2`}>
-            <Wifi size={isTablet ? 18 : 14} />
-            <span className="hidden sm:inline">{__uiText("components.Header.connected.1", "Connected")}</span>
+          <div className="mr-2 text-ok" role="img" aria-label={__uiText("components.Header.connected.1", "Connected")}>
+            <Wifi size={isTablet ? 18 : 14} aria-hidden="true" />
           </div>
         ) : (
           <div className={`flex items-center gap-1 ${isTablet ? 'text-base' : 'text-sm'} text-text-muted mr-2`}>
