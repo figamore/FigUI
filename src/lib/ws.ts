@@ -845,11 +845,11 @@ function handleLine(line: string) {
   const msgAlarmMatch = line.match(/\[MSG:INFO:\s*ALARM:\s*(.+?)\]/)
   if (msgAlarmMatch) {
     const alarmName = msgAlarmMatch[1].trim()
-    const alarmCode = alarmCodeFromName(alarmName)
     useMachineStore.getState().updateStatus({
       state: 'Alarm',
       alarmName,
-      ...(alarmCode != null && { alarmCode }),
+      // An unknown name clears the previous code; ALARM:<code> follows.
+      alarmCode: alarmCodeFromName(alarmName),
     })
     if (isSilentLine) return
     lineHandlers.forEach(fn => fn(line))

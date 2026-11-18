@@ -154,8 +154,10 @@ socket.receive('[MSG:INFO: ALARM: Unhomed]')
 assert.equal(useMachineStore.getState().status.alarmCode, 14)
 assert.equal(useMachineStore.getState().status.alarmName, 'Unhomed')
 socket.receive('[MSG:INFO: ALARM: Something New]')
-assert.equal(useMachineStore.getState().status.alarmCode, 14, 'an unknown name keeps the last code')
+assert.equal(useMachineStore.getState().status.alarmCode, undefined, 'an unknown name does not keep the previous code')
+assert.equal(useMachineStore.getState().status.alarmName, 'Something New')
 socket.receive('ALARM:3')
+assert.equal(useMachineStore.getState().status.alarmCode, 3, 'the numeric alarm still sets the code')
 shownLines.length = 0
 
 // ── report_inches is learned over the websocket when HTTP refuses $$ ─────────
