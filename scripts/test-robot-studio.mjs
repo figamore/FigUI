@@ -8,15 +8,20 @@ import "../plugins/robot-studio/jog-transport.js";
 import "../plugins/robot-studio/program-control.js";
 
 const K = globalThis.RobotCore;
-test("browser plugin state persists across sessions and isolates controllers and plugins", () => {
+test("browser plugin state persists across sessions and isolates controllers and plugins", async () => {
+  const ts = (await import("typescript")).default;
   const source = readFileSync(new URL("../src/components/PluginFrame.tsx", import.meta.url), "utf8");
-  const start = source.indexOf("case 'getLocalState':");
-  const cases = source.slice(start, source.indexOf("case 'setSessionState':", start));
+  const start = source.indexOf("async function onMessage(");
+  const handler = source.slice(start, source.indexOf("window.addEventListener('message', onMessage)", start));
+  const code = ts.transpileModule(handler, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
   const values = new Map();
-  let controller = "http://first.local", failWrites = false;
+  let controller = "http://first.local", failWrites = false, response;
+  const frame = { postMessage(message) { response = message; } };
   const context = {
     getBase: () => controller,
     window: { location: { origin: "http://figui.local" } },
+    iframeRef: { current: { contentWindow: frame } },
+    disposed: false,
     plugin: { id: "robot-studio" },
     localStorage: {
       getItem: (key) => values.get(key) ?? null,
@@ -26,29 +31,31 @@ test("browser plugin state persists across sessions and isolates controllers and
       },
     },
   };
-  runInNewContext(`globalThis.request = (msg) => {
-    let response;
-    const reply = (result, error) => { response = { result, error }; };
-    switch (msg.method) { ${cases} }
+  const onMessage = runInNewContext(`${code}
+onMessage`, context);
+  const request = async (method, params) => {
+    response = undefined;
+    await onMessage({ source: frame, data: { type: "fluid-request", id: "storage", method, params } });
     return response;
-  };`, context);
-  const read = () => context.request({ method: "getLocalState" });
+  };
+  const read = () => request("getLocalState");
+  const write = (data) => request("setLocalState", { data });
   const data = { project: { config: { name: "Custom robot" } } };
-  assert.equal(read().result, null);
-  assert.equal(context.request({ method: "setLocalState", params: { data } }).error, undefined);
-  assert.deepEqual(JSON.parse(JSON.stringify(read().result)), data);
+  assert.equal((await read()).result, null);
+  assert.equal((await write(data)).error, null);
+  assert.deepEqual(JSON.parse(JSON.stringify((await read()).result)), data);
   controller = "http://second.local";
-  assert.equal(read().result, null);
+  assert.equal((await read()).result, null);
   controller = "http://first.local";
   context.plugin.id = "another-plugin";
-  assert.equal(read().result, null);
+  assert.equal((await read()).result, null);
   context.plugin.id = "robot-studio";
-  assert.equal(read().result.project.config.name, "Custom robot");
+  assert.equal((await read()).result.project.config.name, "Custom robot");
   failWrites = true;
-  assert.match(context.request({ method: "setLocalState", params: { data: {} } }).error, /Storage full/);
-  assert.equal(read().result.project.config.name, "Custom robot");
+  assert.match((await write({})).error, /Storage full/);
+  assert.equal((await read()).result.project.config.name, "Custom robot");
   values.set(values.keys().next().value, "invalid JSON");
-  assert.match(read().error, /SyntaxError/);
+  assert.match((await read()).error, /SyntaxError/);
 });
 test("live transport supports older bridges without HTTP or duplicate motion retries", async () => {
   const create = globalThis.RobotJogTransport.create,

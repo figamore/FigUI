@@ -971,25 +971,16 @@ export function resumeBackgroundTraffic() {
   startLivenessWatchdog()
 }
 
-/**
- * Pause only background commands that generate `ok` responses. Realtime
- * status polling remains active, which lets an acknowledged G-code stream
- * track Run/Hold/Idle without mistaking query acknowledgements for job lines.
- */
-function suspendResponseTraffic() {
-  responseTrafficSuspensions++
-  stopGcStatePoll()
-  if (socket?.readyState === WebSocket.OPEN) startStatusPoll()
-}
-
 export function isResponseTrafficSuspended() {
   return responseTrafficSuspensions > 0
 }
 
-/** Claim the acknowledgement lane without taking it from another sender. */
+/** Reserve command acknowledgements while keeping realtime status polling active. */
 export function trySuspendResponseTraffic() {
-  if (responseTrafficSuspensions > 0 || isLineInputHeldByJob() || !isSocketOpen()) return false
-  suspendResponseTraffic()
+  if (isResponseTrafficSuspended() || isLineInputHeldByJob() || !isSocketOpen()) return false
+  responseTrafficSuspensions++
+  stopGcStatePoll()
+  startStatusPoll()
   return true
 }
 

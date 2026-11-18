@@ -4,8 +4,7 @@ import { getBase } from './http'
 
 /** Volatile plugin state, scoped to this controller connection, never disk. */
 export function createPluginSessionStore(getController: () => string = () => '') {
-  const values = new Map<string, unknown>()
-  const recovery = new Map<string, unknown>()
+  const sessions = new Map<string, { data: unknown; recovery: unknown }>()
   const listeners = new Set<() => void>()
   let generation = 0
   let controller = getController()
@@ -13,14 +12,14 @@ export function createPluginSessionStore(getController: () => string = () => '')
   const store = {
     read(id: string) {
       if (getController() !== controller) store.invalidate('controller')
-      return { generation, reason, data: values.get(id) ?? null, recovery: recovery.get(id) ?? null }
+      const session = sessions.get(id)
+      return { generation, reason, data: session?.data ?? null, recovery: session?.recovery ?? null }
     },
     write(id: string, expected: number, data: unknown) {
       store.read(id) // Detect a controller switch before accepting a late write.
       if (expected !== generation) throw new Error('Controller session changed')
-      recovery.delete(id)
-      if (data == null) values.delete(id)
-      else values.set(id, data)
+      if (data == null) sessions.delete(id)
+      else sessions.set(id, { data, recovery: null })
     },
     invalidate(cause = 'reset') {
       const current = getController()
@@ -29,10 +28,12 @@ export function createPluginSessionStore(getController: () => string = () => '')
       if (reason === 'connection') {
         // Keep calibration available for explicit verification, never active
         // motion authorization. Repeated reconnect attempts retain this copy.
-        values.forEach((value, id) => recovery.set(id, value))
-      } else recovery.clear()
+        for (const session of sessions.values()) {
+          session.recovery = session.data ?? session.recovery
+          session.data = null
+        }
+      } else sessions.clear()
       generation++
-      values.clear()
       listeners.forEach(listener => listener())
     },
     subscribe(listener: () => void) {
@@ -46,8 +47,6 @@ export function createPluginSessionStore(getController: () => string = () => '')
 export const pluginSession = createPluginSessionStore(getBase)
 // Keep watching while plugin frames are closed: a reference must never survive
 // a reset, firmware homing or alarm. Reconnects archive a recovery candidate.
-// Another client's ordinary
-// jogging changes reported positions, not the joint-to-machine calibration.
 useMachineStore.subscribe((state, previous) => {
   if (state.controllerResetPending && !previous.controllerResetPending)
     pluginSession.invalidate('reset')

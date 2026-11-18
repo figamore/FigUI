@@ -448,6 +448,19 @@ const setMachineState = (state: 'Idle' | 'Run') => {
 }
 
 sender().dismiss()
+assert.equal(sender().start('G1 X120 F100', 'plugin.gcode', {
+  pluginStartCheck: () => {
+    assert.equal(socket.reportInterval, 0, 'check the pose after configuring the stream')
+    return false
+  },
+}), true)
+assert.equal(sender().showRuntimeEstimate, false)
+await waitFor(() => sender().phase === 'error', 'plugin start check did not stop the stream')
+assert.match(sender().error ?? '', /machine moved/)
+assert.equal(wasSent('G1 X120 F100'), false)
+assert.equal(socket.reportInterval, 750)
+
+sender().dismiss()
 assert.equal(sender().start('G1 X130 F100\nG1 X131 F100', 'error.gcode'), true)
 await waitFor(() => wasSent('G1 X131 F100'), 'error test blocks were not sent')
 setMachineState('Run')

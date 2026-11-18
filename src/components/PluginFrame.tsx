@@ -9,7 +9,7 @@ import { sendCloseCommand } from '../lib/pluginClose'
 import { loadPluginEntry } from '../lib/plugins'
 import { createPluginJogSender } from '../lib/pluginJog'
 import { pluginSession } from '../lib/pluginSession'
-import { useGCodeSenderStore } from '../store/gcodeSender'
+import { isActiveStreamPhase, useGCodeSenderStore } from '../store/gcodeSender'
 import type { Plugin } from '../types'
 
 interface PluginRequest {
@@ -44,9 +44,13 @@ function getThemeVars(): Record<string, string> {
   return vars
 }
 
+function pluginStatus(machine: ReturnType<typeof useMachineStore.getState>) {
+  return machine.connected && machine.statusReceived ? machine.status : { ...machine.status, state: 'Unknown' }
+}
+
 function prepareHtml(html: string, baseUrl: string, themeVars: Record<string, string>): string {
   const baseTag = /<base\s/i.test(html) ? '' : `<base href="${baseUrl}">`
-  const themeScript = `<script>(function(){var v=${JSON.stringify(themeVars)},r=document.documentElement;for(var k in v)r.style.setProperty(k,v[k]);window.addEventListener('message',function(e){if(e.source===parent&&e.data&&e.data.type==='fluid-theme')for(var k in e.data.vars)r.style.setProperty(k,e.data.vars[k]);});})()</script>`
+  const themeScript = `<script>(function(){var style=document.documentElement.style;function apply(vars){for(var key in vars)style.setProperty(key,vars[key]);}apply(${JSON.stringify(themeVars)});window.addEventListener('message',function(e){if(e.source===parent&&e.data?.type==='fluid-theme')apply(e.data.vars);});})()</script>`
   const injection = baseTag + themeScript
   return /<head[^>]*>/i.test(html)
     ? html.replace(/(<head[^>]*>)/i, `$1${injection}`)
@@ -55,8 +59,6 @@ function prepareHtml(html: string, baseUrl: string, themeVars: Record<string, st
 
 export function PluginFrame({ plugin, onClose, inline }: { plugin: Plugin; onClose: () => void; inline?: boolean }) {
   const iframeRef = useRef<HTMLIFrameElement>(null)
-  const statusSubscribed = useRef(false)
-  const lineUnsubRef = useRef<(() => void) | null>(null)
   // A line the plugin asked to be sent when its window goes away (a laser
   // pointer's M5): the plugin itself is unreachable by then.
   const closeCommandRef = useRef('')
@@ -93,311 +95,271 @@ export function PluginFrame({ plugin, onClose, inline }: { plugin: Plugin; onClo
 
   useEffect(() => {
     const jogSender = createPluginJogSender()
+    let statusSubscribed = false
+    let stopLines: (() => void) | undefined
     let disposed = false
     let streamJobId: number | null = null
     let streamGeneration = 0
     let streamStartGeneration = 0
     let streamStartPending = false
-    const streamBusy = (phase: string) => ['streaming', 'paused', 'draining'].includes(phase)
-    const streamSnapshot = () => {
+    const ownedStream = () => {
       const sender = useGCodeSenderStore.getState()
-      if (streamJobId == null || sender.jobId !== streamJobId) return null
-      return {
-        jobId: sender.jobId, phase: sender.phase,
-        completedBlocks: sender.completedBlocks, totalBlocks: sender.totalBlocks,
-        acceptedLine: sender.acceptedLine, error: sender.error,
-        reset: pluginSession.read(plugin.id).generation !== streamGeneration,
-      }
+      return sender.jobId === streamJobId ? sender : null
     }
+    const streamSnapshot = () => {
+      const sender = ownedStream()
+      if (!sender) return null
+      const { jobId, phase, completedBlocks, totalBlocks, acceptedLine, error } = sender
+      const reset = pluginSession.read(plugin.id).generation !== streamGeneration
+      return { jobId, phase, completedBlocks, totalBlocks, acceptedLine, error, reset }
+    }
+    const postEvent = (event: string, data?: unknown) =>
+      iframeRef.current?.contentWindow?.postMessage({ type: 'fluid-event', event, data }, '*')
     const publishStream = () => {
       const snapshot = streamSnapshot()
-      if (!disposed && snapshot) iframeRef.current?.contentWindow?.postMessage(
-        { type: 'fluid-event', event: 'program-stream', data: snapshot }, '*')
+      if (snapshot) postEvent('program-stream', snapshot)
     }
     const stopStream = useGCodeSenderStore.subscribe(publishStream)
-    function onMessage(e: MessageEvent) {
-      if (e.source !== iframeRef.current?.contentWindow) return
+    async function onMessage(e: MessageEvent) {
+      const frame = iframeRef.current?.contentWindow
       const msg = e.data as PluginRequest
-      if (!msg || msg.type !== 'fluid-request') return
-      const reply = (result: unknown, error?: string) =>
-        iframeRef.current?.contentWindow?.postMessage(
+      if (!frame || e.source !== frame || msg?.type !== 'fluid-request') return
+      const params = msg.params ?? {}
+      const reply = (result: unknown, error?: string) => {
+        if (!disposed) frame.postMessage(
           { type: 'fluid-response', id: msg.id, result: result ?? null, error: error ?? null }, '*')
-      switch (msg.method) {
-        case 'getStatus': {
-          const machine = useMachineStore.getState()
-          reply(machine.connected && machine.statusReceived
-            ? machine.status : { ...machine.status, state: 'Unknown' })
-          break
-        }
-        case 'getSessionState':
-          reply(pluginSession.read(plugin.id)); break
-        case 'getLocalState':
-        case 'setLocalState': {
-          // The sandboxed frame has an opaque origin. Keep browser storage
-          // in the host, isolated by controller and plugin identity.
-          const key = `figui.plugin-local.v1:${encodeURIComponent(getBase() || window.location.origin)}:${encodeURIComponent(plugin.id)}`
-          try {
+      }
+      try {
+        switch (msg.method) {
+          case 'getStatus':
+            reply(pluginStatus(useMachineStore.getState())); break
+          case 'getSessionState':
+            reply(pluginSession.read(plugin.id)); break
+          case 'getLocalState':
+          case 'setLocalState': {
+            // An opaque iframe cannot access the host's localStorage directly.
+            const key = `figui.plugin-local.v1:${encodeURIComponent(getBase() || window.location.origin)}:${encodeURIComponent(plugin.id)}`
             if (msg.method === 'getLocalState') {
-              const raw = localStorage.getItem(key)
-              reply(raw ? JSON.parse(raw) : null)
+              reply(JSON.parse(localStorage.getItem(key) || 'null'))
             } else {
-              localStorage.setItem(key, JSON.stringify(msg.params?.data ?? null))
+              localStorage.setItem(key, JSON.stringify(params.data ?? null))
               reply(null)
             }
-          } catch (error) { reply(null, String(error)) }
-          break
-        }
-        case 'setSessionState':
-          try {
-            pluginSession.write(plugin.id, Number(msg.params?.generation), msg.params?.data)
+            break
+          }
+          case 'setSessionState':
+            pluginSession.write(plugin.id, Number(params.generation), params.data)
             reply(null)
-          } catch (error) { reply(null, String(error)) }
-          break
-        case 'sendCommand': {
-          const cmd = String(msg.params?.command ?? '')
-          if (!useMachineStore.getState().connected) { reply(null, 'Not connected'); break }
-          if (sendRaw(cmd)) reply(null)
-          else reply(null, lineRefusalReason())
-          break
-        }
-        case 'sendJog': {
-          jogSender.send(String(msg.params?.command ?? ''))
-            .then(result => reply(result)).catch(err => reply(null, String(err)))
-          break
-        }
-        case 'endJog':
-          jogSender.close().then(() => reply(null))
-          break
-        case 'startProgramFile':
-        case 'startProgramStream': {
-          if (streamStartPending || streamBusy(useGCodeSenderStore.getState().phase)) {
-            reply(null, 'A G-code stream is already active')
             break
+          case 'sendCommand':
+          case 'sendQuery': {
+            if (!useMachineStore.getState().connected) return reply(null, 'Not connected')
+            const cmd = String(params.command ?? '')
+            if (msg.method === 'sendQuery') return reply(await sendCommand(cmd))
+            return reply(null, sendRaw(cmd) ? undefined : lineRefusalReason())
           }
-          const fromSd = msg.method === 'startProgramFile'
-          const text = fromSd ? msg.params?.path : msg.params?.gcode
-          const rawStart = msg.params?.startPosition
-          if (typeof text !== 'string' || !text.trim() || !Array.isArray(rawStart) || rawStart.length !== 6) {
-            reply(null, 'Expected a program and six starting axis positions')
+          case 'sendJog':
+            reply(await jogSender.send(String(params.command ?? '')))
             break
-          }
-          if (fromSd && !/^\/[\w./-]+$/.test(text)) {
-            reply(null, 'Invalid SD program path')
+          case 'endJog':
+            await jogSender.close()
+            reply(null)
             break
-          }
-          const positions = rawStart.map(value => {
-            const item = value as { axis?: unknown; position?: unknown; tolerance?: unknown } | null
-            return {
-              axis: String(item?.axis ?? '').toLowerCase(),
-              position: typeof item?.position === 'number' ? item.position : NaN,
-              tolerance: typeof item?.tolerance === 'number' ? item.tolerance : NaN,
+          case 'startProgramFile':
+          case 'startProgramStream': {
+            if (streamStartPending || isActiveStreamPhase(useGCodeSenderStore.getState().phase)) {
+              reply(null, 'A G-code stream is already active')
+              break
             }
-          })
-          if (new Set(positions.map(item => item.axis)).size !== 6 || positions.some(item =>
-            !/^[xyzabc]$/.test(item.axis) || !Number.isFinite(item.position) || !Number.isFinite(item.tolerance) || item.tolerance <= 0)) {
-            reply(null, 'Invalid starting axis positions')
-            break
-          }
-          const referenceGeneration = pluginSession.read(plugin.id).generation
-          const ready = () => {
-            const machine = useMachineStore.getState()
-            return !disposed && pluginSession.read(plugin.id).generation === referenceGeneration &&
-              machine.connected && machine.statusReceived && !machine.controllerResetPending &&
-              machine.status.state === 'Idle' && !machine.status.sdFilename && positions.every(item => {
-                const actual = machine.status.mpos[item.axis as keyof typeof machine.status.mpos]
-                return typeof actual === 'number' && Number.isFinite(actual) && Math.abs(actual - item.position) <= item.tolerance
-              })
-          }
-          const stamp = ++streamStartGeneration
-          streamStartPending = true
-          void (async () => {
+            const fromSd = msg.method === 'startProgramFile'
+            const text = fromSd ? params.path : params.gcode
+            const rawStart = params.startPosition
+            if (typeof text !== 'string' || !text.trim() || !Array.isArray(rawStart) || rawStart.length !== 6) {
+              reply(null, 'Expected a program and six starting axis positions')
+              break
+            }
+            if (fromSd && !/^\/[\w./-]+$/.test(text)) {
+              reply(null, 'Invalid SD program path')
+              break
+            }
+            const positions = rawStart.map((value: { axis?: unknown; position: number; tolerance: number } | null) => ({
+              axis: String(value?.axis ?? '').toLowerCase(),
+              position: value?.position ?? NaN,
+              tolerance: value?.tolerance ?? NaN,
+            }))
+            if (new Set(positions.map(item => item.axis)).size !== 6 || positions.some(item =>
+              !/^[xyzabc]$/.test(item.axis) || !Number.isFinite(item.position) || !Number.isFinite(item.tolerance) || item.tolerance <= 0)) {
+              reply(null, 'Invalid starting axis positions')
+              break
+            }
+            const referenceGeneration = pluginSession.read(plugin.id).generation
+            const ready = () => {
+              const machine = useMachineStore.getState()
+              return !disposed && pluginSession.read(plugin.id).generation === referenceGeneration &&
+                machine.connected && machine.statusReceived && !machine.controllerResetPending &&
+                machine.status.state === 'Idle' && !machine.status.sdFilename && positions.every(item => {
+                  const actual = machine.status.mpos[item.axis as keyof typeof machine.status.mpos]
+                  return typeof actual === 'number' && Number.isFinite(actual) && Math.abs(actual - item.position) <= item.tolerance
+                })
+            }
+            const stamp = ++streamStartGeneration
+            streamStartPending = true
             try {
               await jogSender.close()
-              if (disposed || stamp !== streamStartGeneration) throw new Error('Stream start cancelled')
-              if (!ready()) throw new Error('The machine must be Idle at the planned start position')
+              if (disposed) return
+              if (stamp !== streamStartGeneration) return reply(null, 'Stream start cancelled')
+              if (!ready()) return reply(null, 'The machine must be Idle at the planned start position')
               if (fromSd) {
-                if (!sendRaw(`$SD/Run=${text}`)) throw new Error('Controller command channel is busy')
-                reply({ started: true })
-                return
+                if (!sendRaw(`$SD/Run=${text}`)) return reply(null, 'Controller command channel is busy')
+                return reply({ started: true })
               }
               streamJobId = null
               streamGeneration = referenceGeneration
               const sender = useGCodeSenderStore.getState()
               if (!sender.start(text, `${plugin.id}.nc`, {
-                showRuntimeEstimate: false, trackSourcePosition: false, validateStart: ready,
-              })) throw new Error(useGCodeSenderStore.getState().error ?? 'The controller command channel is busy')
+                pluginStartCheck: ready,
+              })) return reply(null, useGCodeSenderStore.getState().error ?? 'Controller command channel is busy')
               streamJobId = useGCodeSenderStore.getState().jobId
               reply(streamSnapshot())
               publishStream()
-            } catch (error) {
-              if (!disposed) reply(null, error instanceof Error ? error.message : String(error))
             } finally {
               streamStartPending = false
             }
-          })()
-          break
-        }
-        case 'getProgramStreamState':
-          reply(streamSnapshot()); break
-        case 'pauseProgramStream':
-        case 'resumeProgramStream':
-        case 'stopProgramStream': {
-          const sender = useGCodeSenderStore.getState()
-          const requestedId = msg.params?.jobId
-          if (requestedId != null && requestedId !== streamJobId) {
-            reply(null, 'This plugin does not own that stream')
             break
           }
-          if (msg.method === 'stopProgramStream') streamStartGeneration++
-          if (streamJobId != null && sender.jobId === streamJobId && streamBusy(sender.phase)) {
-            if (msg.method === 'pauseProgramStream') sender.pause()
-            else if (msg.method === 'resumeProgramStream') sender.resume()
-            else sender.abort()
-          }
-          reply(streamSnapshot())
-          break
-        }
-        case 'sendRealtime': {
-          const byte = Number(msg.params?.byte ?? 0)
-          if (!useMachineStore.getState().connected) { reply(null, 'Not connected'); break }
-          const sent = byte === 0x85 ? jogSender.cancel() : sendRealtime(byte)
-          reply(null, sent ? undefined : 'Not connected')
-          break
-        }
-        case 'sendQuery': {
-          const cmd = String(msg.params?.command ?? '')
-          if (!useMachineStore.getState().connected) { reply(null, 'Not connected'); break }
-          sendCommand(cmd).then(result => reply(result)).catch(err => reply(null, String(err)))
-          break
-        }
-        case 'subscribe':
-          if (msg.params?.event === 'status') statusSubscribed.current = true
-          if (msg.params?.event === 'line' && !lineUnsubRef.current) {
-            lineUnsubRef.current = onLine(line => {
-              iframeRef.current?.contentWindow?.postMessage(
-                { type: 'fluid-event', event: 'line', data: line }, '*')
-            })
-          }
-          reply(null); break
-        case 'unsubscribe':
-          if (msg.params?.event === 'status') statusSubscribed.current = false
-          if (msg.params?.event === 'line') {
-            lineUnsubRef.current?.()
-            lineUnsubRef.current = null
-          }
-          reply(null); break
-        case 'readFile': {
-          const path = String(msg.params?.path ?? '')
-          const fs = (msg.params?.fs as 'sd' | 'local') ?? 'local'
-          fetchFileContent(path, fs, { cache: msg.params?.fresh ? 'no-store' : undefined, timeoutMs: 45000 })
-            .then(text => reply(text)).catch(err => reply(null, String(err)))
-          break
-        }
-        case 'writeFile': {
-          const fullPath = String(msg.params?.path ?? '')
-          const content = String(msg.params?.content ?? '')
-          const fs = (msg.params?.fs as 'sd' | 'local') ?? 'local'
-          const lastSlash = fullPath.lastIndexOf('/')
-          const dir = lastSlash > 0 ? fullPath.slice(0, lastSlash) : '/'
-          const filename = fullPath.slice(lastSlash + 1)
-          saveFileContent(dir, filename, content, fs)
-            .then(() => {
-              reply(null)
-              invalidateFileCache()
-              window.dispatchEvent(new CustomEvent('files:changed'))
-            })
-            .catch(err => reply(null, String(err)))
-          break
-        }
-        case 'listFiles': {
-          const path = String(msg.params?.path ?? '/')
-          const fs = (msg.params?.fs as 'sd' | 'local') ?? 'local'
-          listDeviceFiles(path, fs).then(result => reply(result)).catch(err => reply(null, String(err)))
-          break
-        }
-        case 'openFile': {
-          const path = String(msg.params?.path ?? '')
-          window.dispatchEvent(new CustomEvent('gcode:load', { detail: path }))
-          reply(null)
-          break
-        }
-        case 'close':
-          reply(null)
-          onClose()
-          break
-        case 'setCloseCommand':
-          closeCommandRef.current = String(msg.params?.command ?? '').trim()
-          reply(null)
-          break
-        case 'getDeviceInfo':
-          reply(useMachineStore.getState().espInfo); break
-        case 'getMachineSettings':
-          reply(useMachineStore.getState().controllerSettings); break
-        case 'getSettings': {
-          const tryRead = async () => {
-            try {
-              const text = await fetchFileContent(`/plugins/${plugin.id}/settings.json`, plugin.fs, { timeoutMs: 45000, cache: 'no-store' })
-              const trimmed = text.replace(/^\uFEFF/, '').trim()
-              return trimmed ? JSON.parse(trimmed) : {}
-            } catch (error) {
-              if (error instanceof Error && error.message === 'HTTP 404') return {}
-              throw error
+          case 'getProgramStreamState':
+            reply(streamSnapshot()); break
+          case 'pauseProgramStream':
+          case 'resumeProgramStream':
+          case 'stopProgramStream': {
+            const sender = ownedStream()
+            const requestedId = params.jobId
+            if (requestedId != null && requestedId !== streamJobId) {
+              reply(null, 'This plugin does not own that stream')
+              break
             }
+            if (msg.method === 'stopProgramStream') streamStartGeneration++
+            if (sender && isActiveStreamPhase(sender.phase)) {
+              if (msg.method === 'pauseProgramStream') sender.pause()
+              else if (msg.method === 'resumeProgramStream') sender.resume()
+              else sender.abort()
+            }
+            reply(streamSnapshot())
+            break
           }
-
-          tryRead()
-            .then(data => reply(data))
-            .catch(err => reply(null, String(err)))
-          break
+          case 'sendRealtime': {
+            const byte = Number(params.byte ?? 0)
+            if (!useMachineStore.getState().connected) { reply(null, 'Not connected'); break }
+            const sent = byte === 0x85 ? jogSender.cancel() : sendRealtime(byte)
+            reply(null, sent ? undefined : 'Not connected')
+            break
+          }
+          case 'subscribe':
+            if (params.event === 'status') statusSubscribed = true
+            if (params.event === 'line' && !stopLines) {
+              stopLines = onLine(line => postEvent('line', line))
+            }
+            reply(null); break
+          case 'unsubscribe':
+            if (params.event === 'status') statusSubscribed = false
+            if (params.event === 'line') {
+              stopLines?.()
+              stopLines = undefined
+            }
+            reply(null); break
+          case 'readFile': {
+            const path = String(params.path ?? '')
+            const fs = (params.fs as 'sd' | 'local') ?? 'local'
+            reply(await fetchFileContent(path, fs, params.fresh ? 'no-store' : undefined))
+            break
+          }
+          case 'writeFile': {
+            const fullPath = String(params.path ?? '')
+            const content = String(params.content ?? '')
+            const fs = (params.fs as 'sd' | 'local') ?? 'local'
+            const lastSlash = fullPath.lastIndexOf('/')
+            const dir = lastSlash > 0 ? fullPath.slice(0, lastSlash) : '/'
+            const filename = fullPath.slice(lastSlash + 1)
+            await saveFileContent(dir, filename, content, fs)
+            reply(null)
+            invalidateFileCache()
+            window.dispatchEvent(new CustomEvent('files:changed'))
+            break
+          }
+          case 'listFiles': {
+            const path = String(params.path ?? '/')
+            const fs = (params.fs as 'sd' | 'local') ?? 'local'
+            reply(await listDeviceFiles(path, fs))
+            break
+          }
+          case 'openFile': {
+            const path = String(params.path ?? '')
+            window.dispatchEvent(new CustomEvent('gcode:load', { detail: path }))
+            reply(null)
+            break
+          }
+          case 'close':
+            reply(null)
+            onClose()
+            break
+          case 'setCloseCommand':
+            closeCommandRef.current = String(params.command ?? '').trim()
+            reply(null)
+            break
+          case 'getDeviceInfo':
+            reply(useMachineStore.getState().espInfo); break
+          case 'getMachineSettings':
+            reply(useMachineStore.getState().controllerSettings); break
+          case 'getSettings': {
+            const path = `/plugins/${plugin.id}/settings.json`
+            const settings = await fetchFileContent(path, plugin.fs, 'no-store').catch(error => {
+              if (error instanceof Error && error.message === 'HTTP 404') return ''
+              throw error
+            })
+            reply(JSON.parse(settings.trim() || '{}'))
+            break
+          }
+          case 'saveSettings': {
+            const data = params.data ?? {}
+            await saveFileContent(`/plugins/${plugin.id}`, 'settings.json', JSON.stringify(data), plugin.fs)
+            reply(null)
+            break
+          }
+          default:
+            reply(null, `Unknown method: ${msg.method}`)
         }
-        case 'saveSettings': {
-          const data = msg.params?.data ?? {}
-          const fs = plugin.fs
-          saveFileContent(`/plugins/${plugin.id}`, 'settings.json', JSON.stringify(data), fs)
-            .then(() => reply(null))
-            .catch(err => reply(null, String(err)))
-          break
-        }
-        default:
-          reply(null, `Unknown method: ${msg.method}`)
+      } catch (error) {
+        reply(null, String(error))
       }
     }
     window.addEventListener('message', onMessage)
-    const stopSession = pluginSession.subscribe(() => {
-      iframeRef.current?.contentWindow?.postMessage(
-        { type: 'fluid-event', event: 'session', data: pluginSession.read(plugin.id) }, '*')
+    const stopStatus = useMachineStore.subscribe((state, previous) => {
+      if (!statusSubscribed || (state.status === previous.status &&
+        state.connected === previous.connected && state.statusReceived === previous.statusReceived)) return
+      postEvent('status', pluginStatus(state))
     })
+    const stopSession = pluginSession.subscribe(() => postEvent('session', pluginSession.read(plugin.id)))
     const stopTakeover = onSessionTaken(() => {
       streamStartGeneration++
       // Stop this plugin's control without discarding its joint calibration.
-      iframeRef.current?.contentWindow?.postMessage(
-        { type: 'fluid-event', event: 'control-taken' }, '*')
+      postEvent('control-taken')
     })
     return () => {
       disposed = true
       streamStartGeneration++
       stopStream()
-      const sender = useGCodeSenderStore.getState()
-      if (streamJobId != null && sender.jobId === streamJobId && streamBusy(sender.phase)) sender.abort()
+      const sender = ownedStream()
+      if (sender && isActiveStreamPhase(sender.phase)) sender.abort()
+      stopStatus()
       stopSession()
       stopTakeover()
       window.removeEventListener('message', onMessage)
       jogSender.dispose()
-      lineUnsubRef.current?.()
-      lineUnsubRef.current = null
+      stopLines?.()
       if (closeCommandRef.current) sendCloseCommand(closeCommandRef.current)
       closeCommandRef.current = ''
     }
   }, [plugin.id])
-
-  useEffect(() => {
-    return useMachineStore.subscribe((state, prevState) => {
-      if (!statusSubscribed.current || (state.status === prevState.status &&
-        state.connected === prevState.connected && state.statusReceived === prevState.statusReceived)) return
-      const status = state.connected && state.statusReceived ? state.status : { ...state.status, state: 'Unknown' }
-      iframeRef.current?.contentWindow?.postMessage({ type: 'fluid-event', event: 'status', data: status }, '*')
-    })
-  }, [])
 
   useEffect(() => {
     return useMachineStore.subscribe((state, prevState) => {

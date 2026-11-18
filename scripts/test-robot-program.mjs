@@ -214,7 +214,7 @@ test("the host validates SD paths and rechecks physical position after closing t
   const ts = (await import("typescript")).default;
   const source = readFileSync(new URL("../src/components/PluginFrame.tsx", import.meta.url), "utf8");
   const cases = source.slice(source.indexOf("case 'startProgramFile':"), source.indexOf("case 'getProgramStreamState':"));
-  const code = ts.transpileModule(`globalThis.dispatch = (msg, reply) => { switch (msg.method) { ${cases} } };`,
+  const code = ts.transpileModule(`globalThis.dispatch = async (msg, reply) => { const params = msg.params; switch (msg.method) { ${cases} } };`,
     { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
   async function attempt({ path = P.SD_PATH, moved = false, blocked = false, connected = true, position = 0 } = {}) {
     const commands = [], gate = deferred();
@@ -225,7 +225,7 @@ test("the host validates SD paths and rechecks physical position after closing t
       useMachineStore: { getState: () => machine },
       useGCodeSenderStore: { getState: () => ({ phase: "idle" }) },
       pluginSession: { read: () => ({ generation: 1 }) }, plugin: { id: "robot-studio" },
-      streamStartPending: false, streamBusy: () => false, streamStartGeneration: 0,
+      streamStartPending: false, isActiveStreamPhase: () => false, streamStartGeneration: 0,
       streamJobId: null, streamGeneration: 0, disposed: false,
       jogSender: { close: () => gate.promise },
       sendRaw: (command) => { if (blocked) return false; commands.push(command); return true; },

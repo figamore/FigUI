@@ -20,6 +20,10 @@ import {
 
 export type SenderPhase = 'idle' | 'streaming' | 'paused' | 'draining' | 'completed' | 'aborted' | 'error'
 
+export function isActiveStreamPhase(phase: SenderPhase) {
+  return phase === 'streaming' || phase === 'paused' || phase === 'draining'
+}
+
 type StreamBarrier = 'pause' | 'tool-change' | 'end' | null
 
 interface StreamBlock {
@@ -45,8 +49,7 @@ interface SenderState {
   error: string | null
   start: (text: string, fileName: string, options?: {
     showRuntimeEstimate?: boolean
-    trackSourcePosition?: boolean
-    validateStart?: () => boolean
+    pluginStartCheck?: () => boolean
   }) => boolean
   pause: () => void
   resume: () => void
@@ -96,8 +99,7 @@ let previousReportInterval: number | null = null
 let autoReportChanged = false
 let finishing = false
 let resettingAfterError = false
-let trackSourcePosition = true
-let validateStreamStart: (() => boolean) | null = null
+let pluginStartCheck: (() => boolean) | undefined
 let wakeLock: { release: () => Promise<void> } | null = null
 let wakeLockPending = false
 
@@ -228,7 +230,7 @@ function recordAcknowledgment(block: StreamBlock, publishImmediately = false) {
  */
 function jobKeepsScreenOn() {
   return !!useGCodeStore.getState().trackedJob
-    || ['streaming', 'paused', 'draining'].includes(useGCodeSenderStore.getState().phase)
+    || isActiveStreamPhase(useGCodeSenderStore.getState().phase)
 }
 
 async function acquireWakeLock() {
@@ -278,7 +280,7 @@ interface FinishRequest {
 }
 
 function finalizeFinish(request: FinishRequest) {
-  validateStreamStart = null
+  pluginStartCheck = undefined
   previousReportInterval = null
   autoReportChanged = false
   releaseExclusiveTraffic()
@@ -289,7 +291,7 @@ function finalizeFinish(request: FinishRequest) {
 function finish(phase: 'completed' | 'aborted' | 'error', error: string | null = null) {
   if (finishing) return
   finishing = true
-  const trackedLine = phase === 'error' && trackSourcePosition ? useGCodeStore.getState().activeSourceLine : null
+  const trackedLine = phase === 'error' && !pluginStartCheck ? useGCodeStore.getState().activeSourceLine : null
   const failureLine = phase === 'error' ? trackedLine ?? lastAcknowledgedLine : null
   const request: FinishRequest = {
     phase,
@@ -365,7 +367,7 @@ function scheduleAcknowledgmentCheck() {
   acknowledgmentTimer = setTimeout(() => {
     acknowledgmentTimer = null
     const sender = useGCodeSenderStore.getState()
-    if (!ownsExclusiveTraffic || !['streaming', 'paused', 'draining'].includes(sender.phase)) return
+    if (!ownsExclusiveTraffic || !isActiveStreamPhase(sender.phase)) return
     if (!isSocketOpen()) {
       finish('error', disconnectedMessage())
       return
@@ -419,7 +421,7 @@ async function configureStreamAutoReporting() {
     }
   }
 
-  if (validateStreamStart && !validateStreamStart()) {
+  if (pluginStartCheck && !pluginStartCheck()) {
     finish('error', 'The machine moved or became unavailable while preparing the stream. Plan again from its current position.')
     return
   }
@@ -502,7 +504,7 @@ export const useGCodeSenderStore = create<SenderState>((set, get) => ({
   start: (text, fileName, options) => {
     const machine = useMachineStore.getState()
     if (!isSocketOpen() || !machine.connected || machine.status.state !== 'Idle' || isResponseTrafficSuspended()) return false
-    if (['streaming', 'paused', 'draining'].includes(get().phase)) return false
+    if (isActiveStreamPhase(get().phase)) return false
 
     const built = buildStreamBlocks(text)
     if (built.blocks.length === 0) {
@@ -538,14 +540,13 @@ export const useGCodeSenderStore = create<SenderState>((set, get) => ({
     previousReportInterval = null
     autoReportChanged = false
     finishing = false
-    trackSourcePosition = options?.trackSourcePosition !== false
-    validateStreamStart = options?.validateStart ?? null
+    pluginStartCheck = options?.pluginStartCheck
     clearTimers()
     ownsExclusiveTraffic = true
     set({
       phase: 'streaming',
       fileName,
-      showRuntimeEstimate: options?.showRuntimeEstimate !== false,
+      showRuntimeEstimate: !pluginStartCheck && options?.showRuntimeEstimate !== false,
       jobId: get().jobId + 1,
       acceptedLine: null,
       failureLine: null,
@@ -604,13 +605,13 @@ export const useGCodeSenderStore = create<SenderState>((set, get) => ({
   },
 
   abort: () => {
-    if (!['streaming', 'paused', 'draining'].includes(get().phase)) return
+    if (!isActiveStreamPhase(get().phase)) return
     sendRealtimeNow(0x18)
     finish('aborted')
   },
 
   dismiss: () => {
-    if (['streaming', 'paused', 'draining'].includes(get().phase)) return
+    if (isActiveStreamPhase(get().phase)) return
     set({ phase: 'idle', fileName: null, acceptedLine: null, failureLine: null, failureLineSource: null, notice: null, error: null })
   },
 }))
@@ -664,7 +665,7 @@ onSessionTaken(() => {
 
 useMachineStore.subscribe((state, previous) => {
   const sender = useGCodeSenderStore.getState()
-  if (!['streaming', 'paused', 'draining'].includes(sender.phase)) return
+  if (!isActiveStreamPhase(sender.phase)) return
   if (previous.connected && !state.connected) {
     finish('error', disconnectedMessage())
     return
@@ -696,14 +697,14 @@ useMachineStore.subscribe((state, previous) => {
 
 window.addEventListener('beforeunload', event => {
   const phase = useGCodeSenderStore.getState().phase
-  if (!['streaming', 'paused', 'draining'].includes(phase)) return
+  if (!isActiveStreamPhase(phase)) return
   event.preventDefault()
   event.returnValue = ''
 })
 
 window.addEventListener('pagehide', () => {
   const phase = useGCodeSenderStore.getState().phase
-  if (['streaming', 'paused', 'draining'].includes(phase)) sendRealtimeNow(0x21)
+  if (isActiveStreamPhase(phase)) sendRealtimeNow(0x21)
 })
 
 function syncWakeLock() {
