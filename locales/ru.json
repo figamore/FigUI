@@ -1495,7 +1495,7 @@
   "components.GCodeViewer.camera_reconnect.1": "Переподключить трансляцию с камеры",
   "components.GCodeViewer.camera_url_label.1": "URL камеры",
   "components.GCodeViewer.camera_url_placeholder.1": "http://camera.local:8080/stream",
-  "components.GCodeViewer.camera_unsupported_credentials.1": "URL камеры с именем пользователя или паролем перед хостом не поддерживается.",
+  "components.GCodeViewer.camera_sign_in_help.1": "Для входа через браузер удалите из URL параметры входа и сохраните настройки потока.",
   "components.GCodeViewer.camera_sign_in.1": "Войти в камеру",
   "components.GCodeViewer.camera_open_in_new_tab.1": "Открыть камеру в новой вкладке",
   "components.GCodeViewer.camera_save.1": "Сохранить трансляцию",

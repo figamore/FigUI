@@ -1495,7 +1495,7 @@
   "components.GCodeViewer.camera_reconnect.1": "إعادة الاتصال ببث الكاميرا",
   "components.GCodeViewer.camera_url_label.1": "عنوان URL للكاميرا",
   "components.GCodeViewer.camera_url_placeholder.1": "http://camera.local:8080/stream",
-  "components.GCodeViewer.camera_unsupported_credentials.1": "عناوين URL للكاميرا التي تتضمن اسم مستخدم أو كلمة مرور قبل اسم المضيف غير مدعومة.",
+  "components.GCodeViewer.camera_sign_in_help.1": "لتسجيل الدخول عبر المتصفح، أزل معلمات تسجيل الدخول من عنوان URL وأبقِ إعدادات البث.",
   "components.GCodeViewer.camera_sign_in.1": "تسجيل الدخول إلى الكاميرا",
   "components.GCodeViewer.camera_open_in_new_tab.1": "فتح الكاميرا في علامة تبويب جديدة",
   "components.GCodeViewer.camera_save.1": "حفظ البث",

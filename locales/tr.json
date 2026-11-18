@@ -1495,7 +1495,7 @@
   "components.GCodeViewer.camera_reconnect.1": "Kamera akışına yeniden bağlan",
   "components.GCodeViewer.camera_url_label.1": "Kamera URL’si",
   "components.GCodeViewer.camera_url_placeholder.1": "http://camera.local:8080/stream",
-  "components.GCodeViewer.camera_unsupported_credentials.1": "Ana bilgisayardan önce kullanıcı adı veya parola içeren kamera URL’leri desteklenmez.",
+  "components.GCodeViewer.camera_sign_in_help.1": "Tarayıcıdan oturum açmak için URL’deki giriş parametrelerini kaldırın ve yayın ayarlarını koruyun.",
   "components.GCodeViewer.camera_sign_in.1": "Kamerada oturum aç",
   "components.GCodeViewer.camera_open_in_new_tab.1": "Kamerayı yeni sekmede aç",
   "components.GCodeViewer.camera_save.1": "Akışı kaydet",

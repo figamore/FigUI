@@ -200,8 +200,8 @@ const CAMERA_UI = {
   setupTitle: __uiText('components.GCodeViewer.camera_setup_title.1', 'Connect a camera'),
   setupDetail: __uiText('components.GCodeViewer.camera_setup_detail.1', 'Enter your camera URL. It is saved only in this browser.'),
   help: __uiText('components.GCodeViewer.camera_help.1', 'Use an HTTP(S) URL for an MJPEG stream or a snapshot ending in .jpg or .jpeg.'),
+  signInHelp: __uiText('components.GCodeViewer.camera_sign_in_help.1', 'For browser sign-in, remove any login parameters from the URL and keep the stream settings.'),
   invalidUrl: __uiText('components.GCodeViewer.camera_invalid_url.1', 'Enter a valid http(s) stream URL.'),
-  unsupportedCredentials: __uiText('components.GCodeViewer.camera_unsupported_credentials.1', 'Camera URLs with a username or password before the host are unsupported.'),
   error: __uiText('components.GCodeViewer.camera_error.1', 'The camera stream could not be loaded. Check the URL and ensure it is online.'),
 }
 
@@ -1534,19 +1534,21 @@ function ViewerOverrideControl({
 function CameraPanel({ streamUrl, onSave }: { streamUrl: string, onSave: (url: string | null) => void }) {
   const [editing, setEditing] = useState(!streamUrl)
   const [signingIn, setSigningIn] = useState(false)
+  const [signInUrl, setSignInUrl] = useState<string | null>(null)
   const [draft, setDraft] = useState(streamUrl)
   const [error, setError] = useState<string | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
   const imageRef = useRef<HTMLImageElement>(null)
+  const activeStreamUrl = signInUrl ?? streamUrl
   const cameraUrl = useMemo(() => {
-    const url = parseCameraStreamUrl(streamUrl)
+    const url = parseCameraStreamUrl(activeStreamUrl)
     if (url) {
       // Older saved URLs may still contain credentials.
       url.username = ''
       url.password = ''
     }
     return url
-  }, [streamUrl])
+  }, [activeStreamUrl])
   const snapshot = /\.jpe?g(&[^&=/]+=[^/]*)?$/i.exec(cameraUrl?.pathname ?? '')
   const snapshotUrl = snapshot ? cameraUrl?.href : undefined
   const snapshotParamsInPath = Boolean(snapshot?.[1])
@@ -1556,9 +1558,9 @@ function CameraPanel({ streamUrl, onSave }: { streamUrl: string, onSave: (url: s
   }, [])
 
   useEffect(() => {
-    setDraft(streamUrl)
-    if (!streamUrl) setEditing(true)
-  }, [streamUrl])
+    setDraft(activeStreamUrl)
+    if (!activeStreamUrl) setEditing(true)
+  }, [activeStreamUrl])
 
   useEffect(() => {
     const image = imageRef.current
@@ -1616,32 +1618,59 @@ function CameraPanel({ streamUrl, onSave }: { streamUrl: string, onSave: (url: s
   }, [snapshotUrl, snapshotParamsInPath, editing, reloadKey])
 
   useEffect(() => {
-    if (!signingIn || snapshotUrl || !error) return
+    if (editing || !signingIn || snapshotUrl || !error) return
     const timer = window.setTimeout(reconnect, CAMERA_RETRY_MS)
     return () => window.clearTimeout(timer)
-  }, [signingIn, snapshotUrl, error, reconnect])
+  }, [editing, signingIn, snapshotUrl, error, reconnect])
 
-  function save(event: React.FormEvent) {
+  function submitUrl(event: React.FormEvent) {
     event.preventDefault()
-    const url = parseCameraStreamUrl(draft)
-    const candidate = url ?? parseCameraStreamUrl(`http://${draft.trim()}`)
-    if (candidate?.username || candidate?.password) {
-      setError(CAMERA_UI.unsupportedCredentials)
-      return
-    }
-    if (!url) {
+    const absoluteUrl = parseCameraStreamUrl(draft)
+    const url = absoluteUrl ?? parseCameraStreamUrl(`http://${draft.trim()}`)
+    const hasCredentials = Boolean(url?.username || url?.password)
+    if (!url || (!absoluteUrl && !hasCredentials)) {
       setError(CAMERA_UI.invalidUrl)
       return
     }
-    onSave(url.href)
+    url.username = ''
+    url.password = ''
+    if (signingIn) {
+      setSignInUrl(url.href)
+    } else {
+      onSave(url.href)
+      setSignInUrl(null)
+    }
+    setDraft(url.href)
+    if (hasCredentials) setSigningIn(true)
     setEditing(false)
     reconnect()
+  }
+
+  function signIn() {
+    setSigningIn(true)
+    reconnect()
+  }
+
+  function removeStream() {
+    setSigningIn(false)
+    setSignInUrl(null)
+    setError(null)
+    onSave(null)
+  }
+
+  function onImageLoad() {
+    setError(null)
+    setSigningIn(false)
+    if (signInUrl) {
+      if (signInUrl !== streamUrl) onSave(signInUrl)
+      setSignInUrl(null)
+    }
   }
 
   if (editing) {
     return (
       <section className="flex min-h-0 min-w-0 flex-1 flex-col items-center overflow-y-auto bg-elevated/30 p-3">
-        <form className="my-auto w-full max-w-md shrink-0 space-y-4 rounded-xl border border-border bg-surface p-5 shadow-sm" noValidate onSubmit={save}>
+        <form className="my-auto w-full max-w-md shrink-0 space-y-4 rounded-xl border border-border bg-surface p-5 shadow-sm" noValidate onSubmit={submitUrl}>
           <div className="flex items-center gap-2 text-text-primary">
             <CameraIcon size={20} className="text-accent" />
             <h2 className="font-semibold">{CAMERA_UI.setupTitle}</h2>
@@ -1659,14 +1688,14 @@ function CameraPanel({ streamUrl, onSave }: { streamUrl: string, onSave: (url: s
               aria-label={CAMERA_UI.urlLabel}
             />
           </label>
-          <p className="text-xs leading-relaxed text-text-muted">{CAMERA_UI.help}</p>
+          <p className="text-xs leading-relaxed text-text-muted">{signingIn ? CAMERA_UI.signInHelp : CAMERA_UI.help}</p>
           {error && <p className="text-sm text-danger" role="alert">{error}</p>}
           <div className="flex flex-wrap items-center gap-2">
-            <button className="btn btn-ok-solid" type="submit">{CAMERA_UI.save}</button>
+            <button className="btn btn-ok-solid" type="submit">{signingIn ? CAMERA_UI.signIn : CAMERA_UI.save}</button>
             {streamUrl && (
               <>
-                <button className="btn btn-ghost" type="button" onClick={() => { setEditing(false); setDraft(streamUrl); setError(null) }}>{CAMERA_UI.cancel}</button>
-                <button className="btn btn-ghost text-danger hover:border-danger/50" type="button" onClick={() => onSave(null)}>{CAMERA_UI.remove}</button>
+                <button className="btn btn-ghost" type="button" onClick={() => { setEditing(false); setDraft(activeStreamUrl); setError(null) }}>{CAMERA_UI.cancel}</button>
+                <button className="btn btn-ghost text-danger hover:border-danger/50" type="button" onClick={removeStream}>{CAMERA_UI.remove}</button>
               </>
             )}
           </div>
@@ -1678,13 +1707,13 @@ function CameraPanel({ streamUrl, onSave }: { streamUrl: string, onSave: (url: s
   return (
     <section className="relative flex min-h-0 min-w-0 flex-1 items-center justify-center overflow-hidden bg-black">
       <img
-        key={`${streamUrl}:${reloadKey}`}
+        key={`${cameraUrl?.href}:${reloadKey}`}
         ref={imageRef}
         src={snapshotUrl ? undefined : cameraUrl?.href}
         alt={CAMERA_UI.streamAlt}
         aria-hidden={signingIn}
         className="h-full w-full object-contain"
-        onLoad={() => { setError(null); setSigningIn(false) }}
+        onLoad={onImageLoad}
         onError={() => setError(CAMERA_UI.error)}
       />
       {signingIn && cameraUrl ? (
@@ -1700,6 +1729,9 @@ function CameraPanel({ streamUrl, onSave }: { streamUrl: string, onSave: (url: s
             <a className="btn btn-ghost" href={cameraUrl.href} target="_blank" rel="noopener noreferrer">
               {CAMERA_UI.openInNewTab}
             </a>
+            <button className="btn btn-ghost" type="button" onClick={() => { setEditing(true); setError(null) }}>
+              {CAMERA_UI.editStream}
+            </button>
           </div>
           {/* The frame can emit load on failure. Only the viewer image closes sign-in. */}
           <iframe
@@ -1724,7 +1756,7 @@ function CameraPanel({ streamUrl, onSave }: { streamUrl: string, onSave: (url: s
             <div className="absolute inset-x-4 bottom-4 rounded border border-danger/40 bg-surface/90 px-3 py-2 text-center text-sm shadow-sm backdrop-blur-sm">
               <p className="text-danger" role="alert">{error}</p>
               {cameraUrl && (
-                <button className="btn btn-ghost mt-2" type="button" onClick={() => setSigningIn(true)}>
+                <button className="btn btn-ghost mt-2" type="button" onClick={signIn}>
                   {CAMERA_UI.signIn}
                 </button>
               )}

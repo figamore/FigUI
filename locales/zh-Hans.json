@@ -1495,7 +1495,7 @@
   "components.GCodeViewer.camera_reconnect.1": "重新连接相机流",
   "components.GCodeViewer.camera_url_label.1": "摄像头 URL",
   "components.GCodeViewer.camera_url_placeholder.1": "http://camera.local:8080/stream",
-  "components.GCodeViewer.camera_unsupported_credentials.1": "摄像头 URL 的主机地址前不能包含用户名或密码。",
+  "components.GCodeViewer.camera_sign_in_help.1": "要通过浏览器登录，请删除 URL 中的登录参数并保留视频流设置。",
   "components.GCodeViewer.camera_sign_in.1": "登录摄像头",
   "components.GCodeViewer.camera_open_in_new_tab.1": "在新标签页打开摄像头",
   "components.GCodeViewer.camera_save.1": "保存流",

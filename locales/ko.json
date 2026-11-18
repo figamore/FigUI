@@ -1495,7 +1495,7 @@
   "components.GCodeViewer.camera_reconnect.1": "카메라 스트림 다시 연결",
   "components.GCodeViewer.camera_url_label.1": "카메라 URL",
   "components.GCodeViewer.camera_url_placeholder.1": "http://camera.local:8080/stream",
-  "components.GCodeViewer.camera_unsupported_credentials.1": "호스트 앞에 사용자 이름이나 비밀번호가 있는 카메라 URL은 지원되지 않습니다.",
+  "components.GCodeViewer.camera_sign_in_help.1": "브라우저에서 로그인하려면 URL에서 로그인 매개변수를 제거하고 스트림 설정은 유지하세요.",
   "components.GCodeViewer.camera_sign_in.1": "카메라에 로그인",
   "components.GCodeViewer.camera_open_in_new_tab.1": "새 탭에서 카메라 열기",
   "components.GCodeViewer.camera_save.1": "스트림 저장",
