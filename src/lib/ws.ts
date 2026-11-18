@@ -2,6 +2,7 @@ import { uiText as __uiText, formatUi } from './i18n'
 import { parseControllerSettingLine, parseGcStateLine, parseStatusReport } from './parser'
 import { useMachineStore } from '../store'
 import { sendCommand } from './http'
+import { alarmCodeFromName } from './alarmCodes'
 import type { MachineStatus } from '../types'
 
 let socket: WebSocket | null = null
@@ -843,9 +844,12 @@ function handleLine(line: string) {
 
   const msgAlarmMatch = line.match(/\[MSG:INFO:\s*ALARM:\s*(.+?)\]/)
   if (msgAlarmMatch) {
+    const alarmName = msgAlarmMatch[1].trim()
+    const alarmCode = alarmCodeFromName(alarmName)
     useMachineStore.getState().updateStatus({
       state: 'Alarm',
-      alarmName: msgAlarmMatch[1].trim(),
+      alarmName,
+      ...(alarmCode != null && { alarmCode }),
     })
     if (isSilentLine) return
     lineHandlers.forEach(fn => fn(line))

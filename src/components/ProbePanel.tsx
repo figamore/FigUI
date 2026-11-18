@@ -13,6 +13,7 @@ import { useMachineStore } from '../store'
 import { useManualAtcStore } from '../store/manualAtc'
 import { displayToMm, feedUnitLabel, linearUnitLabel, mmToDisplay } from '../lib/units'
 import { parseProbePoint, type ProbePoint } from '../lib/fluidncReports'
+import { alarmCodeFromName } from '../lib/alarmCodes'
 
 type Axis = 'X' | 'Y' | 'Z'
 type Side = 'negative' | 'positive'
@@ -88,7 +89,7 @@ function alarmMessageFromLine(line: string): string | null {
   const activeAlarm = line.match(/^Active alarm:\s*(\d+)\s*(?:\(([^)]+)\))?/i)
   if (activeAlarm) {
     const code = Number(activeAlarm[1])
-    return activeAlarm[2]?.trim() || PROBE_ALARM_MESSAGES[code] || formatUi(__uiText("components.ProbePanel.template_coverage.1", "Controller alarm {v0}"), { v0: code })
+    return PROBE_ALARM_MESSAGES[code] || activeAlarm[2]?.trim() || formatUi(__uiText("components.ProbePanel.template_coverage.1", "Controller alarm {v0}"), { v0: code })
   }
 
   const alarmCode = line.match(/^ALARM:(\d+)$/i)
@@ -98,8 +99,9 @@ function alarmMessageFromLine(line: string): string | null {
     return PROBE_ALARM_MESSAGES[code] || (Number.isFinite(code) ? formatUi(__uiText("components.ProbePanel.template_coverage.2", "Controller alarm {v0}"), { v0: code }) : __uiText("components.ProbePanel.instruction.22", "Controller alarm"))
   }
 
-  const namedAlarm = line.match(/\[MSG:(?:INFO|ERR):\s*ALARM:\s*(.+?)\]/i)
-  return namedAlarm?.[1]?.trim() || null
+  const namedAlarm = line.match(/\[MSG:(?:INFO|ERR):\s*ALARM:\s*(.+?)\]/i)?.[1]?.trim()
+  const namedCode = alarmCodeFromName(namedAlarm)
+  return (namedCode != null && PROBE_ALARM_MESSAGES[namedCode]) || namedAlarm || null
 }
 
 function axisValue(point: ProbePoint, axis: Axis) {
@@ -729,8 +731,8 @@ export function ProbePanel({ isTablet, embedded = false }: { isTablet?: boolean;
 
   useEffect(() => {
     if (!runningRef.current || status.state !== 'Alarm') return
-    const alarmMessage = status.alarmName
-      || (status.alarmCode != null ? PROBE_ALARM_MESSAGES[status.alarmCode] : undefined)
+    const alarmMessage = (status.alarmCode != null ? PROBE_ALARM_MESSAGES[status.alarmCode] : undefined)
+      || status.alarmName
       || __uiText("components.ProbePanel.instruction.23", "Controller alarm")
     finish(formatUi(__uiText("components.ProbePanel.template_coverage.6", "Probe cycle stopped — {v0}."), { v0: alarmMessage }))
   }, [status.state, status.alarmCode, status.alarmName])
