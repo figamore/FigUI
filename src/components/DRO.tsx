@@ -542,9 +542,10 @@ export function DRO({
               <span className={`text-text-primary leading-snug ${
                 topBandLayout ? 'text-xs' : isTablet ? 'text-sm' : 'text-sm'
               }`}>
-                {status.alarmName
+                {(status.alarmCode != null ? ALARM_MESSAGES[status.alarmCode] : undefined)
+                  ?? status.alarmName
                   ?? (status.alarmCode != null
-                    ? (ALARM_MESSAGES[status.alarmCode] ?? formatUi(__uiText("components.DRO.unknown_alarm.1", "Unknown alarm code {code}"), { code: status.alarmCode }))
+                    ? formatUi(__uiText("components.DRO.unknown_alarm.1", "Unknown alarm code {code}"), { code: status.alarmCode })
                     : __uiText("components.DRO.extra_coverage.1", "Machine is in alarm state"))}
               </span>
             </div>
