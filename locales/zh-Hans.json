@@ -1510,5 +1510,7 @@
   "components.GCodeViewer.park.1": "停靠",
   "components.GCodeViewer.park_title.1": "暂停、停止主轴并将 Z 抬升到停靠高度",
   "components.JobControl.park.1": "停靠",
-  "components.JobControl.park_title.1": "暂停、停止主轴并将 Z 抬升到停靠高度"
+  "components.JobControl.park_title.1": "暂停、停止主轴并将 Z 抬升到停靠高度",
+  "components.JobControl.park.2": "停靠",
+  "components.JobControl.park_title.2": "暂停、停止主轴并将 Z 抬升到停靠高度"
 }

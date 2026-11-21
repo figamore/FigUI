@@ -1510,5 +1510,7 @@
   "components.GCodeViewer.park.1": "パーク",
   "components.GCodeViewer.park_title.1": "一時停止し、スピンドルを停止して Z をパーキング高さまで上げる",
   "components.JobControl.park.1": "パーク",
-  "components.JobControl.park_title.1": "一時停止し、スピンドルを停止して Z をパーキング高さまで上げる"
+  "components.JobControl.park_title.1": "一時停止し、スピンドルを停止して Z をパーキング高さまで上げる",
+  "components.JobControl.park.2": "パーク",
+  "components.JobControl.park_title.2": "一時停止し、スピンドルを停止して Z をパーキング高さまで上げる"
 }

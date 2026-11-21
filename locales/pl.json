@@ -1510,5 +1510,7 @@
   "components.GCodeViewer.park.1": "Parkuj",
   "components.GCodeViewer.park_title.1": "Wstrzymaj, zatrzymaj wrzeciono i podnieś Z na wysokość parkowania",
   "components.JobControl.park.1": "Parkuj",
-  "components.JobControl.park_title.1": "Wstrzymaj, zatrzymaj wrzeciono i podnieś Z na wysokość parkowania"
+  "components.JobControl.park_title.1": "Wstrzymaj, zatrzymaj wrzeciono i podnieś Z na wysokość parkowania",
+  "components.JobControl.park.2": "Parkuj",
+  "components.JobControl.park_title.2": "Wstrzymaj, zatrzymaj wrzeciono i podnieś Z na wysokość parkowania"
 }

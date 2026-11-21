@@ -142,6 +142,14 @@ export function JobControl() {
               </button>
             )}
 
+            {state === 'Hold' && (
+              <button className="btn btn-warn-solid job-action gap-1.5 text-sm justify-center flex-1" onClick={park} disabled={!connected}
+                title={__uiText("components.JobControl.park_title.2", "Pause, stop the spindle and raise Z to the parking height")}>
+                <ArrowUpToLine size={13} />
+                {__uiText("components.JobControl.park.2", "Park")}
+              </button>
+            )}
+
             <button className="btn btn-danger-solid job-action gap-1.5 text-sm justify-center flex-1" onClick={softReset}>
               <Square size={13} />
               {__uiText("components.JobControl.abort.2", "Abort")}

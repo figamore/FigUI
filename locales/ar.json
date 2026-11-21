@@ -1510,5 +1510,7 @@
   "components.GCodeViewer.park.1": "ركن",
   "components.GCodeViewer.park_title.1": "إيقاف مؤقت، إيقاف المغزل ورفع Z إلى ارتفاع الركن",
   "components.JobControl.park.1": "ركن",
-  "components.JobControl.park_title.1": "إيقاف مؤقت، إيقاف المغزل ورفع Z إلى ارتفاع الركن"
+  "components.JobControl.park_title.1": "إيقاف مؤقت، إيقاف المغزل ورفع Z إلى ارتفاع الركن",
+  "components.JobControl.park.2": "ركن",
+  "components.JobControl.park_title.2": "إيقاف مؤقت، إيقاف المغزل ورفع Z إلى ارتفاع الركن"
 }

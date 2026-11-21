@@ -1510,5 +1510,7 @@
   "components.GCodeViewer.park.1": "Park et",
   "components.GCodeViewer.park_title.1": "Duraklat, iş milini durdur ve Z'yi park yüksekliğine kaldır",
   "components.JobControl.park.1": "Park et",
-  "components.JobControl.park_title.1": "Duraklat, iş milini durdur ve Z'yi park yüksekliğine kaldır"
+  "components.JobControl.park_title.1": "Duraklat, iş milini durdur ve Z'yi park yüksekliğine kaldır",
+  "components.JobControl.park.2": "Park et",
+  "components.JobControl.park_title.2": "Duraklat, iş milini durdur ve Z'yi park yüksekliğine kaldır"
 }

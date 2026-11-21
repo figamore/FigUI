@@ -583,6 +583,11 @@ export const useGCodeSenderStore = create<SenderState>((set, get) => ({
   },
 
   park: () => {
+    // FluidNC also parks from Hold, so a paused stream can still be parked.
+    if (get().phase === 'paused') {
+      if (useMachineStore.getState().status.state === 'Hold') sendRealtimeNow(0x84)
+      return
+    }
     if (get().phase !== 'streaming' && get().phase !== 'draining') return
     if (get().phase === 'streaming' && !responseChannelReady) return
     sendRealtimeNow(0x84)

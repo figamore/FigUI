@@ -1510,5 +1510,7 @@
   "components.GCodeViewer.park.1": "Парковка",
   "components.GCodeViewer.park_title.1": "Пауза, остановка шпинделя и подъём Z на высоту парковки",
   "components.JobControl.park.1": "Парковка",
-  "components.JobControl.park_title.1": "Пауза, остановка шпинделя и подъём Z на высоту парковки"
+  "components.JobControl.park_title.1": "Пауза, остановка шпинделя и подъём Z на высоту парковки",
+  "components.JobControl.park.2": "Парковка",
+  "components.JobControl.park_title.2": "Пауза, остановка шпинделя и подъём Z на высоту парковки"
 }

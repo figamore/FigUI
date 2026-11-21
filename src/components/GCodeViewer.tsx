@@ -4655,7 +4655,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
               {__uiText("components.GCodeViewer.pause.2", "Pause")}
             </button>
           )}
-          {isJobRunning && !controllerJobStarting && (
+          {((isJobRunning && !controllerJobStarting) || status.state === 'Hold') && (
             <button
               className={`btn btn-warn-solid job-cycle-action gap-1.5 job-action ${isTablet ? 'text-base' : 'text-sm'} justify-center flex-1`}
               onClick={() => senderActive ? parkSender() : sendRealtime(0x84)}

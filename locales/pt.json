@@ -1510,5 +1510,7 @@
   "components.GCodeViewer.park.1": "Estacionar",
   "components.GCodeViewer.park_title.1": "Pausar, parar o fuso e subir Z à altura de estacionamento",
   "components.JobControl.park.1": "Estacionar",
-  "components.JobControl.park_title.1": "Pausar, parar o fuso e subir Z à altura de estacionamento"
+  "components.JobControl.park_title.1": "Pausar, parar o fuso e subir Z à altura de estacionamento",
+  "components.JobControl.park.2": "Estacionar",
+  "components.JobControl.park_title.2": "Pausar, parar o fuso e subir Z à altura de estacionamento"
 }
