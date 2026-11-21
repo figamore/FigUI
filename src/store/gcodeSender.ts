@@ -2,6 +2,7 @@ import { uiText as __uiText, formatUi, uiPlural as __uiPlural } from '../lib/i18
 import { create } from 'zustand'
 import { useMachineStore } from '../store'
 import { useGCodeStore } from './gcode'
+import { isDoorBlocked } from '../lib/door'
 import {
   getLastDisconnectReason,
   isResponseTrafficQuiescent,
@@ -581,7 +582,7 @@ export const useGCodeSenderStore = create<SenderState>((set, get) => ({
 
   resume: () => {
     if (get().phase !== 'paused') return
-    if (useMachineStore.getState().status.state === 'Door') return
+    if (isDoorBlocked(useMachineStore.getState().status)) return
     if (!sendRealtimeNow(0x7e)) {
       finish('error', disconnectedMessage('resuming the stream'))
       return

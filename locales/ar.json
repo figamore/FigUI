@@ -195,7 +195,6 @@
   "components.JobControl.elapsed.1": "انقضى",
   "components.JobControl.remain.1": "تبقى",
   "components.JobControl.total.1": "المجموع",
-  "components.JobControl.door_open_close_door_then_resume.1": "الباب مفتوح — أغلق الباب ثم استأنف",
   "components.JobControl.alarm_check_machine_before_unlockin.1": "إنذار — فحص الجهاز قبل فتح القفل",
   "components.JobControl.hold.1": "إيقاف مؤقت",
   "components.JobControl.abort.1": "إيقاف العملية",
@@ -589,7 +588,6 @@
   "components.GCodeViewer.stream_this_local_file_to_fluidnc.1": "قم ببث هذا الملف المحلي إلى FluidNC",
   "components.GCodeViewer.start_job_from_loaded_controller_fi.1": "ابدأ المهمة من ملف التحكم المحمل",
   "components.GCodeViewer.request_a_feed_hold_while_the_job_s.1": "اطلب تعليق التغذية أثناء بدء المهمة",
-  "components.GCodeViewer.close_the_safety_door_before_resumi.1": "أغلق باب الأمان قبل الاستئناف",
   "components.GCodeViewer.run_one_line_spindle_and_coolant_st.1": "تشغيل خط واحد. يبقى المغزل والمبرد قيد التشغيل.",
   "components.GCodeViewer.next_block.1": "البلوك التالي",
   "components.GCodeViewer.frame_the_cutting_bounds_as_a_recta.1": "تتبع حدود القطع على شكل مستطيل",
@@ -624,7 +622,6 @@
   "components.Macros.pin_to_header.1": "تثبيت في رأس الصفحة",
   "components.ManualATCPanel.manual_tool_change_requires_g17.1": "يتطلب تغيير الأداة يدويًا G17",
   "components.ManualATCPrompt.proceeding.1": "جاري التنفيذ…",
-  "components.ManualATCPrompt.close_door.1": "اغلاق الباب",
   "components.ManualATCPrompt.ready.1": "جاهز",
   "components.ManualATCPrompt.moving_to_change_position.1": "الانتقال إلى موضع تغيير الأداة…",
   "components.PluginLauncher.no_plugins_match_your_search.1": "لا توجد ملحقات تطابق بحثك",
@@ -1505,5 +1502,9 @@
   "components.GCodeViewer.camera_setup_detail.1": "أدخل عنوان URL للكاميرا. يُحفظ في هذا المتصفح فقط.",
   "components.GCodeViewer.camera_help.1": "استخدم عنوان URL عبر HTTP(S) لبث MJPEG أو لصورة ثابتة ينتهي عنوانها بـ .jpg أو .jpeg.",
   "components.GCodeViewer.camera_invalid_url.1": "أدخل عنوان URL صالحًا لبث http(s).",
-  "components.GCodeViewer.camera_error.1": "تعذر تحميل بث الكاميرا. تحقق من عنوان URL وأي تحذير من المحتوى المختلط في المتصفح."
+  "components.GCodeViewer.camera_error.1": "تعذر تحميل بث الكاميرا. تحقق من عنوان URL وأي تحذير من المحتوى المختلط في المتصفح.",
+  "lib.door.ready.1": "الباب مغلق — جاهز للاستئناف",
+  "lib.door.open.1": "الباب مفتوح — أغلقه للاستئناف",
+  "lib.door.parking.1": "جارٍ الركن…",
+  "lib.door.restoring.1": "جارٍ الاستئناف…"
 }

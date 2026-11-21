@@ -6,6 +6,7 @@ import { formatJobProgress, formatRuntime, useJobRuntimeEstimate } from '../lib/
 import { useControllerJobStarting } from '../lib/jobState'
 import { sendRealtime, sendRealtimeNow } from '../lib/ws'
 import { clearMachineAlarm } from '../lib/alarm'
+import { doorPhaseText } from '../lib/door'
 import { useGCodeSenderStore } from '../store/gcodeSender'
 import { SingleBlockNotice, SingleBlockToggle } from './SingleBlockControl'
 import { useJobResume } from '../lib/jobResume'
@@ -96,7 +97,7 @@ export function JobControl() {
           <div className="flex items-center gap-2 px-3 py-2 rounded bg-warn/10
                           border border-warn/30 text-sm text-warn">
             <DoorOpen size={13} className="shrink-0" />
-            <span>{__uiText("components.JobControl.door_open_close_door_then_resume.1", "Door open — close door then resume")}</span>
+            <span>{doorPhaseText(status.doorPhase)}</span>
           </div>
         )}
 
@@ -139,7 +140,7 @@ export function JobControl() {
               {__uiText("components.JobControl.abort.2", "Abort")}
             </button>
 
-            {(isAlarm || isDoor) && (
+            {isAlarm && (
               <button className="btn btn-ghost gap-1.5 text-sm justify-center flex-1 min-h-[44px]" onClick={clearAlarm}>
                 <RotateCcw size={13} />
                 {__uiText("components.JobControl.unlock.1", "Unlock")}

@@ -1,6 +1,7 @@
 import { uiText as __uiText, formatUi } from './i18n'
 import type { ControllerSettings, FluidNCSetting, GCodeModes, MachineStatus, MachineState, Position } from '../types'
 import { MM_PER_INCH } from './units'
+import { parseDoorPhase } from './door'
 
 export interface ParseStatusOptions {
   reportInches?: boolean
@@ -15,6 +16,7 @@ export function parseStatusReport(raw: string, options: ParseStatusOptions = {})
   status.state = stateParts[0] as MachineState
   status.holdComplete = stateParts[0] === 'Hold' && stateParts[1] === '0'
     ? true : stateParts[0] === 'Hold' && stateParts[1] === '1' ? false : undefined
+  status.doorPhase = stateParts[0] === 'Door' ? parseDoorPhase(stateParts[1]) : undefined
   if (stateParts[0] === 'Alarm' && stateParts[1]) {
     status.alarmCode = parseInt(stateParts[1], 10)
   } else if (stateParts[0] !== 'Alarm') {
