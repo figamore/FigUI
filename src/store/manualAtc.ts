@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { useMachineStore } from '../store'
 import { onLine, onSoftReset, sendRaw, sendRealtime } from '../lib/ws'
 import { useGCodeSenderStore } from './gcodeSender'
+import { isDoorBlocked } from '../lib/door'
 
 export type ManualAtcPhase = 'idle' | 'moving' | 'awaiting-tool' | 'resuming'
 
@@ -64,7 +65,8 @@ export const useManualAtcStore = create<ManualAtcState>((set) => ({
 
   resumeToolChange: () => {
     const machine = useMachineStore.getState()
-    if (machine.status.state !== 'Hold') return false
+    const doorReady = machine.status.state === 'Door' && !isDoorBlocked(machine.status)
+    if (machine.status.state !== 'Hold' && !doorReady) return false
 
     if (useGCodeSenderStore.getState().phase === 'paused') {
       useGCodeSenderStore.getState().resume()

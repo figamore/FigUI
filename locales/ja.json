@@ -195,7 +195,6 @@
   "components.JobControl.elapsed.1": "経過しました",
   "components.JobControl.remain.1": "残り",
   "components.JobControl.total.1": "合計",
-  "components.JobControl.door_open_close_door_then_resume.1": "ドアが開いています — ドアを閉じて再開します",
   "components.JobControl.alarm_check_machine_before_unlockin.1": "アラーム — ロックを解除する前にマシンを確認してください",
   "components.JobControl.hold.1": "ホールド",
   "components.JobControl.abort.1": "中止",
@@ -589,7 +588,6 @@
   "components.GCodeViewer.stream_this_local_file_to_fluidnc.1": "このローカル ファイルを FluidNC にストリーミングします",
   "components.GCodeViewer.start_job_from_loaded_controller_fi.1": "ロードされたコントローラーファイルからジョブを開始します",
   "components.GCodeViewer.request_a_feed_hold_while_the_job_s.1": "ジョブの開始中にフィードの保留をリクエストする",
-  "components.GCodeViewer.close_the_safety_door_before_resumi.1": "再開する前に安全ドアを閉めてください",
   "components.GCodeViewer.run_one_line_spindle_and_coolant_st.1": "1 行を実行します。スピンドルとクーラントはオンのままです。",
   "components.GCodeViewer.next_block.1": "次のブロック",
   "components.GCodeViewer.frame_the_cutting_bounds_as_a_recta.1": "加工範囲を囲む長方形の外周を移動",
@@ -624,7 +622,6 @@
   "components.Macros.pin_to_header.1": "ヘッダーにピン留め",
   "components.ManualATCPanel.manual_tool_change_requires_g17.1": "手動工具交換には G17 が必要です",
   "components.ManualATCPrompt.proceeding.1": "続行中…",
-  "components.ManualATCPrompt.close_door.1": "ドアを閉めてください",
   "components.ManualATCPrompt.ready.1": "準備完了",
   "components.ManualATCPrompt.moving_to_change_position.1": "工具交換位置へ移動中…",
   "components.PluginLauncher.no_plugins_match_your_search.1": "検索に一致するプラグインはありません",
@@ -1505,5 +1502,9 @@
   "components.GCodeViewer.camera_setup_detail.1": "カメラの URL を入力してください。このブラウザーにのみ保存されます。",
   "components.GCodeViewer.camera_help.1": "MJPEG ストリーム、または .jpg か .jpeg で終わるスナップショットの HTTP(S) URL を使用してください。",
   "components.GCodeViewer.camera_invalid_url.1": "有効な http(s) ストリーム URL を入力してください。",
-  "components.GCodeViewer.camera_error.1": "カメラ映像を読み込めませんでした。URL とブラウザの混在コンテンツ警告を確認してください。"
+  "components.GCodeViewer.camera_error.1": "カメラ映像を読み込めませんでした。URL とブラウザの混在コンテンツ警告を確認してください。",
+  "lib.door.ready.1": "ドアが閉じています — 再開できます",
+  "lib.door.open.1": "ドアが開いています — 閉じると再開できます",
+  "lib.door.parking.1": "パーク中…",
+  "lib.door.restoring.1": "再開中…"
 }

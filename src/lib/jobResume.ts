@@ -1,6 +1,7 @@
 import { useMachineStore } from '../store'
 import { useSingleBlockStore } from '../store/singleBlock'
 import { useGCodeSenderStore } from '../store/gcodeSender'
+import { isDoorBlocked } from './door'
 
 export function useJobResume() {
   const status = useMachineStore(s => s.status)
@@ -9,7 +10,7 @@ export function useJobResume() {
   const block = useSingleBlockStore()
   const senderPhase = useGCodeSenderStore(s => s.phase)
   const senderActive = ['streaming', 'paused', 'draining'].includes(senderPhase)
-  const doorBlocked = status.state === 'Door' && !status.doorReady
+  const doorBlocked = isDoorBlocked(status)
   const stepHold = status.state === 'Hold' && status.pinState.includes('Q') && (!!block.pendingBlock || block.advancing) && !senderActive
   const disabled = !connected || resetPending || status.holdComplete === false || doorBlocked
     || (status.state !== 'Hold' && status.state !== 'Door')
@@ -23,7 +24,7 @@ export function resumeHeldJob(): boolean {
   const { status, connected, controllerResetPending } = useMachineStore.getState()
   if (!connected || controllerResetPending || status.holdComplete === false
     || (status.state !== 'Hold' && status.state !== 'Door')
-    || (status.state === 'Door' && !status.doorReady)) return false
+    || isDoorBlocked(status)) return false
   const sender = useGCodeSenderStore.getState()
   if (['streaming', 'paused', 'draining'].includes(sender.phase)) {
     if (sender.phase !== 'paused') return false

@@ -5,6 +5,7 @@ import { useMachineStore } from '../store'
 import { useHoldMonitorStore } from '../store/holdMonitor'
 import { useManualAtcStore } from '../store/manualAtc'
 import { useJobResume } from '../lib/jobResume'
+import { doorPhaseText } from '../lib/door'
 
 export function HoldPrompt() {
   const current = useHoldMonitorStore(s => s.current)
@@ -14,6 +15,7 @@ export function HoldPrompt() {
   const atcPhase = useManualAtcStore(s => s.phase)
   const manualAtc = useMachineStore(s => s.controllerSettings.hasManualATC === true)
   const { disabled, stepHold, doorBlocked, resume } = useJobResume()
+  const doorPhase = useMachineStore(s => s.status.doorPhase)
   const [resuming, setResuming] = useState(false)
   const dialogRef = useRef<HTMLDialogElement>(null)
   const titleRef = useRef<HTMLHeadingElement>(null)
@@ -39,7 +41,7 @@ export function HoldPrompt() {
   }, [resuming])
 
   if (!visible) return null
-  const resumeLabel = resuming ? 'Resuming…' : doorBlocked ? 'Close door' : disabled ? 'Waiting…' : stepHold ? 'Next block' : 'Resume'
+  const resumeLabel = resuming ? 'Resuming…' : doorBlocked ? doorPhaseText(doorPhase) : disabled ? 'Waiting…' : stepHold ? 'Next block' : 'Resume'
 
   return <>
     {dismissed && <button onClick={reopen} className="flex items-center gap-3 border-b border-warn/30 bg-warn/10 px-4 py-2 text-left text-sm text-warn shrink-0" title={__uiText("components.HoldPrompt.open_pause_instructions.1", "Open pause instructions")}>

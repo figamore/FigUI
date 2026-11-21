@@ -195,7 +195,6 @@
   "components.JobControl.elapsed.1": "Écoulé",
   "components.JobControl.remain.1": "Restant",
   "components.JobControl.total.1": "Total",
-  "components.JobControl.door_open_close_door_then_resume.1": "Porte ouverte — fermez la porte puis reprenez",
   "components.JobControl.alarm_check_machine_before_unlockin.1": "ALARME — vérifiez la machine avant de la déverrouiller",
   "components.JobControl.hold.1": "Pause",
   "components.JobControl.abort.1": "Abandonner",
@@ -589,7 +588,6 @@
   "components.GCodeViewer.stream_this_local_file_to_fluidnc.1": "Envoyer ce fichier local en flux vers FluidNC",
   "components.GCodeViewer.start_job_from_loaded_controller_fi.1": "Démarrer la tâche à partir du fichier de contrôleur chargé",
   "components.GCodeViewer.request_a_feed_hold_while_the_job_s.1": "Demander une pause de l’avance pendant le démarrage du travail",
-  "components.GCodeViewer.close_the_safety_door_before_resumi.1": "Fermez la porte de sécurité avant de reprendre",
   "components.GCodeViewer.run_one_line_spindle_and_coolant_st.1": "Exécutez une ligne. La broche et le liquide de refroidissement restent allumés.",
   "components.GCodeViewer.next_block.1": "Bloc suivant",
   "components.GCodeViewer.frame_the_cutting_bounds_as_a_recta.1": "Parcourir les limites d'usinage en rectangle",
@@ -624,7 +622,6 @@
   "components.Macros.pin_to_header.1": "Épingler à l'en-tête",
   "components.ManualATCPanel.manual_tool_change_requires_g17.1": "Le changement d'outil manuel nécessite G17",
   "components.ManualATCPrompt.proceeding.1": "En cours…",
-  "components.ManualATCPrompt.close_door.1": "Fermer la porte",
   "components.ManualATCPrompt.ready.1": "Prêt",
   "components.ManualATCPrompt.moving_to_change_position.1": "Déplacement vers la position de changement d’outil…",
   "components.PluginLauncher.no_plugins_match_your_search.1": "Aucun plugin ne correspond à votre recherche",
@@ -1505,5 +1502,9 @@
   "components.GCodeViewer.camera_setup_detail.1": "Saisissez l’URL de votre caméra. Elle est enregistrée uniquement dans ce navigateur.",
   "components.GCodeViewer.camera_help.1": "Utilisez une URL HTTP(S) pour un flux MJPEG ou une image fixe dont l’URL se termine par .jpg ou .jpeg.",
   "components.GCodeViewer.camera_invalid_url.1": "Saisissez une URL de flux http(s) valide.",
-  "components.GCodeViewer.camera_error.1": "Le flux vidéo n'a pas pu être chargé. Vérifiez l'URL et assurez-vous que la caméra est en ligne."
+  "components.GCodeViewer.camera_error.1": "Le flux vidéo n'a pas pu être chargé. Vérifiez l'URL et assurez-vous que la caméra est en ligne.",
+  "lib.door.ready.1": "Porte fermée — prêt à reprendre",
+  "lib.door.open.1": "Porte ouverte — fermez-la pour reprendre",
+  "lib.door.parking.1": "Parcage…",
+  "lib.door.restoring.1": "Reprise…"
 }

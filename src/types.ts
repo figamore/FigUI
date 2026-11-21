@@ -29,12 +29,14 @@ export interface GCodeModes {
   spindleSpeed?: number
 }
 
+export type DoorPhase = 'ready' | 'open' | 'parking' | 'restoring'
+
 export interface MachineStatus {
   state: MachineState
   /** Hold:0 is ready to resume; Hold:1 is still decelerating. */
   holdComplete?: boolean
-  /** Door:0 means the door is closed and FluidNC will accept cycle start. */
-  doorReady?: boolean
+  /** Door substate; only 'ready' (Door:0) accepts cycle start. */
+  doorPhase?: DoorPhase
   alarmCode?: number
   alarmName?: string
   wpos: Position

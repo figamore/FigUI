@@ -195,7 +195,6 @@
   "components.JobControl.elapsed.1": "बीत गया",
   "components.JobControl.remain.1": "शेष",
   "components.JobControl.total.1": "कुल",
-  "components.JobControl.door_open_close_door_then_resume.1": "दरवाज़ा खुला - दरवाज़ा बंद करें फिर फिर से शुरू करें",
   "components.JobControl.alarm_check_machine_before_unlockin.1": "अलार्म - अनलॉक करने से पहले मशीन की जांच करें",
   "components.JobControl.hold.1": "विराम दें",
   "components.JobControl.abort.1": "निरस्त करें",
@@ -589,7 +588,6 @@
   "components.GCodeViewer.stream_this_local_file_to_fluidnc.1": "इस स्थानीय फ़ाइल को फ़्लुइडएनसी पर स्ट्रीम करें",
   "components.GCodeViewer.start_job_from_loaded_controller_fi.1": "लोडेड कंट्रोलर फ़ाइल से कार्य प्रारंभ करें",
   "components.GCodeViewer.request_a_feed_hold_while_the_job_s.1": "कार्य प्रारंभ होने तक फ़ीड होल्ड करने का अनुरोध करें",
-  "components.GCodeViewer.close_the_safety_door_before_resumi.1": "फिर से शुरू करने से पहले सुरक्षा द्वार बंद कर दें",
   "components.GCodeViewer.run_one_line_spindle_and_coolant_st.1": "एक लाइन चलाएँ। स्पिंडल और कूलेंट चालू रहते हैं।",
   "components.GCodeViewer.next_block.1": "अगला ब्लॉक",
   "components.GCodeViewer.frame_the_cutting_bounds_as_a_recta.1": "कटिंग सीमा को एक आयत के रूप में फ्रेम करें",
@@ -624,7 +622,6 @@
   "components.Macros.pin_to_header.1": "हेडर पर पिन करें",
   "components.ManualATCPanel.manual_tool_change_requires_g17.1": "मैन्युअल टूल परिवर्तन के लिए G17 की आवश्यकता है",
   "components.ManualATCPrompt.proceeding.1": "आगे बढ़ें…",
-  "components.ManualATCPrompt.close_door.1": "दरवाज़ा बंद करें",
   "components.ManualATCPrompt.ready.1": "तैयार",
   "components.ManualATCPrompt.moving_to_change_position.1": "टूल बदलने की स्थिति पर जा रहा है…",
   "components.PluginLauncher.no_plugins_match_your_search.1": "कोई भी प्लगइन आपकी खोज से मेल नहीं खाता",
@@ -1505,5 +1502,9 @@
   "components.GCodeViewer.camera_setup_detail.1": "अपने कैमरे का URL दर्ज करें। यह केवल इस ब्राउज़र में सहेजा जाता है।",
   "components.GCodeViewer.camera_help.1": "MJPEG स्ट्रीम या .jpg या .jpeg पर समाप्त होने वाले स्नैपशॉट के लिए HTTP(S) URL इस्तेमाल करें।",
   "components.GCodeViewer.camera_invalid_url.1": "मान्य http(s) स्ट्रीम URL दर्ज करें।",
-  "components.GCodeViewer.camera_error.1": "कैमरा स्ट्रीम लोड नहीं हो सकी। URL और ब्राउज़र की मिश्रित-सामग्री चेतावनियाँ जाँचें।"
+  "components.GCodeViewer.camera_error.1": "कैमरा स्ट्रीम लोड नहीं हो सकी। URL और ब्राउज़र की मिश्रित-सामग्री चेतावनियाँ जाँचें।",
+  "lib.door.ready.1": "दरवाज़ा बंद — फिर से शुरू करने के लिए तैयार",
+  "lib.door.open.1": "दरवाज़ा खुला — फिर से शुरू करने के लिए बंद करें",
+  "lib.door.parking.1": "पार्क हो रहा है…",
+  "lib.door.restoring.1": "फिर से शुरू हो रहा है…"
 }

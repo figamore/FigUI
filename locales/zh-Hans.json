@@ -195,7 +195,6 @@
   "components.JobControl.elapsed.1": "已过去",
   "components.JobControl.remain.1": "剩余",
   "components.JobControl.total.1": "总计",
-  "components.JobControl.door_open_close_door_then_resume.1": "门打开 — 关门然后恢复",
   "components.JobControl.alarm_check_machine_before_unlockin.1": "警报 — 解锁前检查机器",
   "components.JobControl.hold.1": "暂停",
   "components.JobControl.abort.1": "中止",
@@ -589,7 +588,6 @@
   "components.GCodeViewer.stream_this_local_file_to_fluidnc.1": "将此本地文件流式传输到 FluidNC",
   "components.GCodeViewer.start_job_from_loaded_controller_fi.1": "从加载的控制器文件启动作业",
   "components.GCodeViewer.request_a_feed_hold_while_the_job_s.1": "作业开始时请求暂停进给",
-  "components.GCodeViewer.close_the_safety_door_before_resumi.1": "恢复前关闭安全门",
   "components.GCodeViewer.run_one_line_spindle_and_coolant_st.1": "运行一行。主轴和冷却液保持开启状态。",
   "components.GCodeViewer.next_block.1": "下一个区块",
   "components.GCodeViewer.frame_the_cutting_bounds_as_a_recta.1": "沿加工范围的矩形边界移动",
@@ -624,7 +622,6 @@
   "components.Macros.pin_to_header.1": "固定到标题",
   "components.ManualATCPanel.manual_tool_change_requires_g17.1": "手动换刀需要G17",
   "components.ManualATCPrompt.proceeding.1": "进行中……",
-  "components.ManualATCPrompt.close_door.1": "关门",
   "components.ManualATCPrompt.ready.1": "准备好",
   "components.ManualATCPrompt.moving_to_change_position.1": "正在移动到换刀位置…",
   "components.PluginLauncher.no_plugins_match_your_search.1": "没有符合您搜索条件的插件",
@@ -1505,5 +1502,9 @@
   "components.GCodeViewer.camera_setup_detail.1": "输入摄像头的 URL。它只会保存在此浏览器中。",
   "components.GCodeViewer.camera_help.1": "使用 MJPEG 流的 HTTP(S) URL，或使用以 .jpg 或 .jpeg 结尾的快照 HTTP(S) URL。",
   "components.GCodeViewer.camera_invalid_url.1": "请输入有效的 http(s) 流 URL。",
-  "components.GCodeViewer.camera_error.1": "无法加载相机流。请检查 URL 以及浏览器的混合内容警告。"
+  "components.GCodeViewer.camera_error.1": "无法加载相机流。请检查 URL 以及浏览器的混合内容警告。",
+  "lib.door.ready.1": "门已关闭 — 可以继续",
+  "lib.door.open.1": "门已打开 — 关闭后才能继续",
+  "lib.door.parking.1": "正在停靠…",
+  "lib.door.restoring.1": "正在恢复…"
 }

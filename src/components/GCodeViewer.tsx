@@ -5,6 +5,7 @@ import { MOVE_FEED, MOVE_RAPID, NO_TOOL, type GCodeModel, type Segment, type Seg
 import { useMachineStore } from '../store'
 import { useGCodeStore } from '../store/gcode'
 import { onLine, sendRaw, sendRealtime, sendRealtimeNow, STATUS_POLL_INTERVAL_MS } from '../lib/ws'
+import { doorPhaseText, isDoorBlocked } from '../lib/door'
 import { sendControlLine } from '../lib/macros'
 import type { ControllerSettings, MachineStatus, Units } from '../types'
 import { displayToMm, feedUnitLabel, linearUnitLabel, mmToDisplay } from '../lib/units'
@@ -2501,7 +2502,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
     sdPercent: s.status.sdPercent,
     pinState: s.status.pinState,
     holdComplete: s.status.holdComplete,
-    doorReady: s.status.doorReady,
+    doorPhase: s.status.doorPhase,
   })))
   const connected = useMachineStore(s => s.connected)
   const controllerResetPending = useMachineStore(s => s.controllerResetPending)
@@ -2561,7 +2562,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
   const isJobRunning = senderPhase === 'streaming' || senderPhase === 'draining'
     || (status.state === 'Run' && senderPhase !== 'paused') || controllerJobStarting
   const isJobHeld = senderPhase === 'paused' || status.state === 'Hold' || status.state === 'Door'
-  const doorBlocked = status.state === 'Door' && !status.doorReady
+  const doorBlocked = isDoorBlocked(status)
 
   // $SD/Run is only queued when Start is pressed. If the controller refuses the
   // file (moved, renamed, card not mounted) it stays Idle and never reports the
@@ -4659,7 +4660,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
               onClick={() => senderPhase === 'paused' ? resumeSender() : resumeController()}
               disabled={doorBlocked || (!senderActive && controllerResumeDisabled)}
               title={doorBlocked
-                ? __uiText("components.GCodeViewer.close_the_safety_door_before_resumi.1", "Close the safety door before resuming")
+                ? doorPhaseText(status.doorPhase)
                 : isStepHold ? __uiText("components.GCodeViewer.run_one_line_spindle_and_coolant_st.1", "Run one line. Spindle and coolant stay on.") : undefined}
             >
               {isStepHold ? <StepForward size={isTablet ? 18 : 13} /> : <Play size={isTablet ? 18 : 13} />}
