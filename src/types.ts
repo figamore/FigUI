@@ -33,6 +33,8 @@ export interface MachineStatus {
   state: MachineState
   /** Hold:0 is ready to resume; Hold:1 is still decelerating. */
   holdComplete?: boolean
+  /** Door:0 means the door is closed and FluidNC will accept cycle start. */
+  doorReady?: boolean
   alarmCode?: number
   alarmName?: string
   wpos: Position

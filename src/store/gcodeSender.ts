@@ -581,7 +581,8 @@ export const useGCodeSenderStore = create<SenderState>((set, get) => ({
 
   resume: () => {
     if (get().phase !== 'paused') return
-    if (useMachineStore.getState().status.state === 'Door') return
+    const { state: doorState, doorReady } = useMachineStore.getState().status
+    if (doorState === 'Door' && !doorReady) return
     if (!sendRealtimeNow(0x7e)) {
       finish('error', disconnectedMessage('resuming the stream'))
       return

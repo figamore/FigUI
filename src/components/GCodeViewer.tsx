@@ -2501,6 +2501,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
     sdPercent: s.status.sdPercent,
     pinState: s.status.pinState,
     holdComplete: s.status.holdComplete,
+    doorReady: s.status.doorReady,
   })))
   const connected = useMachineStore(s => s.connected)
   const controllerResetPending = useMachineStore(s => s.controllerResetPending)
@@ -2559,7 +2560,8 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
   }, [otherProgram])
   const isJobRunning = senderPhase === 'streaming' || senderPhase === 'draining'
     || (status.state === 'Run' && senderPhase !== 'paused') || controllerJobStarting
-  const isJobHeld = senderPhase === 'paused' || status.state === 'Hold'
+  const isJobHeld = senderPhase === 'paused' || status.state === 'Hold' || status.state === 'Door'
+  const doorBlocked = status.state === 'Door' && !status.doorReady
 
   // $SD/Run is only queued when Start is pressed. If the controller refuses the
   // file (moved, renamed, card not mounted) it stays Idle and never reports the
@@ -4655,8 +4657,8 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
             <button
               className={`btn ${isStepHold ? 'btn-step' : 'btn-ok-solid'} job-cycle-action gap-1.5 job-action ${isTablet ? 'text-base' : 'text-sm'} justify-center flex-1`}
               onClick={() => senderPhase === 'paused' ? resumeSender() : resumeController()}
-              disabled={senderActive ? status.state === 'Door' : controllerResumeDisabled}
-              title={senderPhase === 'paused' && status.state === 'Door'
+              disabled={doorBlocked || (!senderActive && controllerResumeDisabled)}
+              title={doorBlocked
                 ? __uiText("components.GCodeViewer.close_the_safety_door_before_resumi.1", "Close the safety door before resuming")
                 : isStepHold ? __uiText("components.GCodeViewer.run_one_line_spindle_and_coolant_st.1", "Run one line. Spindle and coolant stay on.") : undefined}
             >

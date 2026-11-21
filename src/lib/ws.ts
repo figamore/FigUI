@@ -708,6 +708,7 @@ function applyStatusReport(report: Partial<MachineStatus>) {
     responseTrafficSuspensions > 0
     || report.state !== current.state
     || report.holdComplete !== current.holdComplete
+    || report.doorReady !== current.doorReady
     || report.pinState !== current.pinState
     || sinceLastApply >= STATUS_APPLY_INTERVAL_MS
   ) {

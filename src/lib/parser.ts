@@ -15,6 +15,7 @@ export function parseStatusReport(raw: string, options: ParseStatusOptions = {})
   status.state = stateParts[0] as MachineState
   status.holdComplete = stateParts[0] === 'Hold' && stateParts[1] === '0'
     ? true : stateParts[0] === 'Hold' && stateParts[1] === '1' ? false : undefined
+  status.doorReady = stateParts[0] === 'Door' ? stateParts[1] === '0' : undefined
   if (stateParts[0] === 'Alarm' && stateParts[1]) {
     status.alarmCode = parseInt(stateParts[1], 10)
   } else if (stateParts[0] !== 'Alarm') {
