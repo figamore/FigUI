@@ -50,6 +50,7 @@ export const ArrowLeft = /*#__PURE__*/createIcon('arrow-left', [["path",{"d":"m1
 export const ArrowRight = /*#__PURE__*/createIcon('arrow-right', [["path",{"d":"M5 12h14"}],["path",{"d":"m12 5 7 7-7 7"}]])
 export const ArrowRightToLine = /*#__PURE__*/createIcon('arrow-right-to-line', [["path",{"d":"M17 12H3"}],["path",{"d":"m11 18 6-6-6-6"}],["path",{"d":"M21 5v14"}]])
 export const ArrowUp = /*#__PURE__*/createIcon('arrow-up', [["path",{"d":"m5 12 7-7 7 7"}],["path",{"d":"M12 19V5"}]])
+export const ArrowUpToLine = /*#__PURE__*/createIcon('arrow-up-to-line', [["path",{"d":"M5 3h14"}],["path",{"d":"m18 13-6-6-6 6"}],["path",{"d":"M12 7v14"}]])
 export const Axis3D = /*#__PURE__*/createIcon('axis-3-d', [["path",{"d":"M4 4v16h16"}],["path",{"d":"m4 20 7-7"}]])
 export const Box = /*#__PURE__*/createIcon('box', [["path",{"d":"M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"}],["path",{"d":"m3.3 7 8.7 5 8.7-5"}],["path",{"d":"M12 22V12"}]])
 export const Camera = /*#__PURE__*/createIcon('camera', [["path",{"d":"M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"}],["circle",{"cx":"12","cy":"13","r":"3"}]])

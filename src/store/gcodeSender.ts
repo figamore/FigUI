@@ -2,6 +2,7 @@ import { uiText as __uiText, formatUi, uiPlural as __uiPlural } from '../lib/i18
 import { create } from 'zustand'
 import { useMachineStore } from '../store'
 import { useGCodeStore } from './gcode'
+import { isDoorBlocked } from '../lib/door'
 import {
   getLastDisconnectReason,
   isResponseTrafficQuiescent,
@@ -52,6 +53,8 @@ interface SenderState {
     pluginStartCheck?: () => boolean
   }) => boolean
   pause: () => void
+  /** Soft safety door (0x84): hold, spindle off, park Z per FluidNC parking config. */
+  park: () => void
   resume: () => void
   abort: () => void
   dismiss: () => void
@@ -579,9 +582,22 @@ export const useGCodeSenderStore = create<SenderState>((set, get) => ({
     set({ phase: 'paused' })
   },
 
+  park: () => {
+    // FluidNC also parks from Hold, so a paused stream can still be parked.
+    if (get().phase === 'paused') {
+      if (useMachineStore.getState().status.state === 'Hold') sendRealtimeNow(0x84)
+      return
+    }
+    if (get().phase !== 'streaming' && get().phase !== 'draining') return
+    if (get().phase === 'streaming' && !responseChannelReady) return
+    sendRealtimeNow(0x84)
+    resumePending = false
+    set({ phase: 'paused' })
+  },
+
   resume: () => {
     if (get().phase !== 'paused') return
-    if (useMachineStore.getState().status.state === 'Door') return
+    if (isDoorBlocked(useMachineStore.getState().status)) return
     if (!sendRealtimeNow(0x7e)) {
       finish('error', disconnectedMessage('resuming the stream'))
       return

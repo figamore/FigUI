@@ -1,6 +1,7 @@
 import { useMachineStore } from '../store'
 import { useSingleBlockStore } from '../store/singleBlock'
 import { useGCodeSenderStore } from '../store/gcodeSender'
+import { isDoorBlocked } from './door'
 
 export function useJobResume() {
   const status = useMachineStore(s => s.status)
@@ -9,22 +10,24 @@ export function useJobResume() {
   const block = useSingleBlockStore()
   const senderPhase = useGCodeSenderStore(s => s.phase)
   const senderActive = ['streaming', 'paused', 'draining'].includes(senderPhase)
+  const doorBlocked = isDoorBlocked(status)
   const stepHold = status.state === 'Hold' && status.pinState.includes('Q') && (!!block.pendingBlock || block.advancing) && !senderActive
-  const disabled = !connected || resetPending || status.holdComplete === false
+  const disabled = !connected || resetPending || status.holdComplete === false || doorBlocked
     || (status.state !== 'Hold' && status.state !== 'Door')
-    || (senderActive ? status.state === 'Door' || senderPhase !== 'paused'
+    || (senderActive ? senderPhase !== 'paused'
       : block.requestedMode !== null || block.advancing || (status.state === 'Hold' && !!block.pendingBlock && !block.ready))
 
-  return { disabled, stepHold, resume: resumeHeldJob }
+  return { disabled, stepHold, doorBlocked, resume: resumeHeldJob }
 }
 
 export function resumeHeldJob(): boolean {
   const { status, connected, controllerResetPending } = useMachineStore.getState()
   if (!connected || controllerResetPending || status.holdComplete === false
-    || (status.state !== 'Hold' && status.state !== 'Door')) return false
+    || (status.state !== 'Hold' && status.state !== 'Door')
+    || isDoorBlocked(status)) return false
   const sender = useGCodeSenderStore.getState()
   if (['streaming', 'paused', 'draining'].includes(sender.phase)) {
-    if (sender.phase !== 'paused' || status.state === 'Door') return false
+    if (sender.phase !== 'paused') return false
     sender.resume()
   } else {
     const block = useSingleBlockStore.getState()

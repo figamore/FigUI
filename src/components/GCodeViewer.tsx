@@ -1,10 +1,11 @@
 import { uiText as __uiText, formatUi } from '../lib/i18n'
 import { useRef, useEffect, useLayoutEffect, useState, useCallback, useMemo } from 'react'
-import { Eye, Circle, Axis3D, Maximize2, Crosshair, Play, Pause, Square, CloudDrizzle, Waves, PowerOff, Zap, Orbit, Hand, ListStart, RotateCcw, FilePlus, X, AlertTriangle, Maximize, ChevronDown, Check, StepForward, Camera as CameraIcon, Rows2, Settings2, RefreshCw } from 'lucide-react'
+import { Eye, Circle, Axis3D, Maximize2, Crosshair, Play, Pause, Square, CloudDrizzle, Waves, PowerOff, Zap, Orbit, Hand, ListStart, RotateCcw, FilePlus, X, AlertTriangle, Maximize, ChevronDown, Check, StepForward, Camera as CameraIcon, Rows2, Settings2, RefreshCw, ArrowUpToLine } from 'lucide-react'
 import { MOVE_FEED, MOVE_RAPID, NO_TOOL, type GCodeModel, type Segment, type SegmentTable } from '../lib/gcode'
 import { useMachineStore } from '../store'
 import { useGCodeStore } from '../store/gcode'
 import { onLine, sendRaw, sendRealtime, sendRealtimeNow, STATUS_POLL_INTERVAL_MS } from '../lib/ws'
+import { doorPhaseText, isDoorBlocked } from '../lib/door'
 import { sendControlLine } from '../lib/macros'
 import type { ControllerSettings, MachineStatus, Units } from '../types'
 import { displayToMm, feedUnitLabel, linearUnitLabel, mmToDisplay } from '../lib/units'
@@ -2501,6 +2502,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
     sdPercent: s.status.sdPercent,
     pinState: s.status.pinState,
     holdComplete: s.status.holdComplete,
+    doorPhase: s.status.doorPhase,
   })))
   const connected = useMachineStore(s => s.connected)
   const controllerResetPending = useMachineStore(s => s.controllerResetPending)
@@ -2516,6 +2518,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
   const senderFailureLineSource = useGCodeSenderStore(s => s.failureLineSource)
   const startSender = useGCodeSenderStore(s => s.start)
   const pauseSender = useGCodeSenderStore(s => s.pause)
+  const parkSender = useGCodeSenderStore(s => s.park)
   const resumeSender = useGCodeSenderStore(s => s.resume)
   const abortSender = useGCodeSenderStore(s => s.abort)
   const dismissSender = useGCodeSenderStore(s => s.dismiss)
@@ -2559,7 +2562,8 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
   }, [otherProgram])
   const isJobRunning = senderPhase === 'streaming' || senderPhase === 'draining'
     || (status.state === 'Run' && senderPhase !== 'paused') || controllerJobStarting
-  const isJobHeld = senderPhase === 'paused' || status.state === 'Hold'
+  const isJobHeld = senderPhase === 'paused' || status.state === 'Hold' || status.state === 'Door'
+  const doorBlocked = isDoorBlocked(status)
 
   // $SD/Run is only queued when Start is pressed. If the controller refuses the
   // file (moved, renamed, card not mounted) it stays Idle and never reports the
@@ -4651,13 +4655,23 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
               {__uiText("components.GCodeViewer.pause.2", "Pause")}
             </button>
           )}
+          {((isJobRunning && !controllerJobStarting) || status.state === 'Hold') && (
+            <button
+              className={`btn btn-warn-solid job-cycle-action gap-1.5 job-action ${isTablet ? 'text-base' : 'text-sm'} justify-center flex-1`}
+              onClick={() => senderActive ? parkSender() : sendRealtime(0x84)}
+              title={__uiText("components.GCodeViewer.park_title.1", "Pause, stop the spindle and raise Z to the parking height")}
+            >
+              <ArrowUpToLine size={isTablet ? 18 : 13} />
+              {__uiText("components.GCodeViewer.park.1", "Park")}
+            </button>
+          )}
           {isJobHeld && (
             <button
               className={`btn ${isStepHold ? 'btn-step' : 'btn-ok-solid'} job-cycle-action gap-1.5 job-action ${isTablet ? 'text-base' : 'text-sm'} justify-center flex-1`}
               onClick={() => senderPhase === 'paused' ? resumeSender() : resumeController()}
-              disabled={senderActive ? status.state === 'Door' : controllerResumeDisabled}
-              title={senderPhase === 'paused' && status.state === 'Door'
-                ? __uiText("components.GCodeViewer.close_the_safety_door_before_resumi.1", "Close the safety door before resuming")
+              disabled={doorBlocked || (!senderActive && controllerResumeDisabled)}
+              title={doorBlocked
+                ? doorPhaseText(status.doorPhase)
                 : isStepHold ? __uiText("components.GCodeViewer.run_one_line_spindle_and_coolant_st.1", "Run one line. Spindle and coolant stay on.") : undefined}
             >
               {isStepHold ? <StepForward size={isTablet ? 18 : 13} /> : <Play size={isTablet ? 18 : 13} />}

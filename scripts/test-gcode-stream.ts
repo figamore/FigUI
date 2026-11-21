@@ -484,6 +484,53 @@ setMachineState('Idle')
 await waitFor(() => sender().phase === 'aborted', 'abort did not end the stream')
 assert.equal(socket.reportInterval, 750, 'abort cleanup must restore the exact controller report interval')
 
+// Park sends the soft safety door while streaming and from a paused Hold.
+sender().dismiss()
+assert.equal(sender().start('G1 X170 F100\nG1 X171 F100', 'park.gcode'), true)
+await waitFor(() => wasSent('G1 X170 F100'), 'park test block was not sent')
+setMachineState('Run')
+const parksBefore = realtimeCount(0x84)
+sender().park()
+assert.equal(realtimeCount(0x84), parksBefore + 1, 'Park must send 0x84 while streaming')
+assert.equal(sender().phase, 'paused')
+socket.machineState = 'Hold:0'
+useMachineStore.getState().updateStatus({ state: 'Hold', holdComplete: true })
+sender().park()
+assert.equal(realtimeCount(0x84), parksBefore + 2, 'Park must also work from Hold')
+socket.machineState = 'Door:2'
+useMachineStore.getState().updateStatus({ state: 'Door', doorPhase: 'parking', holdComplete: undefined })
+sender().park()
+assert.equal(realtimeCount(0x84), parksBefore + 2, 'Park is not resent while already parking')
+sender().abort()
+setMachineState('Idle')
+await waitFor(() => sender().phase === 'aborted', 'park test abort did not end the stream')
+
+// Safety door: the sender pauses on any Door substate but only resumes at Door:0.
+sender().dismiss()
+assert.equal(sender().start('G1 X160 F100\nG1 X161 F100', 'door.gcode'), true)
+await waitFor(() => wasSent('G1 X160 F100'), 'door test block was not sent')
+setMachineState('Run')
+for (const [report, doorPhase] of [['Door:2', 'parking'], ['Door:1', 'open']] as const) {
+  socket.machineState = report
+  useMachineStore.getState().updateStatus({ state: 'Door', doorPhase })
+  await waitFor(() => sender().phase === 'paused', `${report} did not pause the stream`)
+  const before = realtimeCount(0x7e)
+  sender().resume()
+  assert.equal(realtimeCount(0x7e), before, `${report} must not send cycle start`)
+}
+socket.machineState = 'Door:0'
+useMachineStore.getState().updateStatus({ state: 'Door', doorPhase: 'ready' })
+const beforeDoorResume = realtimeCount(0x7e)
+sender().resume()
+assert.equal(realtimeCount(0x7e), beforeDoorResume + 1, 'Door:0 must send cycle start')
+socket.machineState = 'Door:3'
+useMachineStore.getState().updateStatus({ state: 'Door', doorPhase: 'restoring' })
+sender().resume()
+assert.equal(realtimeCount(0x7e), beforeDoorResume + 1, 'Door:3 is already restoring')
+sender().abort()
+setMachineState('Idle')
+await waitFor(() => sender().phase === 'aborted', 'door test abort did not end the stream')
+
 socket.singleBlock = true
 socket.machineState = 'Hold:0'
 socket.receive('[MSG:INFO: Step /sd/disconnected.nc:1 G1 X99]\n')

@@ -29,10 +29,14 @@ export interface GCodeModes {
   spindleSpeed?: number
 }
 
+export type DoorPhase = 'ready' | 'open' | 'parking' | 'restoring'
+
 export interface MachineStatus {
   state: MachineState
   /** Hold:0 is ready to resume; Hold:1 is still decelerating. */
   holdComplete?: boolean
+  /** Door substate; only 'ready' (Door:0) accepts cycle start. */
+  doorPhase?: DoorPhase
   alarmCode?: number
   alarmName?: string
   wpos: Position
