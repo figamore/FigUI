@@ -1506,5 +1506,9 @@
   "lib.door.ready.1": "दरवाज़ा बंद — फिर से शुरू करने के लिए तैयार",
   "lib.door.open.1": "दरवाज़ा खुला — फिर से शुरू करने के लिए बंद करें",
   "lib.door.parking.1": "पार्क हो रहा है…",
-  "lib.door.restoring.1": "फिर से शुरू हो रहा है…"
+  "lib.door.restoring.1": "फिर से शुरू हो रहा है…",
+  "components.GCodeViewer.park.1": "पार्क",
+  "components.GCodeViewer.park_title.1": "रोकें, स्पिंडल बंद करें और Z को पार्किंग ऊँचाई तक उठाएँ",
+  "components.JobControl.park.1": "पार्क",
+  "components.JobControl.park_title.1": "रोकें, स्पिंडल बंद करें और Z को पार्किंग ऊँचाई तक उठाएँ"
 }

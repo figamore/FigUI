@@ -53,6 +53,8 @@ interface SenderState {
     pluginStartCheck?: () => boolean
   }) => boolean
   pause: () => void
+  /** Soft safety door (0x84): hold, spindle off, park Z per FluidNC parking config. */
+  park: () => void
   resume: () => void
   abort: () => void
   dismiss: () => void
@@ -576,6 +578,14 @@ export const useGCodeSenderStore = create<SenderState>((set, get) => ({
     // so entering Paused here would strand the preparation handshake.
     if (get().phase === 'streaming' && !responseChannelReady) return
     sendRealtimeNow(0x21)
+    resumePending = false
+    set({ phase: 'paused' })
+  },
+
+  park: () => {
+    if (get().phase !== 'streaming' && get().phase !== 'draining') return
+    if (get().phase === 'streaming' && !responseChannelReady) return
+    sendRealtimeNow(0x84)
     resumePending = false
     set({ phase: 'paused' })
   },

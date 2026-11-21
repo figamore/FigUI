@@ -1506,5 +1506,9 @@
   "lib.door.ready.1": "Porta fechada — pronto para retomar",
   "lib.door.open.1": "Porta aberta — feche-a para retomar",
   "lib.door.parking.1": "Estacionando…",
-  "lib.door.restoring.1": "Retomando…"
+  "lib.door.restoring.1": "Retomando…",
+  "components.GCodeViewer.park.1": "Estacionar",
+  "components.GCodeViewer.park_title.1": "Pausar, parar o fuso e subir Z à altura de estacionamento",
+  "components.JobControl.park.1": "Estacionar",
+  "components.JobControl.park_title.1": "Pausar, parar o fuso e subir Z à altura de estacionamento"
 }

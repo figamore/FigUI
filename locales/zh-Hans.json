@@ -1506,5 +1506,9 @@
   "lib.door.ready.1": "门已关闭 — 可以继续",
   "lib.door.open.1": "门已打开 — 关闭后才能继续",
   "lib.door.parking.1": "正在停靠…",
-  "lib.door.restoring.1": "正在恢复…"
+  "lib.door.restoring.1": "正在恢复…",
+  "components.GCodeViewer.park.1": "停靠",
+  "components.GCodeViewer.park_title.1": "暂停、停止主轴并将 Z 抬升到停靠高度",
+  "components.JobControl.park.1": "停靠",
+  "components.JobControl.park_title.1": "暂停、停止主轴并将 Z 抬升到停靠高度"
 }

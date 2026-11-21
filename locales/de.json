@@ -1506,5 +1506,9 @@
   "lib.door.ready.1": "Tür geschlossen — bereit zum Fortsetzen",
   "lib.door.open.1": "Tür offen — zum Fortsetzen schließen",
   "lib.door.parking.1": "Parkt…",
-  "lib.door.restoring.1": "Wird fortgesetzt…"
+  "lib.door.restoring.1": "Wird fortgesetzt…",
+  "components.GCodeViewer.park.1": "Parken",
+  "components.GCodeViewer.park_title.1": "Pausieren, Spindel stoppen und Z auf Parkhöhe fahren",
+  "components.JobControl.park.1": "Parken",
+  "components.JobControl.park_title.1": "Pausieren, Spindel stoppen und Z auf Parkhöhe fahren"
 }

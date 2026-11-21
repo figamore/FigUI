@@ -1,5 +1,5 @@
 import { uiText as __uiText } from '../lib/i18n'
-import { Play, Pause, Square, RotateCcw, DoorOpen, StepForward } from 'lucide-react'
+import { Play, Pause, Square, RotateCcw, DoorOpen, StepForward, ArrowUpToLine } from 'lucide-react'
 import { useMachineStore } from '../store'
 import { useGCodeStore } from '../store/gcode'
 import { formatJobProgress, formatRuntime, useJobRuntimeEstimate } from '../lib/jobRuntime'
@@ -28,6 +28,7 @@ export function JobControl() {
   // own pause, resume and abort, as in the Viewer.
   const senderPhase = useGCodeSenderStore(s => s.phase)
   const pauseSender = useGCodeSenderStore(s => s.pause)
+  const parkSender = useGCodeSenderStore(s => s.park)
   const abortSender = useGCodeSenderStore(s => s.abort)
   const senderActive = ['streaming', 'paused', 'draining'].includes(senderPhase)
   const senderPaused = senderPhase === 'paused'
@@ -41,6 +42,7 @@ export function JobControl() {
   const hasSd     = Boolean(sdFilename)
 
   function pause()      { if (senderActive) pauseSender(); else sendRealtime(0x21) }
+  function park()       { if (senderActive) parkSender(); else sendRealtime(0x84) }
   function softReset()  {
     if (!confirm(__uiText("components.JobControl.notice.1", "Abort job and reset?"))) return
     if (senderActive) abortSender()
@@ -115,6 +117,11 @@ export function JobControl() {
             <button className="btn btn-warn-solid job-action gap-1.5 text-sm justify-center flex-1" onClick={pause} disabled={!connected}>
               <Pause size={13} />
               {__uiText("components.JobControl.hold.1", "Hold")}
+            </button>
+            <button className="btn btn-warn-solid job-action gap-1.5 text-sm justify-center flex-1" onClick={park} disabled={!connected}
+              title={__uiText("components.JobControl.park_title.1", "Pause, stop the spindle and raise Z to the parking height")}>
+              <ArrowUpToLine size={13} />
+              {__uiText("components.JobControl.park.1", "Park")}
             </button>
             <button className="btn btn-danger-solid job-action gap-1.5 text-sm justify-center flex-1" onClick={softReset}>
               <Square size={13} />

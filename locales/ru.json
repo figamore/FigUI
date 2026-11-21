@@ -1506,5 +1506,9 @@
   "lib.door.ready.1": "Дверь закрыта — можно продолжить",
   "lib.door.open.1": "Дверь открыта — закройте, чтобы продолжить",
   "lib.door.parking.1": "Парковка…",
-  "lib.door.restoring.1": "Возобновление…"
+  "lib.door.restoring.1": "Возобновление…",
+  "components.GCodeViewer.park.1": "Парковка",
+  "components.GCodeViewer.park_title.1": "Пауза, остановка шпинделя и подъём Z на высоту парковки",
+  "components.JobControl.park.1": "Парковка",
+  "components.JobControl.park_title.1": "Пауза, остановка шпинделя и подъём Z на высоту парковки"
 }

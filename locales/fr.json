@@ -1506,5 +1506,9 @@
   "lib.door.ready.1": "Porte fermée — prêt à reprendre",
   "lib.door.open.1": "Porte ouverte — fermez-la pour reprendre",
   "lib.door.parking.1": "Parcage…",
-  "lib.door.restoring.1": "Reprise…"
+  "lib.door.restoring.1": "Reprise…",
+  "components.GCodeViewer.park.1": "Parquer",
+  "components.GCodeViewer.park_title.1": "Mettre en pause, arrêter la broche et lever Z à la hauteur de parcage",
+  "components.JobControl.park.1": "Parquer",
+  "components.JobControl.park_title.1": "Mettre en pause, arrêter la broche et lever Z à la hauteur de parcage"
 }

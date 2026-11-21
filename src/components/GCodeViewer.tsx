@@ -1,6 +1,6 @@
 import { uiText as __uiText, formatUi } from '../lib/i18n'
 import { useRef, useEffect, useLayoutEffect, useState, useCallback, useMemo } from 'react'
-import { Eye, Circle, Axis3D, Maximize2, Crosshair, Play, Pause, Square, CloudDrizzle, Waves, PowerOff, Zap, Orbit, Hand, ListStart, RotateCcw, FilePlus, X, AlertTriangle, Maximize, ChevronDown, Check, StepForward, Camera as CameraIcon, Rows2, Settings2, RefreshCw } from 'lucide-react'
+import { Eye, Circle, Axis3D, Maximize2, Crosshair, Play, Pause, Square, CloudDrizzle, Waves, PowerOff, Zap, Orbit, Hand, ListStart, RotateCcw, FilePlus, X, AlertTriangle, Maximize, ChevronDown, Check, StepForward, Camera as CameraIcon, Rows2, Settings2, RefreshCw, ArrowUpToLine } from 'lucide-react'
 import { MOVE_FEED, MOVE_RAPID, NO_TOOL, type GCodeModel, type Segment, type SegmentTable } from '../lib/gcode'
 import { useMachineStore } from '../store'
 import { useGCodeStore } from '../store/gcode'
@@ -2518,6 +2518,7 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
   const senderFailureLineSource = useGCodeSenderStore(s => s.failureLineSource)
   const startSender = useGCodeSenderStore(s => s.start)
   const pauseSender = useGCodeSenderStore(s => s.pause)
+  const parkSender = useGCodeSenderStore(s => s.park)
   const resumeSender = useGCodeSenderStore(s => s.resume)
   const abortSender = useGCodeSenderStore(s => s.abort)
   const dismissSender = useGCodeSenderStore(s => s.dismiss)
@@ -4652,6 +4653,16 @@ export function GCodeViewer({ className, isTablet, showOverrides, fitToViewSigna
             >
               <Pause size={isTablet ? 18 : 13} />
               {__uiText("components.GCodeViewer.pause.2", "Pause")}
+            </button>
+          )}
+          {isJobRunning && !controllerJobStarting && (
+            <button
+              className={`btn btn-warn-solid job-cycle-action gap-1.5 job-action ${isTablet ? 'text-base' : 'text-sm'} justify-center flex-1`}
+              onClick={() => senderActive ? parkSender() : sendRealtime(0x84)}
+              title={__uiText("components.GCodeViewer.park_title.1", "Pause, stop the spindle and raise Z to the parking height")}
+            >
+              <ArrowUpToLine size={isTablet ? 18 : 13} />
+              {__uiText("components.GCodeViewer.park.1", "Park")}
             </button>
           )}
           {isJobHeld && (

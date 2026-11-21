@@ -1506,5 +1506,9 @@
   "lib.door.ready.1": "الباب مغلق — جاهز للاستئناف",
   "lib.door.open.1": "الباب مفتوح — أغلقه للاستئناف",
   "lib.door.parking.1": "جارٍ الركن…",
-  "lib.door.restoring.1": "جارٍ الاستئناف…"
+  "lib.door.restoring.1": "جارٍ الاستئناف…",
+  "components.GCodeViewer.park.1": "ركن",
+  "components.GCodeViewer.park_title.1": "إيقاف مؤقت، إيقاف المغزل ورفع Z إلى ارتفاع الركن",
+  "components.JobControl.park.1": "ركن",
+  "components.JobControl.park_title.1": "إيقاف مؤقت، إيقاف المغزل ورفع Z إلى ارتفاع الركن"
 }

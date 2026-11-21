@@ -1506,5 +1506,9 @@
   "lib.door.ready.1": "Вратата е затворена — готово за продължаване",
   "lib.door.open.1": "Вратата е отворена — затворете я, за да продължите",
   "lib.door.parking.1": "Паркиране…",
-  "lib.door.restoring.1": "Продължаване…"
+  "lib.door.restoring.1": "Продължаване…",
+  "components.GCodeViewer.park.1": "Паркиране",
+  "components.GCodeViewer.park_title.1": "Пауза, спиране на шпиндела и вдигане на Z до височината за паркиране",
+  "components.JobControl.park.1": "Паркиране",
+  "components.JobControl.park_title.1": "Пауза, спиране на шпиндела и вдигане на Z до височината за паркиране"
 }

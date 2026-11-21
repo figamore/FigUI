@@ -1506,5 +1506,9 @@
   "lib.door.ready.1": "Porta chiusa — pronto a riprendere",
   "lib.door.open.1": "Porta aperta — chiudila per riprendere",
   "lib.door.parking.1": "Parcheggio…",
-  "lib.door.restoring.1": "Ripresa…"
+  "lib.door.restoring.1": "Ripresa…",
+  "components.GCodeViewer.park.1": "Parcheggia",
+  "components.GCodeViewer.park_title.1": "Pausa, arresta il mandrino e solleva Z all'altezza di parcheggio",
+  "components.JobControl.park.1": "Parcheggia",
+  "components.JobControl.park_title.1": "Pausa, arresta il mandrino e solleva Z all'altezza di parcheggio"
 }

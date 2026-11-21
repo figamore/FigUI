@@ -1506,5 +1506,9 @@
   "lib.door.ready.1": "ドアが閉じています — 再開できます",
   "lib.door.open.1": "ドアが開いています — 閉じると再開できます",
   "lib.door.parking.1": "パーク中…",
-  "lib.door.restoring.1": "再開中…"
+  "lib.door.restoring.1": "再開中…",
+  "components.GCodeViewer.park.1": "パーク",
+  "components.GCodeViewer.park_title.1": "一時停止し、スピンドルを停止して Z をパーキング高さまで上げる",
+  "components.JobControl.park.1": "パーク",
+  "components.JobControl.park_title.1": "一時停止し、スピンドルを停止して Z をパーキング高さまで上げる"
 }

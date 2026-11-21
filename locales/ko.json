@@ -1506,5 +1506,9 @@
   "lib.door.ready.1": "도어 닫힘 — 재개 준비 완료",
   "lib.door.open.1": "도어 열림 — 닫아야 재개됩니다",
   "lib.door.parking.1": "파킹 중…",
-  "lib.door.restoring.1": "재개 중…"
+  "lib.door.restoring.1": "재개 중…",
+  "components.GCodeViewer.park.1": "파킹",
+  "components.GCodeViewer.park_title.1": "일시 정지, 스핀들 정지 후 Z를 파킹 높이로 올림",
+  "components.JobControl.park.1": "파킹",
+  "components.JobControl.park_title.1": "일시 정지, 스핀들 정지 후 Z를 파킹 높이로 올림"
 }

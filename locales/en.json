@@ -1506,5 +1506,9 @@
   "lib.door.ready.1": "Door closed — ready to resume",
   "lib.door.open.1": "Door open — close it to resume",
   "lib.door.parking.1": "Parking…",
-  "lib.door.restoring.1": "Resuming…"
+  "lib.door.restoring.1": "Resuming…",
+  "components.GCodeViewer.park.1": "Park",
+  "components.GCodeViewer.park_title.1": "Pause, stop the spindle and raise Z to the parking height",
+  "components.JobControl.park.1": "Park",
+  "components.JobControl.park_title.1": "Pause, stop the spindle and raise Z to the parking height"
 }

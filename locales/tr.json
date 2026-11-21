@@ -1506,5 +1506,9 @@
   "lib.door.ready.1": "Kapı kapalı — devam etmeye hazır",
   "lib.door.open.1": "Kapı açık — devam etmek için kapatın",
   "lib.door.parking.1": "Park ediliyor…",
-  "lib.door.restoring.1": "Devam ediliyor…"
+  "lib.door.restoring.1": "Devam ediliyor…",
+  "components.GCodeViewer.park.1": "Park et",
+  "components.GCodeViewer.park_title.1": "Duraklat, iş milini durdur ve Z'yi park yüksekliğine kaldır",
+  "components.JobControl.park.1": "Park et",
+  "components.JobControl.park_title.1": "Duraklat, iş milini durdur ve Z'yi park yüksekliğine kaldır"
 }

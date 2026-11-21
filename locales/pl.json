@@ -1506,5 +1506,9 @@
   "lib.door.ready.1": "Drzwi zamknięte — gotowe do wznowienia",
   "lib.door.open.1": "Drzwi otwarte — zamknij, aby wznowić",
   "lib.door.parking.1": "Parkowanie…",
-  "lib.door.restoring.1": "Wznawianie…"
+  "lib.door.restoring.1": "Wznawianie…",
+  "components.GCodeViewer.park.1": "Parkuj",
+  "components.GCodeViewer.park_title.1": "Wstrzymaj, zatrzymaj wrzeciono i podnieś Z na wysokość parkowania",
+  "components.JobControl.park.1": "Parkuj",
+  "components.JobControl.park_title.1": "Wstrzymaj, zatrzymaj wrzeciono i podnieś Z na wysokość parkowania"
 }

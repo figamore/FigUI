@@ -1506,5 +1506,9 @@
   "lib.door.ready.1": "Puerta cerrada — listo para reanudar",
   "lib.door.open.1": "Puerta abierta — ciérrela para reanudar",
   "lib.door.parking.1": "Aparcando…",
-  "lib.door.restoring.1": "Reanudando…"
+  "lib.door.restoring.1": "Reanudando…",
+  "components.GCodeViewer.park.1": "Aparcar",
+  "components.GCodeViewer.park_title.1": "Pausar, detener el husillo y subir Z a la altura de aparcamiento",
+  "components.JobControl.park.1": "Aparcar",
+  "components.JobControl.park_title.1": "Pausar, detener el husillo y subir Z a la altura de aparcamiento"
 }
